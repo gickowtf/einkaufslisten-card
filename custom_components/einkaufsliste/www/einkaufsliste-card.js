@@ -2,7 +2,7 @@
  * Einkaufsliste Card – die Familien-Einkaufsliste für Home Assistant
  * Wird automatisch von der Integration "einkaufsliste" geladen.
  */
-const EL_VERSION = "2.9.0";
+const EL_VERSION = "2.9.1";
 
 // Doppelt-Finder: Wörter, die dasselbe meinen (alles klein, ohne Leer-/Sonderzeichen)
 const DUP_SYNONYMS = (() => {
@@ -583,7 +583,7 @@ ha-card.compact .group { margin-top:4px; }
 .recipe mark { background:none; color:var(--primary-color,#03a9f4); font-weight:700; }
 .rsearch { margin:4px 2px 8px; }
 .rsearch input[type=search]::-webkit-search-cancel-button { display:none; }
-.recipe .rname b { display:block; word-break:break-word; }
+.recipe .rname b { display:block; word-break:normal; overflow-wrap:break-word; hyphens:auto; -webkit-hyphens:auto; }
 .recipe .rname small { color:var(--secondary-text-color); font-size:.78em; display:block; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .recipe .primary { padding:8px 10px; font-size:.85em; }
 .rtools { display:flex; gap:6px; justify-content:flex-end; margin:-2px 4px 8px; }
@@ -1977,14 +1977,13 @@ class EinkaufslisteCard extends HTMLElement {
     if ((q || this._recipeGroupF) && !found.length) html.push(`<div class="empty"><ha-icon icon="mdi:magnify-close"></ha-icon>${q ? `Nix gefunden für „${esc(q)}“. 🕵️<br>Weniger Buchstaben probieren?` : "In dieser Gruppe ist nichts. 🕵️"}</div>`);
     const onList = (r) => this._data.items.filter((i) => i.recipe_id === r.id && !i.checked).length;
     for (const { r, via, fuzzy } of found) {
-      const names = r.items.map((i) => i.name + (i.for_whom ? ` (für ${i.for_whom})` : "")).join(", ");
       const sub = fuzzy ? "🤓 Meintest du das?"
         : via ? `🥕 enthält ${this._markHit(via, q)}`
-        : esc(names);
+        : ""; // nur bei der Suche: warum gefunden
       html.push(`
         <div class="recipe" data-id="${r.id}">
           <ha-icon icon="${esc(this._recipeIcon(r))}"></ha-icon>
-          <div class="rname"><b>${via || fuzzy ? esc(r.name) : this._markHit(r.name, q)}${this._servTag(r)}</b><small>${sub}</small></div>
+          <div class="rname" lang="de"><b>${via || fuzzy ? esc(r.name) : this._markHit(r.name, q)}${this._servTag(r)}</b>${sub ? `<small>${sub}</small>` : ""}</div>
           <div class="rbtns">
             <button class="primary" data-act="recipe-apply" title="Zutaten auswählen"><ha-icon icon="mdi:cart-plus"></ha-icon>Auf die Liste</button>
             ${onList(r) ? `<button class="btn" data-act="recipe-unapply" title="Alle offenen Zutaten dieses Rezepts von der Liste nehmen"><ha-icon icon="mdi:cart-remove"></ha-icon>Von der Liste (${onList(r)})</button>` : ""}
@@ -2009,7 +2008,7 @@ class EinkaufslisteCard extends HTMLElement {
     box.innerHTML = this._groupChipsHtml() + ((q || this._recipeGroupF) && !found.length ? `<p class="hint">${q ? `Nix gefunden für „${esc(q)}“ 🕵️` : "In dieser Gruppe ist nichts 🕵️"}</p>` : "") + found.map(({ r, via, fuzzy }) => `
       <div class="recipe" data-id="${r.id}">
         <ha-icon icon="${esc(this._recipeIcon(r))}"></ha-icon>
-        <div class="rname"><b>${via || fuzzy ? esc(r.name) : this._markHit(r.name, q)}${this._servTag(r)}${this._recipePhotoBtn(r)}</b><small>${
+        <div class="rname" lang="de"><b>${via || fuzzy ? esc(r.name) : this._markHit(r.name, q)}${this._servTag(r)}${this._recipePhotoBtn(r)}</b><small>${
           fuzzy ? "🤓 Meintest du das? · " : via ? `🥕 enthält ${this._markHit(via, q)} · ` : ""}${this._rgroup(r.group) ? esc(this._rgroup(r.group).name) + " · " : "ohne Gruppe · "}${r.items.length} Zutaten${r.steps ? " · 📖 Anleitung" : " · ohne Anleitung"}${(r.heat || []).length ? " · 🔥 Backofen & Co." : ""}</small></div>
         <button class="iconbtn" data-act="recipe-edit" title="Bearbeiten"><ha-icon icon="mdi:pencil-outline"></ha-icon></button>
       </div>`).join("");
