@@ -351,11 +351,12 @@ RECIPE_ITEM = vol.Schema(
         vol.Optional("heat"): [HEAT_ROW],
         vol.Optional("servings"): vol.Any(None, vol.All(vol.Coerce(int), vol.Range(min=1, max=99))),
         vol.Optional("servings_unit"): vol.In(["persons", "trays"]),
+        vol.Optional("group"): vol.Any(None, str),
     }
 )
 @callback
 def ws_recipe_add(hass, connection, msg):
-    _run(hass, connection, msg, lambda m: m.add_recipe(msg["name"], msg["items"], msg.get("icon"), msg.get("steps"), msg.get("heat"), msg.get("servings"), msg.get("servings_unit")))
+    _run(hass, connection, msg, lambda m: m.add_recipe(msg["name"], msg["items"], msg.get("icon"), msg.get("steps"), msg.get("heat"), msg.get("servings"), msg.get("servings_unit"), msg.get("group")))
 
 
 @websocket_api.websocket_command(
@@ -369,11 +370,12 @@ def ws_recipe_add(hass, connection, msg):
         vol.Optional("heat"): [HEAT_ROW],
         vol.Optional("servings"): vol.Any(None, vol.All(vol.Coerce(int), vol.Range(min=1, max=99))),
         vol.Optional("servings_unit"): vol.In(["persons", "trays"]),
+        vol.Optional("group"): vol.Any(None, str),
     }
 )
 @callback
 def ws_recipe_update(hass, connection, msg):
-    fields = _pick(msg, "name", "icon", "items", "steps", "heat", "servings", "servings_unit")
+    fields = _pick(msg, "name", "icon", "items", "steps", "heat", "servings", "servings_unit", "group")
     _run(hass, connection, msg, lambda m: m.update_recipe(msg["recipe_id"], **fields))
 
 

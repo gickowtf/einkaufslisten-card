@@ -78,3 +78,24 @@ PERSON_COLORS = ["#e53935", "#1e88e5", "#43a047", "#fb8c00", "#8e24aa", "#00897b
 
 # 📷 so viele Fotos darf ein Produkt höchstens haben (Vorderseite, Rückseite, Regal …)
 MAX_PHOTOS = 6
+
+# 🏷️ Rezept-Gruppen (Schlüssel -> Anzeige); Reihenfolge = Anzeige-Reihenfolge
+RECIPE_GROUPS = {
+    "fisch": "🐟 Fisch",
+    "fleisch": "🥩 Fleisch",
+    "gefluegel": "🍗 Geflügel",
+    "vegetarisch": "🥦 Vegetarisch",
+    "nudeln": "🍝 Nudeln & Reis",
+    "suppen": "🍲 Suppen & Eintöpfe",
+    "salate": "🥗 Salate",
+    "herzhaft": "🍕 Pizza & Herzhaftes",
+    "gebaeck": "🥐 Gebäck",
+    "kuchen": "🍰 Kuchen & Torten",
+    "plaetzchen": "🍪 Plätzchen",
+    "brot": "🍞 Brot & Brötchen",
+    "desserts": "🍮 Desserts",
+    "fruehstueck": "🥣 Frühstück",
+    "sossen": "🥫 Soßen & Dips",
+    "getraenke": "🍹 Getränke",
+    "sonstiges": "📦 Sonstiges",
+}

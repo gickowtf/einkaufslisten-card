@@ -33,6 +33,7 @@ from .const import (
     EVENT_ITEM_ADDED,
     HISTORY_LIMIT,
     MAX_PHOTOS,
+    RECIPE_GROUPS,
     VERSION,
     PERSON_COLORS,
     LOG_DAY_CHOICES,
@@ -97,6 +98,11 @@ def _servings(value: Any) -> int | None:
 def _servings_unit(value: Any) -> str:
     """👥 Personen oder 🍰 Bleche (z. B. beim Kuchen)."""
     return "trays" if value == "trays" else "persons"
+
+
+def _group(value: Any) -> str | None:
+    """🏷️ Rezept-Gruppe (Fisch, Fleisch, Gebäck …) – Unbekanntes wird leer."""
+    return value if value in RECIPE_GROUPS else None
 
 
 def _abc(entry: dict[str, Any]) -> tuple[str, str]:
@@ -280,6 +286,7 @@ class EinkaufslisteManager:
             recipe.setdefault("heat", [])
             recipe.setdefault("servings", None)
             recipe.setdefault("servings_unit", "persons")
+            recipe.setdefault("group", None)
             for entry in recipe.get("items", []):
                 entry["note"] = _note(entry.get("note"))
                 entry["quantity"] = norm_qty(entry.get("quantity"))
@@ -1243,6 +1250,7 @@ class EinkaufslisteManager:
         heat: list[dict[str, Any]] | None = None,
         servings: int | None = None,
         servings_unit: str | None = None,
+        group: str | None = None,
     ) -> dict[str, Any]:
         recipe = {
             "id": _new_id(),
@@ -1253,6 +1261,7 @@ class EinkaufslisteManager:
             "heat": _clean_heat(heat),
             "servings": _servings(servings),
             "servings_unit": _servings_unit(servings_unit),
+            "group": _group(group),
         }
         self.recipes.append(recipe)
         self._changed()
@@ -1277,6 +1286,8 @@ class EinkaufslisteManager:
             recipe["servings"] = _servings(fields["servings"])
         if "servings_unit" in fields:
             recipe["servings_unit"] = _servings_unit(fields["servings_unit"])
+        if "group" in fields:
+            recipe["group"] = _group(fields["group"])
         self._changed()
         return recipe
 
