@@ -223,7 +223,7 @@ Damit keiner mehr die falschen Nudeln mitbringt. 😄
 
 **Mehr Fotos & zuschneiden:**
 - Nach dem Auswählen geht ein kleiner Editor auf: **↺ ↻ drehen**, Rahmen verschieben, **grünen Punkt ziehen = Ausschnitt**, dann **✔ Übernehmen**.
-- Ein Produkt kann **bis zu 6 Fotos** haben (Vorderseite, Rückseite, Regal …). Tipp aufs 📷 → blättern mit ‹ › oder wischen, **➕ Foto dazu**, **🗑️ Dieses löschen**. Die kleine Zahl am 📷 zeigt, wie viele es sind.
+- Ein Produkt kann **bis zu 6 Fotos** haben (Vorderseite, Rückseite, Regal …). Tipp aufs 📷 → blättern mit ‹ › oder wischen, **➕ Foto dazu**. **🗑️ Löschen** geht nur in den Einstellungen (⚙️ → Produkte → Fotos) und im Rezept-Editor, in der Einkaufsliste und bei der Kochmütze nicht, damit keiner aus Versehen ein Foto wegwischt. Ein neues Foto ersetzt nie ein altes, es kommt immer dazu. Die kleine Zahl am 📷 zeigt, wie viele es sind.
 
 ---
 

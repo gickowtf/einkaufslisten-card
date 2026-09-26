@@ -2,7 +2,7 @@
  * Einkaufsliste Card – die Familien-Einkaufsliste für Home Assistant
  * Wird automatisch von der Integration "einkaufsliste" geladen.
  */
-const EL_VERSION = "2.9.2";
+const EL_VERSION = "2.9.3";
 
 // Doppelt-Finder: Wörter, die dasselbe meinen (alles klein, ohne Leer-/Sonderzeichen)
 const DUP_SYNONYMS = (() => {
@@ -1354,10 +1354,9 @@ class EinkaufslisteCard extends HTMLElement {
         <select id="edStore">${this._selectOptions(d.stores, item.store_id, "🛒 Egal wo")}</select>
         <select id="edCat">${this._selectOptions(d.categories, item.category_id, "📦 Ohne Kategorie")}</select>
         <div class="full photorow">
-          <button type="button" class="btn" data-act="photo-take" data-name="${esc(this._pk(item.name, item.note))}"><ha-icon icon="mdi:camera-plus-outline"></ha-icon>${this._hasPhoto(this._pk(item.name, item.note)) ? "Foto ändern" : "Foto"}</button>
+          <button type="button" class="btn" data-act="photo-take" data-name="${esc(this._pk(item.name, item.note))}"><ha-icon icon="mdi:camera-plus-outline"></ha-icon>${this._hasPhoto(this._pk(item.name, item.note)) ? "Foto dazu" : "Foto"}</button>
           ${this._hasAppScanner() ? `<button type="button" class="btn" data-act="barcode-assign" data-id="${item.id}"><ha-icon icon="mdi:barcode-scan"></ha-icon>Barcode zuordnen</button>` : ""}
-          ${this._hasPhoto(this._pk(item.name, item.note)) ? `<button type="button" class="btn" data-act="photo-view" data-name="${esc(this._pk(item.name, item.note))}"><ha-icon icon="mdi:image-outline"></ha-icon>Ansehen</button>
-          <button type="button" class="btn danger" data-act="photo-remove" data-name="${esc(this._pk(item.name, item.note))}"><ha-icon icon="mdi:image-remove-outline"></ha-icon>Foto löschen</button>` : ""}
+          ${this._hasPhoto(this._pk(item.name, item.note)) ? `<button type="button" class="btn" data-act="photo-view" data-name="${esc(this._pk(item.name, item.note))}"><ha-icon icon="mdi:image-outline"></ha-icon>Ansehen</button>` : ""}
         </div>
         <div class="btns">
           <button type="button" class="textbtn" data-act="edit-cancel">Abbrechen</button>
@@ -2707,7 +2706,8 @@ class EinkaufslisteCard extends HTMLElement {
   async _savePhoto(target, data) {
     try {
       this._toast("📸 Foto wird gespeichert …");
-      await this._ws({ type: "einkaufsliste/photo/set", name: target.name, data, add: !!target.add });
+      const add = target.add ?? this._hasPhoto(target.name); // nie ersetzen, immer dazu
+      await this._ws({ type: "einkaufsliste/photo/set", name: target.name, data, add: !!add });
       for (const k of [...this._photoCache.keys()]) if (k.startsWith(target.name.toLowerCase())) this._photoCache.delete(k);
       if (target.onDone) { target.onDone(); return; }
       this._toast(`📸 Foto für „${this._pkLabel(target.name)}“ gespeichert`);
@@ -2753,7 +2753,9 @@ class EinkaufslisteCard extends HTMLElement {
     const row = document.createElement("div");
     Object.assign(row.style, { display: "flex", gap: "8px", flexWrap: "wrap", justifyContent: "center" });
     const bAdd = ovButton("➕ Foto dazu"), bDel = ovButton("🗑️ Dieses löschen"), bClose = ovButton("Schließen", true);
-    row.append(bAdd, bDel, bClose);
+    // 🗑️ Löschen nur in ⚙️ Einstellungen und im Rezept-Editor – nicht in der Liste und nicht bei der Kochmütze
+    const canDelete = this._view === "settings" || this._view === "recipe";
+    row.append(bAdd, ...(canDelete ? [bDel] : []), bClose);
     ov.append(img, cap, nav, row);
     const show = async () => {
       const n = count();
