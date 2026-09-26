@@ -79,23 +79,23 @@ PERSON_COLORS = ["#e53935", "#1e88e5", "#43a047", "#fb8c00", "#8e24aa", "#00897b
 # 📷 so viele Fotos darf ein Produkt höchstens haben (Vorderseite, Rückseite, Regal …)
 MAX_PHOTOS = 6
 
-# 🏷️ Rezept-Gruppen (Schlüssel -> Anzeige); Reihenfolge = Anzeige-Reihenfolge
+# 🏷️ Rezept-Gruppen (Schlüssel -> (Anzeige, Icon)); das Rezept-Icon kommt von der Gruppe
 RECIPE_GROUPS = {
-    "fisch": "🐟 Fisch",
-    "fleisch": "🥩 Fleisch",
-    "gefluegel": "🍗 Geflügel",
-    "vegetarisch": "🥦 Vegetarisch",
-    "nudeln": "🍝 Nudeln & Reis",
-    "suppen": "🍲 Suppen & Eintöpfe",
-    "salate": "🥗 Salate",
-    "herzhaft": "🍕 Pizza & Herzhaftes",
-    "gebaeck": "🥐 Gebäck",
-    "kuchen": "🍰 Kuchen & Torten",
-    "plaetzchen": "🍪 Plätzchen",
-    "brot": "🍞 Brot & Brötchen",
-    "desserts": "🍮 Desserts",
-    "fruehstueck": "🥣 Frühstück",
-    "sossen": "🥫 Soßen & Dips",
-    "getraenke": "🍹 Getränke",
-    "sonstiges": "📦 Sonstiges",
+    "fisch": ("🐟 Fisch", "mdi:fish"),
+    "fleisch": ("🥩 Fleisch", "mdi:food-steak"),
+    "gefluegel": ("🍗 Geflügel", "mdi:food-drumstick"),
+    "vegetarisch": ("🥦 Vegetarisch", "mdi:leaf"),
+    "nudeln": ("🍝 Nudeln & Reis", "mdi:pasta"),
+    "suppen": ("🍲 Suppen & Eintöpfe", "mdi:pot-steam"),
+    "salate": ("🥗 Salate", "mdi:bowl-mix"),
+    "herzhaft": ("🍕 Pizza & Herzhaftes", "mdi:pizza"),
+    "gebaeck": ("🥐 Gebäck", "mdi:food-croissant"),
+    "kuchen": ("🍰 Kuchen & Torten", "mdi:cake-variant"),
+    "plaetzchen": ("🍪 Plätzchen", "mdi:cookie"),
+    "brot": ("🍞 Brot & Brötchen", "mdi:baguette"),
+    "desserts": ("🍮 Desserts", "mdi:ice-cream"),
+    "fruehstueck": ("🥣 Frühstück", "mdi:coffee"),
+    "sossen": ("🥫 Soßen & Dips", "mdi:soy-sauce"),
+    "getraenke": ("🍹 Getränke", "mdi:glass-cocktail"),
+    "sonstiges": ("📦 Sonstiges", "mdi:silverware-fork-knife"),
 }

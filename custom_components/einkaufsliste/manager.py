@@ -378,6 +378,7 @@ class EinkaufslisteManager:
             "photos": {k: v.get("updated") for k, v in self.photos.items()},
             "photo_counts": {k: 1 + len(v["more"]) for k, v in self.photos.items() if v.get("more")},
             "version": VERSION,
+            "recipe_groups": [{"id": k, "name": v[0], "icon": v[1]} for k, v in RECIPE_GROUPS.items()],
             "category_hints": category_hints(self.categories),
             "seen": self.seen,
             "history": history[:300],
