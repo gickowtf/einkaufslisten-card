@@ -1075,3 +1075,50 @@ async def test_recipe_groups(hass, setup, hass_ws_client):
     await client.send_json({"id": 2, "type": "einkaufsliste/group/remove", "kind": "recipe_groups", "group_id": grill["id"]})
     assert (await client.receive_json())["success"]
     assert r["group"] is None and m.recipe_by_id(r["id"]) is not None
+
+
+async def test_photo_order_and_main(hass, setup, hass_ws_client):
+    """↔️ Foto-Reihenfolge ändern, ⭐ Hauptfoto festlegen."""
+    import base64
+
+    client = await hass_ws_client(hass)
+    m = mgr(hass)
+    data = base64.b64encode(JPEG).decode()
+    for _ in range(3):
+        await m.async_set_photo("Käse|gouda", data, add=True)
+    ids = m._photo_ids(m.photos["käse|gouda"])
+    await client.send_json({"id": 1, "type": "einkaufsliste/photo/move", "name": "Käse|Gouda", "index": 2, "to": 0})
+    assert (await client.receive_json())["success"]
+    assert m._photo_ids(m.photos["käse|gouda"]) == [ids[2], ids[0], ids[1]]
+    await client.send_json({"id": 2, "type": "einkaufsliste/photo/move", "name": "Käse|Gouda", "index": 0, "to": 1})
+    assert (await client.receive_json())["success"]
+    assert m._photo_ids(m.photos["käse|gouda"]) == [ids[0], ids[2], ids[1]]
+
+
+async def test_check_and_repair(hass, setup, hass_ws_client):
+    """✅ Alles ok?: kaputte Verweise, fehlende Foto-Dateien, verwaiste Rezept-Fotos."""
+    import base64
+
+    client = await hass_ws_client(hass)
+    m = mgr(hass)
+    await m.async_check(fix=True)  # Reste anderer Tests im gemeinsamen Foto-Ordner wegräumen
+    await client.send_json({"id": 1, "type": "einkaufsliste/check"})
+    res = (await client.receive_json())["result"]
+    assert res["count"] == 0, res["problems"]
+    item = m.add_item("Milch")
+    item["store_id"] = "weg"
+    r = m.add_recipe("Kuchen", [{"name": "Mehl"}], group="fisch")
+    r["group"] = "weg"
+    await m.async_set_photo("Brot", base64.b64encode(JPEG).decode())
+    m._photo_path(m.photos["brot"]["id"]).unlink()
+    await m.async_set_photo("rezept#gibtsnicht", base64.b64encode(JPEG).decode())
+    await client.send_json({"id": 2, "type": "einkaufsliste/check"})
+    res = (await client.receive_json())["result"]
+    assert res["count"] == 4 and not res["fixed"], res
+    await client.send_json({"id": 3, "type": "einkaufsliste/check", "fix": True})
+    res = (await client.receive_json())["result"]
+    assert res["fixed"]
+    assert item["store_id"] is None and r["group"] is None
+    assert "brot" not in m.photos and "rezept#gibtsnicht" not in m.photos
+    await client.send_json({"id": 4, "type": "einkaufsliste/check"})
+    assert (await client.receive_json())["result"]["count"] == 0

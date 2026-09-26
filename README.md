@@ -144,6 +144,10 @@ Was du gewählt hast, steht direkt am Symbol, zum Beispiel **🔢 2x · 👤 Oma
 
 ---
 
+## 📖 Anleitung in der Karte
+
+Ein Tipp auf den **Einkaufswagen oben links** (neben dem Titel) öffnet eine kurze Anleitung für alle in der Familie: Eintragen, Abhaken, Geschäfte, Laden-Modus, Fotos, Rezepte und was die Zeichen oben bedeuten. Die einzelnen Teile klappen per Tipp auf. (Ist der Titel per `show_title: false` ausgeblendet, ist auch der Einkaufswagen weg.)
+
 ## 🍽️ Rezepte
 
 1. In der Karte oben auf das **⚙️-Zahnrad** tippen und dort bei **Rezepte** auf **Neues Rezept** tippen. Bearbeiten und Löschen geht dort über den ✏️-Stift.
@@ -168,7 +172,7 @@ Tippst du zweimal auf dasselbe Rezept, kommt nichts doppelt dazu.
 
 **🛒 Noch nie gekauft:** Wurde eine Zutat noch nie gekauft (also kein „Wie zuletzt“-Geschäft bekannt), fragt „Was davon brauchst du?“ direkt darunter: **„Noch nie gekauft – wo kaufen?“**. Erst wenn bei allen neuen Zutaten ein Geschäft (oder „Egal wo“) gewählt ist, geht „Auf die Liste“. Beim nächsten Mal weiß die Liste es dann.
 
-**🏷️ Rezept-Gruppen:** Jedes Rezept kann eine Gruppe bekommen, z. B. Fisch, Fleisch, Geflügel, Vegetarisch, Nudeln & Reis, Suppen & Eintöpfe, Salate, Pizza & Herzhaftes, Gebäck, Kuchen & Torten, Plätzchen, Brot & Brötchen, Desserts, Frühstück, Soßen & Dips, Getränke oder Sonstiges. Im Rezept-Editor wählst du die Gruppe unter dem Namen aus. **Das Icon des Rezepts kommt automatisch von der Gruppe** (🐟 Fisch → Fisch-Icon), aussuchen musst du es nicht mehr. In ⚙️ → Rezepte steht die Gruppe klein unter dem Rezept. Die Gruppen selbst verwaltest du in **⚙️ → Rezept-Gruppen**, genau wie die Kategorien: anlegen, umbenennen, Icon ändern, Reihenfolge, löschen. Löschst du eine Gruppe, bleiben die Rezepte, sie haben dann nur keine Gruppe mehr.
+**🏷️ Rezept-Gruppen:** Jedes Rezept kann eine Gruppe bekommen, z. B. Fisch, Fleisch, Geflügel, Vegetarisch, Nudeln & Reis, Suppen & Eintöpfe, Salate, Pizza & Herzhaftes, Gebäck, Kuchen & Torten, Plätzchen, Brot & Brötchen, Desserts, Frühstück, Soßen & Dips, Getränke oder Sonstiges. Im Rezept-Editor wählst du die Gruppe unter dem Namen aus. **Beim Tippen des Namens schlägt die Liste schon eine Gruppe vor** („Lachs mit Reis“ → Fisch, „Pfannkuchen“ → Pizza & Herzhaftes, „Grillwürstchen“ → deine eigene Gruppe „Grillen“). Das steht als „✨ vorgeschlagen“ da. Wählst du selbst was aus, bleibt deine Wahl. **Das Icon des Rezepts kommt automatisch von der Gruppe** (🐟 Fisch → Fisch-Icon), aussuchen musst du es nicht mehr. In ⚙️ → Rezepte steht die Gruppe klein unter dem Rezept. Die Gruppen selbst verwaltest du in **⚙️ → Rezept-Gruppen**, genau wie die Kategorien: anlegen, umbenennen, Farbe, Icon, Reihenfolge, löschen. Beim **Anlegen oder Umbenennen** kommt das passende Icon gleich mit (z. B. „Grillen“ → Grill). **Rezept-Zutaten auf der Einkaufsliste** bekommen rechts einen Streifen in der Farbe ihrer Rezept-Gruppe, und der Hinweis „🍽️ Rezeptname“ einen farbigen Punkt. Löschst du eine Gruppe, bleiben die Rezepte, sie haben dann nur keine Gruppe mehr.
 
 **🔤 Zutaten A–Z:** Die Zutaten eines Rezepts stehen immer alphabetisch sortiert (Ä wie A). Das gilt im Editor, bei der Kochmütze, bei „Was davon brauchst du?“, im Koch-Modus und beim Teilen. Alte Rezepte werden beim ersten Start automatisch sortiert.
 
@@ -223,7 +227,7 @@ Damit keiner mehr die falschen Nudeln mitbringt. 😄
 
 **Mehr Fotos & zuschneiden:**
 - Nach dem Auswählen geht ein kleiner Editor auf: **↺ ↻ drehen**, Rahmen verschieben, **grünen Punkt ziehen = Ausschnitt**, dann **✔ Übernehmen**.
-- Ein Produkt kann **bis zu 6 Fotos** haben (Vorderseite, Rückseite, Regal …). Tipp aufs 📷 → blättern mit ‹ › oder wischen, **➕ Foto dazu**. **🗑️ Löschen** geht nur in den Einstellungen (⚙️ → Produkte → Fotos) und im Rezept-Editor, in der Einkaufsliste und bei der Kochmütze nicht, damit keiner aus Versehen ein Foto wegwischt. Ein neues Foto ersetzt nie ein altes, es kommt immer dazu. Die kleine Zahl am 📷 zeigt, wie viele es sind.
+- Ein Produkt kann **bis zu 6 Fotos** haben (Vorderseite, Rückseite, Regal …). Tipp aufs 📷 → blättern mit ‹ › oder wischen, **➕ Foto dazu**. **🗑️ Löschen** geht nur in den Einstellungen (⚙️ → Produkte → Fotos) und im Rezept-Editor, in der Einkaufsliste und bei der Kochmütze nicht, damit keiner aus Versehen ein Foto wegwischt. Ein neues Foto ersetzt nie ein altes, es kommt immer dazu. Sind es **6 Fotos**, steht in der Galerie „📷 6/6 – voll“, und „Foto dazu“ verschwindet. In den Einstellungen und im Rezept-Editor kannst du die Fotos außerdem **sortieren** (◀ nach vorne / nach hinten ▶) und ein **⭐ Hauptfoto** festlegen, das als Erstes kommt. Die kleine Zahl am 📷 zeigt, wie viele es sind.
 
 ---
 
@@ -274,7 +278,9 @@ Bist du bei einem Geschäft, das eine **📍 Zone** hat, wird der ▥-Knopf **gr
 
 ## ⚙️ Die Einstellungen (Zahnrad)
 
-Ein Tipp aufs **⚙️** zeigt eine aufgeräumte Übersicht mit Kacheln: **Geschäfte · Kategorien · Rezepte · Rezept-Gruppen · Personen · Produkte · Verlauf · Aufräumen**. Tipp auf eine Kachel, und nur dieser Bereich geht auf. Mit **← Übersicht** geht's zurück.
+Ein Tipp aufs **⚙️** zeigt eine aufgeräumte Übersicht mit Kacheln: **Geschäfte · Kategorien · Rezepte · Rezept-Gruppen · Personen · Produkte · Alles ok? · Verlauf · Aufräumen**.
+
+**✅ Alles ok?** sucht kaputte Einträge: Fotos, die auf der Festplatte fehlen oder zu nichts mehr gehören, Fotos von gelöschten Rezepten, Barcodes ohne Produkt und Verweise auf gelöschte Geschäfte, Kategorien, Rezepte oder Gruppen. Erst wird nur angezeigt, was gefunden wurde. **Reparieren** räumt es dann auf. Tipp auf eine Kachel, und nur dieser Bereich geht auf. Mit **← Übersicht** geht's zurück.
 
 In der Rezept-Übersicht (⚙️ → Rezepte) steht bei jedem Rezept, ob es eine **📖 Anleitung** und **🔥 Backofen-Einstellungen** hat.
 

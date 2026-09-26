@@ -39,6 +39,8 @@ def async_register(hass: HomeAssistant) -> None:
         ws_photo_set,
         ws_photo_get,
         ws_photo_remove,
+        ws_photo_move,
+        ws_check,
         ws_barcode_lookup,
         ws_barcode_assign,
         ws_barcode_info,
@@ -519,6 +521,27 @@ async def ws_photo_get(hass, connection, msg):
 @websocket_api.async_response
 async def ws_photo_remove(hass, connection, msg):
     await _run_async(hass, connection, msg, lambda m: m.async_remove_photo(msg["name"], msg.get("index")))
+
+
+@websocket_api.websocket_command(
+    {
+        vol.Required("type"): "einkaufsliste/photo/move",
+        vol.Required("name"): str,
+        vol.Required("index"): vol.Coerce(int),
+        vol.Required("to"): vol.Coerce(int),
+    }
+)
+@callback
+def ws_photo_move(hass, connection, msg):
+    _run(hass, connection, msg, lambda m: m.move_photo(msg["name"], msg["index"], msg["to"]))
+
+
+@websocket_api.websocket_command(
+    {vol.Required("type"): "einkaufsliste/check", vol.Optional("fix", default=False): bool}
+)
+@websocket_api.async_response
+async def ws_check(hass, connection, msg):
+    await _run_async(hass, connection, msg, lambda m: m.async_check(msg["fix"]))
 
 
 @websocket_api.websocket_command(

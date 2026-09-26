@@ -102,7 +102,10 @@ def _servings_unit(value: Any) -> str:
 
 def _default_recipe_groups() -> list[dict[str, Any]]:
     """🏷️ Start-Liste der Rezept-Gruppen (änderbar in ⚙️ → Rezept-Gruppen)."""
-    return [{"id": key, "name": name, "icon": icon} for key, (name, icon) in RECIPE_GROUPS.items()]
+    return [
+        {"id": key, "name": name, "icon": icon, "color": CATEGORY_COLORS[k % len(CATEGORY_COLORS)]}
+        for k, (key, (name, icon)) in enumerate(RECIPE_GROUPS.items())
+    ]
 
 
 def _abc(entry: dict[str, Any]) -> tuple[str, str]:
@@ -321,6 +324,8 @@ class EinkaufslisteManager:
             person.setdefault("color", PERSON_COLORS[k % len(PERSON_COLORS)])
         if "recipe_groups" in data:
             self.recipe_groups = data["recipe_groups"]
+            for k, grp in enumerate(self.recipe_groups):  # 🎨 Farben nachrüsten
+                grp.setdefault("color", CATEGORY_COLORS[k % len(CATEGORY_COLORS)])
         else:  # erstes Update mit Rezept-Gruppen: fertige Liste zum Start
             self.recipe_groups = _default_recipe_groups()
             self._schedule_save()
@@ -1080,6 +1085,94 @@ class EinkaufslisteManager:
             await self._async_delete_file(gone)
         self._changed()
 
+    @callback
+    def move_photo(self, name: str, index: int, to: int) -> None:
+        """↔️ Foto in der Reihenfolge verschieben (to=0 = ⭐ Hauptfoto)."""
+        entry = self.photos.get((_clean(name) or "").lower())
+        if entry is None:
+            raise ValueError("Zu diesem Artikel gibt es kein Foto.")
+        ids = self._photo_ids(entry)
+        if not 0 <= int(index) < len(ids):
+            raise ValueError("Dieses Foto gibt es nicht (mehr).")
+        to = max(0, min(int(to), len(ids) - 1))
+        ids.insert(to, ids.pop(int(index)))
+        entry["id"], entry["more"] = ids[0], ids[1:]
+        entry["updated"] = _now_iso()
+        self._changed()
+
+    # ------------------------------------------------------------ ✅ Alles ok?
+    async def async_check(self, fix: bool = False) -> dict[str, Any]:
+        """Kaputte Einträge suchen (und auf Wunsch reparieren): Fotos, Barcodes, Verweise."""
+        problems: list[str] = []
+        stores = {s["id"] for s in self.stores}
+        cats = {c["id"] for c in self.categories}
+        recipes = {r["id"]: r for r in self.recipes}
+        groups = {g["id"] for g in self.recipe_groups}
+        recipe_keys = {recipe_photo_key(rid): r["name"] for rid, r in recipes.items()}
+
+        def _files() -> set[str]:
+            return {f.stem for f in self.photo_dir.glob("*.jpg")} if self.photo_dir.exists() else set()
+
+        files = await self.hass.async_add_executor_job(_files)
+        used: set[str] = set()
+        for key, entry in list(self.photos.items()):
+            ids = self._photo_ids(entry)
+            used |= set(ids)
+            label = recipe_keys.get(key) or (entry.get("name") or key).replace("|", " · ")
+            if key.startswith("rezept#") and key not in recipe_keys:
+                problems.append(f"📷 {len(ids)} Foto(s) von einem gelöschten Rezept")
+                if fix:
+                    await self.async_remove_photo(key)
+                continue
+            missing = [pid for pid in ids if pid not in files]
+            if missing:
+                problems.append(f"📷 „{label}“: {len(missing)} Foto(s) fehlen auf der Festplatte")
+                if fix:
+                    keep = [pid for pid in ids if pid in files]
+                    if keep:
+                        entry["id"], entry["more"] = keep[0], keep[1:]
+                    else:
+                        self.photos.pop(key, None)
+        orphans = files - used
+        if orphans:
+            problems.append(f"🗂️ {len(orphans)} Foto-Datei(en) gehören zu keinem Produkt mehr")
+            if fix:
+                for pid in orphans:
+                    await self._async_delete_file(pid)
+
+        def ref(thing: dict[str, Any], label: str) -> None:
+            for field, valid, what in (("store_id", stores, "Geschäft"), ("category_id", cats, "Kategorie")):
+                if thing.get(field) and thing[field] not in valid:
+                    problems.append(f"🔗 {label}: {what} gibt es nicht mehr")
+                    if fix:
+                        thing[field] = None
+
+        for code, bc in list(self.barcodes.items()):
+            if not bc.get("name"):
+                problems.append(f"▥ Barcode {code} hat keinen Produktnamen")
+                if fix:
+                    self.barcodes.pop(code, None)
+                continue
+            ref(bc, f"Barcode „{bc['name']}“")
+        for item in self.items:
+            ref(item, f"Artikel „{item['name']}“")
+            if item.get("recipe_id") and item["recipe_id"] not in recipes:
+                problems.append(f"🍽️ Artikel „{item['name']}“ gehört zu einem gelöschten Rezept")
+                if fix:
+                    item["recipe_id"] = None
+        for recipe in self.recipes:
+            for ri in recipe["items"]:
+                ref(ri, f"Zutat „{ri['name']}“ in „{recipe['name']}“")
+            if recipe.get("group") and recipe["group"] not in groups:
+                problems.append(f"🏷️ Rezept „{recipe['name']}“: Gruppe gibt es nicht mehr")
+                if fix:
+                    recipe["group"] = None
+        for hist in self.history.values():
+            ref(hist, f"Vorschlag „{hist.get('name', '?')}“")
+        if fix and problems:
+            self._changed()
+        return {"problems": problems, "count": len(problems), "fixed": bool(fix and problems)}
+
     async def _async_delete_file(self, photo_id: str) -> None:
         path = self._photo_path(photo_id)
         await self.hass.async_add_executor_job(lambda: path.unlink(missing_ok=True))
@@ -1433,6 +1526,7 @@ class EinkaufslisteManager:
             entry["color"] = _clean(color) or PERSON_COLORS[len(self.persons) % len(PERSON_COLORS)]
         elif kind == "recipe_groups":
             entry["icon"] = _icon(icon, "mdi:silverware-fork-knife")
+            entry["color"] = _clean(color) or CATEGORY_COLORS[len(self.recipe_groups) % len(CATEGORY_COLORS)]
         else:
             entry["icon"] = _icon(icon, "mdi:tag-outline")
             if kind == "categories":
@@ -1459,7 +1553,7 @@ class EinkaufslisteManager:
             if zone and not zone.startswith("zone."):
                 raise ValueError("Das ist keine Zone.")
             entry["zone"] = zone
-        if "color" in fields and kind in ("stores", "categories", "persons"):
+        if "color" in fields and kind in ("stores", "categories", "persons", "recipe_groups"):
             entry["color"] = _clean(fields["color"]) or entry.get("color")
         if "icon" in fields and kind != "persons":
             entry["icon"] = _icon(fields["icon"], entry.get("icon") or "mdi:tag-outline")

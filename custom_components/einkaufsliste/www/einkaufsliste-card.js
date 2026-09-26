@@ -2,7 +2,7 @@
  * Einkaufsliste Card – die Familien-Einkaufsliste für Home Assistant
  * Wird automatisch von der Integration "einkaufsliste" geladen.
  */
-const EL_VERSION = "2.9.3";
+const EL_VERSION = "2.10.0";
 
 // Doppelt-Finder: Wörter, die dasselbe meinen (alles klein, ohne Leer-/Sonderzeichen)
 const DUP_SYNONYMS = (() => {
@@ -139,7 +139,71 @@ const ICON_DE = {
   stift: "pencil", kleidung: "tshirt-crew", schuh: "shoe-sneaker", einkauf: "cart", wagen: "cart", tasche: "shopping", laden: "store",
   geschäft: "store", markt: "store", rezept: "chef-hat", kochen: "pot-steam", besteck: "silverware-fork-knife", grill: "grill",
   sonstiges: "dots-horizontal", herz: "heart", stern: "star",
+  grillen: "grill", pfanne: "pot-mix", geflügel: "food-drumstick", gefluegel: "food-drumstick", salat: "bowl-mix",
+  plätzchen: "cookie", plaetzchen: "cookie", gebäck: "food-croissant", gebaeck: "food-croissant", dessert: "ice-cream",
+  nachtisch: "ice-cream", frühstück: "coffee", fruehstueck: "coffee", soße: "soy-sauce", sosse: "soy-sauce", sauce: "soy-sauce",
+  dip: "soy-sauce", cocktail: "glass-cocktail", vegetarisch: "leaf", vegan: "leaf", eintopf: "pot-steam", weihnachten: "pine-tree",
+  ostern: "egg-easter", asiatisch: "noodles", wok: "noodles", mexikanisch: "taco", kinder: "human-child", brote: "baguette",
 };
+
+// 💡 Icon-Vorschlag aus einem Namen („Grillen“ → mdi:grill)
+function suggestIcon(name) {
+  const words = String(name || "").toLowerCase().split(/[^a-zäöüß]+/).filter(Boolean);
+  for (const w of words) {
+    if (ICON_DE[w]) return "mdi:" + ICON_DE[w];
+  }
+  for (const w of words) {
+    for (const [de, en] of Object.entries(ICON_DE)) if (de.length >= 4 && w.startsWith(de)) return "mdi:" + en;
+  }
+  return null;
+}
+
+// 🏷️ Rezept-Gruppe aus dem Rezeptnamen raten („Lachs mit Reis“ → Fisch). Reihenfolge zählt:
+// „Pfannkuchen“ ist herzhaft, nicht „Kuchen“.
+const GROUP_WORDS = [
+  ["herzhaft", ["pfannkuchen", "reibekuchen", "kartoffelpuffer", "flammkuchen", "zwiebelkuchen", "pizza", "quiche", "auflauf", "gratin", "toast", "wrap", "tarte flambée"]],
+  ["fisch", ["lachs", "fisch", "thunfisch", "forelle", "garnele", "scampi", "kabeljau", "seelachs", "hering", "matjes", "dorsch", "backfisch", "zander", "shrimps"]],
+  ["gefluegel", ["hähnchen", "haehnchen", "huhn", "hühner", "chicken", "pute", "puten", "ente", "gans", "geflügel", "nuggets"]],
+  ["fleisch", ["schnitzel", "steak", "braten", "gulasch", "hack", "frikadelle", "bolognese", "rind", "schwein", "wurst", "kotelett", "roulade", "spareribs", "burger", "fleisch", "geschnetzeltes", "leberkäse", "speck", "lamm"]],
+  ["suppen", ["suppe", "eintopf", "brühe", "chili", "gulaschsuppe"]],
+  ["salate", ["salat"]],
+  ["nudeln", ["nudel", "pasta", "spaghetti", "lasagne", "penne", "reis", "risotto", "tortellini", "maultasche", "spätzle", "gnocchi", "makkaroni"]],
+  ["plaetzchen", ["plätzchen", "kekse", "keks", "cookies", "spekulatius", "makronen", "vanillekipferl"]],
+  ["kuchen", ["kuchen", "torte", "tarte", "cheesecake", "brownie", "strudel"]],
+  ["brot", ["brötchen", "brot", "baguette", "ciabatta", "semmel"]],
+  ["gebaeck", ["croissant", "hefezopf", "waffel", "muffin", "berliner", "donut", "zimtschnecke", "gebäck", "crêpe", "crepe"]],
+  ["desserts", ["pudding", "dessert", "mousse", "tiramisu", "eis", "creme", "grießbrei", "milchreis", "panna cotta", "kompott", "quarkspeise"]],
+  ["fruehstueck", ["müsli", "porridge", "rührei", "frühstück", "pancake", "omelett", "spiegelei"]],
+  ["sossen", ["soße", "sauce", "dip", "dressing", "pesto", "aioli", "marinade"]],
+  ["getraenke", ["smoothie", "cocktail", "shake", "limonade", "punsch", "bowle", "glühwein", "kakao"]],
+  ["vegetarisch", ["gemüse", "veggie", "vegan", "vegetarisch", "tofu", "falafel"]],
+];
+const WORD_START = new Set(["eis", "dip", "reis", "ente", "gans", "huhn", "lamm", "hack", "keks"]);
+function guessRecipeGroup(name, groups) {
+  const low = String(name || "").toLowerCase();
+  if (!low.trim()) return null;
+  const words = low.split(/[^a-zäöüß]+/).filter(Boolean);
+  // diese kurzen Wörter nur am Wortanfang – sonst findet „eis“ auch „Fleisch“ und „reis“ den „Milchreis“
+  const hit = (w) => (WORD_START.has(w) ? words.some((x) => x.startsWith(w)) : low.includes(w));
+  const byName = (list) => {
+    for (const g of list) {
+      for (const w of String(g.name).toLowerCase().split(/[^a-zäöüß]+/)) {
+        const stem = w.slice(0, Math.max(4, w.length - 2));
+        if (w.length >= 4 && words.some((x) => x.startsWith(stem))) return g.id;
+      }
+    }
+    return null;
+  };
+  const known = new Set(GROUP_WORDS.map(([gid]) => gid));
+  const ids = new Set((groups || []).map((g) => g.id));
+  // 1) eigene, selbst angelegte Gruppen („Grillen“ findet „Grillwürstchen“)
+  const own = byName((groups || []).filter((g) => !known.has(g.id)));
+  if (own) return own;
+  // 2) Wörterbuch
+  for (const [gid, list] of GROUP_WORDS) if (ids.has(gid) && list.some(hit)) return gid;
+  // 3) Namen der mitgelieferten Gruppen (falls umbenannt)
+  return byName((groups || []).filter((g) => known.has(g.id)));
+}
 
 // Foto auf dem Handy verkleinern (spart Platz in Home Assistant)
 async function loadImage(file) {
@@ -465,6 +529,7 @@ input:focus, select:focus { border-color:var(--primary-color,#03a9f4); }
 .chip { --c:#888; display:inline-flex; align-items:center; gap:4px; }
 .chip::before { content:""; width:7px; height:7px; border-radius:50%; background:var(--c); }
 .item { border-left:4px solid var(--cc, transparent); padding-left:0; }
+.item[style*="--rc"] { box-shadow: inset -4px 0 0 var(--rc); }
 .item .txt { -webkit-user-select:none; user-select:none; -webkit-touch-callout:none; }
 .item .qty { border:0; font:inherit; font-size:.85em; cursor:pointer; color:inherit; }
 .item.new { background:color-mix(in srgb, var(--primary-color,#03a9f4) 7%, transparent); }
@@ -550,6 +615,9 @@ ha-card.compact .group { margin-top:4px; }
 .rserv select { width:auto; }
 .servtag { font-weight:400; opacity:.75; }
 .rgrouprow select { width:auto; min-width:150px; }
+#titleIcon { cursor:pointer; }
+.checklist { margin:4px 0 8px; padding-left:20px; font-size:.9em; }
+.checklist li { margin:2px 0; }
 .subtabs { display:flex; gap:6px; flex-wrap:wrap; margin:2px 0 8px; }
 .subtabs .tab ha-icon { --mdc-icon-size:18px; }
 .logfilter { display:grid; grid-template-columns:repeat(auto-fit, minmax(110px, 1fr)); gap:6px; margin:4px 0; }
@@ -802,7 +870,7 @@ class EinkaufslisteCard extends HTMLElement {
       <style>${STYLE}</style>
       <ha-card>
         <div class="head">
-          <div class="title"><ha-icon id="titleIcon" icon="mdi:cart-variant"></ha-icon><span class="t" id="title"></span><span class="badge" id="count" hidden></span><span class="live" id="liveDot" title="Verbindung"></span></div>
+          <div class="title"><ha-icon id="titleIcon" icon="mdi:cart-variant" data-act="guide" title="📖 Anleitung – antippen"></ha-icon><span class="t" id="title"></span><span class="badge" id="count" hidden></span><span class="live" id="liveDot" title="Verbindung"></span></div>
           <button class="iconbtn" id="btnShop" data-act="shopmode" title="Laden-Modus"><ha-icon icon="mdi:cart-outline"></ha-icon></button>
           <button class="iconbtn" id="btnRecipes" data-act="view" data-view="recipes" title="Rezepte"><ha-icon icon="mdi:chef-hat"></ha-icon></button>
           <button class="iconbtn" id="btnSettings" data-act="view" data-view="settings" title="Geschäfte & Kategorien"><ha-icon icon="mdi:cog-outline"></ha-icon></button>
@@ -1260,7 +1328,8 @@ class EinkaufslisteCard extends HTMLElement {
     if (codes.length) meta.push(`<span class="bc" title="Barcode hinterlegt: ${esc(codes.join(", "))}">▥</span>`);
     if (c.show_added_by && item.added_by) meta.push(`<span title="Eingetragen von">✍️ ${esc(this._who(item.added_by))}</span>`);
     if (c.show_dates && item.checked) meta.push(`<span title="Abgehakt von">✓ ${item.checked_by ? esc(this._who(item.checked_by)) : "automatisch"}</span>`);
-    if (recipe) meta.push(`<span>🍽️ ${esc(recipe.name)}</span>`);
+    const rgrp = recipe && this._rgroup(recipe.group);
+    if (recipe) meta.push(rgrp?.color ? `<span class="chip" style="--c:${esc(rgrp.color)}">🍽️ ${esc(recipe.name)}</span>` : `<span>🍽️ ${esc(recipe.name)}</span>`);
     if (c.show_dates) {
       if (item.checked) {
         // (wer abgehakt hat, steht schon oben)
@@ -1277,7 +1346,7 @@ class EinkaufslisteCard extends HTMLElement {
     const cat = this._cat(item.category_id);
     const isNew = this._isNew(item);
     return `
-      <div class="item ${item.checked ? "done" : ""} ${this._pending.has(item.id) ? "pending" : ""} ${isNew ? "new" : ""} ${item.name.startsWith("❓") ? "unknown" : ""}" data-id="${item.id}" style="--cc:${esc(cat?.color || "transparent")}">
+      <div class="item ${item.checked ? "done" : ""} ${this._pending.has(item.id) ? "pending" : ""} ${isNew ? "new" : ""} ${item.name.startsWith("❓") ? "unknown" : ""}" data-id="${item.id}" style="--cc:${esc(cat?.color || "transparent")}${recipe && this._rgroup(recipe.group)?.color ? `;--rc:${esc(this._rgroup(recipe.group).color)}` : ""}">
         <button class="iconbtn check" data-act="toggle" title="${item.checked ? "Wieder auf die Liste" : "Abhaken"}"><ha-icon icon="${icon}"></ha-icon></button>
         <div class="txt">
           <div class="line">${isNew ? `<span class="newbadge" title="Neu seit deinem letzten Blick">✨</span>` : ""}<span class="name">${esc(item.name)}</span>${qty}${who}${this._hasPhoto(pk) ? `<button class="photobtn" data-act="photo-view" data-name="${esc(pk)}" title="Foto ansehen"><ha-icon icon="mdi:camera"></ha-icon>${this._data.photo_counts?.[pk] > 1 ? `<small class="pcount">${this._data.photo_counts[pk]}</small>` : ""}</button>` : ""}</div>
@@ -1354,7 +1423,7 @@ class EinkaufslisteCard extends HTMLElement {
         <select id="edStore">${this._selectOptions(d.stores, item.store_id, "🛒 Egal wo")}</select>
         <select id="edCat">${this._selectOptions(d.categories, item.category_id, "📦 Ohne Kategorie")}</select>
         <div class="full photorow">
-          <button type="button" class="btn" data-act="photo-take" data-name="${esc(this._pk(item.name, item.note))}"><ha-icon icon="mdi:camera-plus-outline"></ha-icon>${this._hasPhoto(this._pk(item.name, item.note)) ? "Foto dazu" : "Foto"}</button>
+          <button type="button" class="btn" data-act="photo-take" data-name="${esc(this._pk(item.name, item.note))}" ${this._photoCount(this._pk(item.name, item.note)) >= 6 ? "disabled" : ""}><ha-icon icon="mdi:camera-plus-outline"></ha-icon>${this._photoCount(this._pk(item.name, item.note)) >= 6 ? "Fotos voll (6/6)" : this._hasPhoto(this._pk(item.name, item.note)) ? "Foto dazu" : "Foto"}</button>
           ${this._hasAppScanner() ? `<button type="button" class="btn" data-act="barcode-assign" data-id="${item.id}"><ha-icon icon="mdi:barcode-scan"></ha-icon>Barcode zuordnen</button>` : ""}
           ${this._hasPhoto(this._pk(item.name, item.note)) ? `<button type="button" class="btn" data-act="photo-view" data-name="${esc(this._pk(item.name, item.note))}"><ha-icon icon="mdi:image-outline"></ha-icon>Ansehen</button>` : ""}
         </div>
@@ -1640,7 +1709,7 @@ class EinkaufslisteCard extends HTMLElement {
       <div class="srow" data-kind="${kind}" data-id="${e.id}">
         ${kind === "stores"
           ? `<input type="color" value="${esc(e.color || "#607d8b")}" data-field="color" title="Farbe">`
-          : kind === "categories" || kind === "persons"
+          : kind === "categories" || kind === "persons" || kind === "recipe_groups"
             ? `<input type="color" value="${esc(e.color || "#9e9e9e")}" data-field="color" title="Farbe">`
             : `<ha-icon class="prev" icon="${esc(kind === "persons" ? "mdi:account-outline" : e.icon || "mdi:tag-outline")}"></ha-icon>`}
         <input class="grow" value="${esc(e.name)}" data-field="name">
@@ -1717,6 +1786,10 @@ class EinkaufslisteCard extends HTMLElement {
         <p class="hint">Alle Produkte, die die Liste kennt. Antippen = ändern. Umbenennen zieht Fotos, Barcodes, Artikel und Rezepte mit.</p>
         <div class="srow"><ha-icon class="prev" icon="mdi:magnify"></ha-icon><input class="grow" id="prodSearch" placeholder="Produkt suchen …" value="${esc(this._prodFilter || "")}"></div>
         <div id="prodList"><p class="hint">Lade Produkte …</p></div>`}` },
+      { key: "check", icon: "mdi:check-decagram-outline", title: "Alles ok?", info: "prüfen & reparieren", html: () => `
+        <p class="hint">Sucht nach kaputten Einträgen: Fotos, die fehlen oder zu nichts gehören, Barcodes ohne Produkt und Verweise auf gelöschte Geschäfte, Kategorien, Rezepte oder Gruppen. Erst wird nur geschaut, repariert wird nur auf Knopfdruck.</p>
+        <div class="btnrow"><button class="btn primary" data-act="check-run"><ha-icon icon="mdi:magnify"></ha-icon>Jetzt prüfen</button></div>
+        <div id="checkRes"></div>` },
       { key: "log", icon: "mdi:history", title: "Verlauf", info: "wer, wann, was, wie", html: () => this._logSectionHtml() },
       { key: "cleanup", icon: "mdi:broom", title: "Aufräumen", info: `${WD_SHORT[s.cleanup_weekday]} ${s.cleanup_time} Uhr`, html: () => `
         <p>Jeden <b>${WD_LONG[s.cleanup_weekday]}</b> um <b>${s.cleanup_time} Uhr</b> werden alle offenen Artikel <b>abgehakt</b>, die mindestens <b>${s.min_age_days} Tage</b> auf der Liste stehen. Gelöscht wird nichts – so kannst du sie später mit einem Tipp wieder auf die Liste nehmen.</p>
@@ -1855,7 +1928,7 @@ class EinkaufslisteCard extends HTMLElement {
         st ? `<span class="chip" style="--c:${esc(st.color)}">${esc(st.name)}</span>` : "",
         cat ? `<span>${esc(cat.name)}</span>` : "",
         p.barcodes.length ? `<span>▥ ${p.barcodes.length}</span>` : "",
-        p.photos ? `<span>📷 ${p.photos}</span>` : "",
+        p.photos ? `<span>📷 ${p.photos}${p.photos >= 6 ? " (voll)" : ""}</span>` : "",
         p.count ? `<span>${p.count}× eingetragen</span>` : "",
         p.open ? `<span>🛒 steht drauf</span>` : "",
       ].filter(Boolean).join("");
@@ -2096,6 +2169,7 @@ class EinkaufslisteCard extends HTMLElement {
         <div class="srow rgrouprow">
           <ha-icon class="prev" icon="mdi:tag-outline"></ha-icon>
           <span class="grow">🏷️ Gruppe</span>
+          <small id="rGroupHint" class="hint" hidden>✨ vorgeschlagen</small>
           <select id="rGroup">
             <option value="">– keine –</option>
             ${(this._data.recipe_groups || []).map((g) => `<option value="${esc(g.id)}" ${dr.group === g.id ? "selected" : ""}>${esc(g.name)}</option>`).join("")}
@@ -2139,6 +2213,8 @@ class EinkaufslisteCard extends HTMLElement {
     this._renderRecipeItems();
     this._renderHeat();
     this._renderRecipePhoto();
+    this._groupAuto = !dr.group; // ohne Gruppe: aus dem Namen vorschlagen
+    this._autoGroup();
   }
 
   // 📷 Foto vom Rezept (fertiges Gericht, Kochbuch-Seite …)
@@ -2209,7 +2285,7 @@ class EinkaufslisteCard extends HTMLElement {
       }
       abcSort(dr.items);
       const nameEl = this.$("rName");
-      if (res.name && !nameEl.value.trim()) nameEl.value = res.name;
+      if (res.name && !nameEl.value.trim()) { nameEl.value = res.name; this._autoGroup(); }
       const stepsEl = this.$("rSteps");
       if (res.steps && stepsEl && !stepsEl.value.trim()) stepsEl.value = res.steps;
       const hasPhoto = (dr.newPhotos || []).length || this._recipeSavedPhotos();
@@ -2707,6 +2783,10 @@ class EinkaufslisteCard extends HTMLElement {
     try {
       this._toast("📸 Foto wird gespeichert …");
       const add = target.add ?? this._hasPhoto(target.name); // nie ersetzen, immer dazu
+      if (add && this._photoCount(target.name) >= 6) {
+        this._toast("📷 Schon 6 Fotos – voll. Erst eins in den ⚙️ Einstellungen löschen.");
+        return;
+      }
       await this._ws({ type: "einkaufsliste/photo/set", name: target.name, data, add: !!add });
       for (const k of [...this._photoCache.keys()]) if (k.startsWith(target.name.toLowerCase())) this._photoCache.delete(k);
       if (target.onDone) { target.onDone(); return; }
@@ -2721,6 +2801,11 @@ class EinkaufslisteCard extends HTMLElement {
         this._renderList();
       }
     } catch (_) { /* Meldung kam schon */ }
+  }
+
+  _photoCount(name) {
+    const key = String(name || "").toLowerCase();
+    return this._data?.photo_counts?.[key] || (this._data?.photos?.[key] ? 1 : 0);
   }
 
   async _photoData(key, index) {
@@ -2755,16 +2840,30 @@ class EinkaufslisteCard extends HTMLElement {
     const bAdd = ovButton("➕ Foto dazu"), bDel = ovButton("🗑️ Dieses löschen"), bClose = ovButton("Schließen", true);
     // 🗑️ Löschen nur in ⚙️ Einstellungen und im Rezept-Editor – nicht in der Liste und nicht bei der Kochmütze
     const canDelete = this._view === "settings" || this._view === "recipe";
+    // ↔️ Reihenfolge und ⭐ Hauptfoto – auch nur dort, wo man ändern darf
+    const bLeft = ovButton("◀ nach vorne"), bMain = ovButton("⭐ Als Hauptfoto"), bRight = ovButton("nach hinten ▶");
+    const sort = document.createElement("div");
+    Object.assign(sort.style, { display: canDelete ? "flex" : "none", gap: "8px", flexWrap: "wrap", justifyContent: "center", marginBottom: "8px" });
+    sort.append(bLeft, bMain, bRight);
+    const full = document.createElement("div");
+    Object.assign(full.style, { color: "#ffcc80", fontSize: "14px", margin: "0 0 8px", textAlign: "center" });
     row.append(bAdd, ...(canDelete ? [bDel] : []), bClose);
-    ov.append(img, cap, nav, row);
+    ov.append(img, cap, nav, full, sort, row);
     const show = async () => {
       const n = count();
       if (!n) { close(); return; }
       idx = Math.max(0, Math.min(idx, n - 1));
       pos.textContent = `${idx + 1} / ${n}`;
       nav.style.visibility = n > 1 ? "visible" : "hidden";
-      cap.textContent = label;
+      cap.textContent = label + (idx === 0 && n > 1 ? " · ⭐ Hauptfoto" : "");
       bAdd.style.display = n >= 6 ? "none" : "";
+      // 📷 Foto-Grenze sichtbar machen
+      full.textContent = n >= 6 ? `📷 ${n}/6 – voll. Für ein neues Foto erst eins löschen${canDelete ? "" : " (in den ⚙️ Einstellungen)"}.` : "";
+      full.style.display = n >= 6 ? "" : "none";
+      sort.style.display = canDelete && n > 1 ? "flex" : "none";
+      bLeft.style.display = idx > 0 ? "" : "none";
+      bMain.style.display = idx > 0 ? "" : "none";
+      bRight.style.display = idx < n - 1 ? "" : "none";
       try { img.src = await this._photoData(key, idx); } catch (_) { close(); }
     };
     const close = () => { ov.remove(); document.removeEventListener("keydown", onKey); onClose?.(); };
@@ -2794,11 +2893,101 @@ class EinkaufslisteCard extends HTMLElement {
         setTimeout(show, 300);
       } catch (_) { /* Meldung kam schon */ }
     };
+    const move = async (to) => {
+      try {
+        await this._ws({ type: "einkaufsliste/photo/move", name: key, index: idx, to });
+        for (const k of [...this._photoCache.keys()]) if (k.startsWith(key + "#")) this._photoCache.delete(k);
+        idx = to;
+        this._toast(to === 0 ? "⭐ Ist jetzt das Hauptfoto" : "↔️ Verschoben");
+        setTimeout(show, 300);
+      } catch (_) { /* Meldung kam schon */ }
+    };
+    bLeft.onclick = () => move(idx - 1);
+    bRight.onclick = () => move(idx + 1);
+    bMain.onclick = () => move(0);
     bAdd.onclick = () => {
       this._photoTarget = { name: key, add: true, onDone: () => { this._toast("📸 Foto dazu gespeichert"); idx = count(); setTimeout(show, 400); } };
       this._pickFile("photoFile");
     };
     show();
+  }
+
+  // 📖 Anleitung – öffnet sich über den Einkaufswagen oben links (ohne Namen, für alle in der Familie)
+  _showGuide() {
+    const ov = makeOverlay();
+    Object.assign(ov.style, { background: "#111", justifyContent: "flex-start", overflowY: "auto", touchAction: "pan-y",
+      paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 40px)" });
+    const sec = (icon, title, body, open = false) => `<details class="elg-sec" ${open ? "open" : ""}><summary>${icon} ${title}</summary><div>${body}</div></details>`;
+    ov.innerHTML = `<style>
+      .elg { width:100%; max-width:640px; color:#eee; font:15px/1.5 Roboto, sans-serif; }
+      .elg h2 { font-size:21px; margin:6px 0 4px; display:flex; align-items:center; gap:8px; }
+      .elg .elg-top { display:flex; justify-content:space-between; align-items:center; gap:10px; }
+      .elg .elg-sub { color:#aaa; margin:0 0 12px; font-size:14px; }
+      .elg-sec { background:#1e1e1e; border:1px solid #333; border-radius:12px; margin:8px 0; overflow:hidden; }
+      .elg-sec summary { cursor:pointer; padding:12px 14px; font-weight:600; font-size:16px; list-style:none; }
+      .elg-sec summary::-webkit-details-marker { display:none; }
+      .elg-sec summary::after { content:"＋"; float:right; opacity:.6; }
+      .elg-sec[open] summary::after { content:"－"; }
+      .elg-sec > div { padding:0 14px 12px; }
+      .elg-sec ul { margin:4px 0; padding-left:20px; }
+      .elg-sec li { margin:4px 0; }
+      .elg b { color:#fff; }
+      .elg .elg-k { display:inline-block; background:#333; border-radius:6px; padding:0 6px; }
+    </style>
+    <div class="elg">
+      <div class="elg-top"><h2>🛒 So funktioniert die Einkaufsliste</h2></div>
+      <p class="elg-sub">Tipp auf eine Überschrift klappt sie auf. Diese Anleitung findest du immer über den <b>Einkaufswagen oben links</b>.</p>
+      ${sec("✍️", "Etwas eintragen", `<ul>
+        <li>Oben ins Feld tippen, z. B. <b>Milch</b>, dann den grünen Haken <span class="elg-k">✔</span>.</li>
+        <li>Beim Tippen kommen <b>Vorschläge</b>. Antippen übernimmt alles davon (Menge, Notiz, für wen, Geschäft).</li>
+        <li>Die Menge geht auch direkt: <b>3 Milch</b> oder <b>500 g Mehl</b>.</li>
+        <li>Die Knöpfe darunter: 🔢 Menge · 📝 Notiz (z. B. Sorte) · 👤 Für wen · 📷 Foto · ▥ Barcode.</li>
+        <li>Das <b>Geschäft</b> wählst du darüber, oder „Egal wo“.</li>
+        <li>Vertippt? Die Liste fragt „Meintest du …?“ 😉</li></ul>`, true)}
+      ${sec("✅", "Abhaken & wieder draufsetzen", `<ul>
+        <li><b>Kreis antippen</b> = gekauft. Das Handy vibriert kurz.</li>
+        <li>Gekauftes rutscht nach unten zu <b>„Erledigt – schon mal gekauft“</b>.</li>
+        <li>Dort den Kreis antippen = <b>wieder auf der Liste</b>. So musst du nichts neu tippen.</li>
+        <li>Einmal pro Woche wird automatisch aufgeräumt: Alte Sachen werden abgehakt, <b>gelöscht wird nichts</b>.</li></ul>`)}
+      ${sec("🏪", "Geschäfte & Reiter", `<ul>
+        <li>Oben die Reiter: <b>Alle</b>, Aldi, Netto … Die Zahl zeigt, wie viel dort offen ist.</li>
+        <li>Die <b>rote Blase</b> heißt: Da ist was Neues dazugekommen, seit du zuletzt geschaut hast.</li>
+        <li><b>✨</b> am Artikel = neu (verschwindet nach 24 Stunden).</li>
+        <li><b>⇄</b> am Artikel = in ein anderes Geschäft schieben, z. B. wenn es aus war.</li></ul>`)}
+      ${sec("👆", "Ändern & lange drücken", `<ul>
+        <li>Artikel <b>lange drücken</b> = Menü: Bearbeiten, Verschieben, Foto, Barcode.</li>
+        <li>Menge direkt ändern mit <span class="elg-k">−</span> und <span class="elg-k">＋</span>.</li>
+        <li>Unter dem Artikel steht klein: Geschäft, Notiz, ▥ (Barcode da), wer eingetragen und wer abgehakt hat.</li></ul>`)}
+      ${sec("🛍️", "Im Laden", `<ul>
+        <li>Der <b>Wagen oben rechts</b> schaltet den <b>Laden-Modus</b> ein: große Zeilen, nur Abhaken.</li>
+        <li>Nochmal antippen = wieder normal.</li>
+        <li>Bist du laut Standort im Geschäft, hakt <b>▥ Scannen</b> das Produkt gleich ab (falls es auf der Liste steht).</li></ul>`)}
+      ${sec("📷", "Fotos & Barcodes", `<ul>
+        <li>Das <b>📷</b> am Artikel zeigt das Foto. Wischen = blättern, <b>„Foto dazu“</b> für weitere (bis 6).</li>
+        <li>Ein neues Foto <b>ersetzt nie</b> ein altes, es kommt immer dazu. Löschen geht nur in den ⚙️ Einstellungen.</li>
+        <li><b>▥ Barcode</b> scannen (in der HA-App): Das Produkt wird erkannt und eingetragen.</li></ul>`)}
+      ${sec("👨‍🍳", "Rezepte", `<ul>
+        <li>Die <b>Kochmütze</b> oben öffnet die Rezepte. Das Suchfeld findet auch Zutaten (z. B. „Zucchini“).</li>
+        <li><b>Auf die Liste</b>: Anhaken, was du brauchst. Was schon draufsteht oder „haben wir immer“ ist (🧂), ist nicht angehakt.</li>
+        <li><b>👥 Für wie viele?</b> bzw. <b>🍕🍰 Wie viele Bleche?</b> Mit − / ＋ rechnen sich die Mengen mit.</li>
+        <li>Steht <b>„Noch nie gekauft – wo kaufen?“</b>, einfach das Geschäft wählen.</li>
+        <li><b>Von der Liste (3)</b> nimmt die Zutaten dieses Rezepts wieder runter.</li>
+        <li>📷 = Rezept-Fotos · <b>🔥 Kochen</b> = Schritt für Schritt in großer Schrift · <b>Teilen</b> = z. B. per WhatsApp.</li>
+        <li>Abgehakte Rezept-Zutaten verschwinden ganz (nicht bei „Erledigt“).</li></ul>`)}
+      ${sec("🟢", "Was bedeuten die Zeichen oben?", `<ul>
+        <li><b>🟢 Grüner Punkt</b> = verbunden, alles ist live auf allen Handys. <b>🔴 Rot</b> = gerade keine Verbindung.</li>
+        <li>Die <b>Zahl</b> neben dem Namen = so viele Sachen sind noch offen.</li>
+        <li>Ein <b>blauer Balken</b> oben = es gibt ein Update, das muss jemand mit Admin-Zugang in Home Assistant fertig machen.</li>
+        <li>⚙️ (falls du es siehst) = Einstellungen: Geschäfte, Kategorien, Rezepte, Personen …</li></ul>`)}
+    </div>`;
+    const bClose = ovButton("Schließen", true);
+    Object.assign(bClose.style, { marginTop: "14px" });
+    ov.append(bClose);
+    const close = () => { ov.remove(); document.removeEventListener("keydown", onKey); };
+    const onKey = (e) => { if (e.key === "Escape") close(); };
+    document.addEventListener("keydown", onKey);
+    bClose.onclick = close;
+    ov.addEventListener("click", (e) => { if (e.target === ov) close(); });
   }
 
   // 👨‍🍳 Koch-Modus: Schritt für Schritt, groß, Bildschirm bleibt an
@@ -3163,8 +3352,19 @@ class EinkaufslisteCard extends HTMLElement {
     if (!this._fixedStore && this._activeTab === "all" && h.store_id && this._store(h.store_id)) this.$("inStore").value = h.store_id;
   }
 
+  // 🏷️ Gruppe aus dem Namen vorschlagen – nur solange keine Gruppe selbst gewählt wurde
+  _autoGroup() {
+    const sel = this.$("rGroup");
+    if (!sel || !this._groupAuto) return;
+    const gid = guessRecipeGroup(this.$("rName")?.value, this._data.recipe_groups) || "";
+    sel.value = gid;
+    this.$("rGroupHint").hidden = !gid;
+    this.$("rIconPrev")?.setAttribute("icon", this._rgroup(gid)?.icon || "mdi:silverware-fork-knife");
+  }
+
   _onInput(e) {
     const t = e.target;
+    if (t.id === "rName") { this._autoGroup(); return; }
     if (t.id === "delSearch") {
       this._delFilter = t.value;
       this._renderDelList();
@@ -3652,6 +3852,29 @@ class EinkaufslisteCard extends HTMLElement {
       case "recipe-new":
         this._openRecipe(null);
         break;
+      case "guide":
+        this._showGuide();
+        break;
+      case "check-run":
+      case "check-fix": {
+        const box = this.$("checkRes");
+        if (!box) break;
+        if (act === "check-fix" && !confirm("Jetzt alles reparieren? Kaputte Verweise werden geleert, fehlende und verwaiste Fotos aufgeräumt.")) break;
+        box.innerHTML = `<p class="hint">${act === "check-fix" ? "Repariere …" : "Prüfe …"} 🔍</p>`;
+        this._ws({ type: "einkaufsliste/check", fix: act === "check-fix" }).then((res) => {
+          if (res.fixed) {
+            box.innerHTML = `<p>🛠️ <b>${res.count} ${res.count === 1 ? "Sache" : "Sachen"} repariert.</b> Alles wieder sauber! ✨</p>`;
+            return;
+          }
+          box.innerHTML = res.count
+            ? `<p><b>⚠️ ${res.count} ${res.count === 1 ? "Sache gefunden" : "Sachen gefunden"}:</b></p>
+               <ul class="checklist">${res.problems.slice(0, 50).map((x) => `<li>${esc(x)}</li>`).join("")}</ul>
+               ${res.count > 50 ? `<p class="hint">… und ${res.count - 50} weitere</p>` : ""}
+               <div class="btnrow"><button class="btn primary" data-act="check-fix"><ha-icon icon="mdi:wrench-outline"></ha-icon>Reparieren</button></div>`
+            : `<p>✅ <b>Alles ok!</b> Nichts Kaputtes gefunden. 🎉</p>`;
+        }).catch(() => { box.innerHTML = ""; });
+        break;
+      }
       case "prod-tab":
         this._prodTab = el.dataset.tab;
         this._renderSettings();
@@ -3802,6 +4025,8 @@ class EinkaufslisteCard extends HTMLElement {
   _onChange(e) {
     const t = e.target;
     if (t.id === "rGroup") {
+      this._groupAuto = false; // selbst gewählt – nicht mehr überschreiben
+      if (this.$("rGroupHint")) this.$("rGroupHint").hidden = true;
       this.$("rIconPrev")?.setAttribute("icon", this._rgroup(t.value)?.icon || "mdi:silverware-fork-knife");
       return;
     }
@@ -3830,6 +4055,15 @@ class EinkaufslisteCard extends HTMLElement {
     const srow = t.closest(".srow[data-kind]");
     if (!srow || !t.dataset.field) return;
     const msg = { type: "einkaufsliste/group/update", kind: srow.dataset.kind, group_id: srow.dataset.id };
+    if (srow.dataset.kind === "recipe_groups" && t.dataset.field === "name") {
+      const icon = suggestIcon(t.value); // 💡 neuer Name → passendes Icon gleich mit
+      if (icon) {
+        msg.icon = stripMdi(icon);
+        const inp = srow.querySelector('input[data-field="icon"]');
+        if (inp) inp.value = stripMdi(icon);
+        srow.querySelector(".prev")?.setAttribute("icon", icon);
+      }
+    }
     msg[t.dataset.field] = t.dataset.field === "icon" ? stripMdi(t.value).trim() || null
       : t.dataset.field === "zone" ? (t.value || null) : t.value;
     if (t.dataset.field === "icon" && !msg.icon) return;
@@ -3845,6 +4079,7 @@ class EinkaufslisteCard extends HTMLElement {
     const msg = { type: "einkaufsliste/group/add", kind, name };
     if (form.elements.color) msg.color = form.elements.color.value;
     if (form.elements.icon && form.elements.icon.value.trim()) msg.icon = stripMdi(form.elements.icon.value.trim());
+    else if (kind === "recipe_groups" && suggestIcon(name)) msg.icon = stripMdi(suggestIcon(name));
     this._ws(msg).then(() => this._renderSettings()).catch(() => {});
   }
 
