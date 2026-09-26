@@ -2,7 +2,7 @@
  * Einkaufsliste Card – die Familien-Einkaufsliste für Home Assistant
  * Wird automatisch von der Integration "einkaufsliste" geladen.
  */
-const EL_VERSION = "2.7.9";
+const EL_VERSION = "2.8.0";
 
 // Doppelt-Finder: Wörter, die dasselbe meinen (alles klein, ohne Leer-/Sonderzeichen)
 const DUP_SYNONYMS = (() => {
@@ -61,6 +61,31 @@ function splitQty(text) {
 }
 
 // Wie viele Buchstaben unterscheiden sich? (für die Tippfehler-Hilfe)
+// 👥 Menge umrechnen: „200 g“ für 4 -> „300 g“ für 6. Stückzahlen werden aufgerundet (4,5 Eier -> 5x).
+const WHOLE_UNITS = new Set(["x", "", "stk", "stück", "dose", "dosen", "pck.", "becher", "bund", "zehen", "flasche", "flaschen",
+  "glas", "gläser", "rolle", "rollen", "beutel", "tüte", "tüten", "scheiben", "kiste", "kisten", "prise"]);
+const PLURAL = { Dose: "Dosen", Flasche: "Flaschen", Glas: "Gläser", Rolle: "Rollen", "Tüte": "Tüten", Kiste: "Kisten", Prise: "Prisen" };
+function scaleQty(qty, factor) {
+  if (!qty || !factor || Math.abs(factor - 1) < 1e-9) return qty || null;
+  const m = String(qty).trim().match(/^(\d+(?:[.,]\d+)?(?:\s*\/\s*\d+)?)(?:\s*-\s*(\d+(?:[.,]\d+)?))?\s*(.*)$/);
+  if (!m) return qty;
+  const num = (t) => { const [a, b] = t.replace(",", ".").split("/").map((x) => parseFloat(x)); return b ? a / b : a; };
+  let unit = m[3].trim();
+  const whole = WHOLE_UNITS.has(unit.toLowerCase());
+  const round = (v) => {
+    if (whole) return Math.max(1, Math.ceil(v - 1e-9));
+    if (v >= 100) return Math.round(v / 10) * 10;
+    if (v >= 10) return Math.round(v);
+    return Math.round(v * 10) / 10;
+  };
+  const fmt = (v) => String(v).replace(".", ",");
+  const a = round(num(m[1]) * factor);
+  const b = m[2] ? round(num(m[2]) * factor) : null;
+  if ((b ?? a) > 1 && PLURAL[unit]) unit = PLURAL[unit];
+  const n = fmt(a) + (b != null && b !== a ? "-" + fmt(b) : "");
+  return unit === "x" || unit === "" ? `${n}x` : `${n} ${unit}`;
+}
+
 // 🔤 Zutaten A–Z (Ä wie A, groß/klein egal) – genau wie im Backend
 const abcSort = (list) => list.sort((a, b) => (a.name || "").localeCompare(b.name || "", "de", { sensitivity: "base" })
   || (a.note || "").localeCompare(b.note || "", "de", { sensitivity: "base" }));
@@ -509,6 +534,16 @@ ha-card.compact .group { margin-top:4px; }
 .prodrow .pmeta { display:flex; flex-wrap:wrap; gap:2px 8px; }
 .prodedit { display:grid; grid-template-columns:1fr 1fr; gap:6px; padding:8px; border-radius:12px; background:var(--secondary-background-color, rgba(127,127,127,.07)); margin:6px 0; }
 .prodedit .btnrow, .prodedit .hint { grid-column:1/-1; }
+.ppers { display:flex; align-items:center; gap:6px; flex-wrap:wrap; padding:6px 4px 10px; border-bottom:1px solid var(--divider-color, rgba(127,127,127,.25)); margin-bottom:6px; }
+.ppers > span { font-weight:600; }
+.ppers b { min-width:26px; text-align:center; font-size:1.2em; }
+.ppers small { opacity:.7; flex-basis:100%; }
+.pscaled { color:var(--primary-color,#03a9f4); }
+.pstore { display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin:-2px 0 6px 34px; font-size:.9em; }
+.pstore select { width:auto; min-width:140px; }
+.pstore.need span { color:var(--warning-color,#ff9800); font-weight:600; }
+.pmiss { color:var(--warning-color,#ff9800); }
+.rserv input { width:70px; text-align:center; }
 .subtabs { display:flex; gap:6px; flex-wrap:wrap; margin:2px 0 8px; }
 .subtabs .tab ha-icon { --mdc-icon-size:18px; }
 .logfilter { display:grid; grid-template-columns:repeat(auto-fit, minmax(110px, 1fr)); gap:6px; margin:4px 0; }
@@ -1962,32 +1997,70 @@ class EinkaufslisteCard extends HTMLElement {
   }
 
   // 🍳 Erst fragen: Welche Zutaten sollen auf die Liste?
+  // 🛒 Wurde diese Zutat schon mal gekauft? Sonst gibt es kein „Wie zuletzt“-Geschäft.
+  _pickNeedsStore(it) {
+    if (it.store_id && this._store(it.store_id)) return false;
+    const low = it.name.toLowerCase();
+    const h = (this._data.history || []).find((x) => x.name.toLowerCase() === low);
+    if (h?.store_id && this._store(h.store_id)) return false;
+    return !this._data.items.some((i) => i.name.toLowerCase() === low && i.store_id && this._store(i.store_id));
+  }
+
+  _pickFactor(r) {
+    return r.servings && this._pickPers ? this._pickPers / r.servings : 1;
+  }
+
+  _pickMissingStore(r) {
+    return [...this._pickSel].some((n) => r.items[n] && this._pickNeedsStore(r.items[n]) && !(String(n) in this._pickStores));
+  }
+
   _pickHtml(r) {
     const open = new Set(this._data.items.filter((i) => !i.checked).map((i) => i.name.toLowerCase()));
     const sel = this._pickSel;
+    const f = this._pickFactor(r);
+    const stores = this._data.stores || [];
     const rows = r.items.map((it, n) => {
       const on = sel.has(n);
-      const info = [it.quantity, it.note, it.for_whom ? "für " + it.for_whom : ""].filter(Boolean).map(esc).join(" · ");
+      const qty = scaleQty(it.quantity, f);
+      const info = [qty, it.note, it.for_whom ? "für " + it.for_whom : ""].filter(Boolean).map(esc).join(" · ");
+      const ask = on && stores.length && this._pickNeedsStore(it);
+      const chosen = this._pickStores[String(n)];
       return `<div class="pickrow ${on ? "on" : ""} ${it.basic ? "basic" : ""}" data-act="pick-toggle" data-n="${n}">
         <ha-icon icon="${on ? "mdi:checkbox-marked" : "mdi:checkbox-blank-outline"}"></ha-icon>
-        <span class="pname">${esc(it.name)}${info ? `<small>${info}</small>` : ""}</span>
+        <span class="pname">${esc(it.name)}${info ? `<small>${qty !== (it.quantity || null) ? info.replace(esc(qty), `<b class="pscaled">${esc(qty)}</b>`) : info}</small>` : ""}</span>
         ${open.has(it.name.toLowerCase()) ? `<span class="phint">steht schon drauf</span>` : it.basic ? `<span class="pbasic">🧂 haben wir immer</span>` : ""}
-      </div>`;
+      </div>${ask ? `<div class="pstore ${chosen === undefined ? "need" : ""}">
+        <span>🛒 Noch nie gekauft – wo kaufen?</span>
+        <select data-act="pick-store" data-n="${n}">
+          <option value="__" ${chosen === undefined ? "selected" : ""} disabled>Bitte wählen …</option>
+          ${stores.map((st) => `<option value="${esc(st.id)}" ${chosen === st.id ? "selected" : ""}>${esc(st.name)}</option>`).join("")}
+          <option value="" ${chosen === "" ? "selected" : ""}>Egal wo</option>
+        </select></div>` : ""}`;
     }).join("");
+    const pers = r.servings ? `<div class="ppers">
+        <span>👥 Für wie viele?</span>
+        <button class="iconbtn" data-act="pick-pers" data-d="-1" ${this._pickPers <= 1 ? "disabled" : ""} title="Weniger"><ha-icon icon="mdi:minus"></ha-icon></button>
+        <b>${this._pickPers}</b>
+        <button class="iconbtn" data-act="pick-pers" data-d="1" ${this._pickPers >= 99 ? "disabled" : ""} title="Mehr"><ha-icon icon="mdi:plus"></ha-icon></button>
+        <small>${this._pickPers === r.servings ? "wie im Rezept" : `Rezept ist für ${r.servings} – Mengen umgerechnet`}</small>
+      </div>` : "";
+    const missing = this._pickMissingStore(r);
     return `<div class="rpick" data-id="${r.id}">
+      ${pers}
       <div class="phead">Was davon brauchst du?<span>
         <button class="linkbtn" data-act="pick-all">Alle</button> · <button class="linkbtn" data-act="pick-none">Keine</button></span></div>
       ${rows}
       <div class="pbtns">
         <button class="btn" data-act="pick-cancel">Abbrechen</button>
-        <button class="primary addbtn" data-act="pick-go" ${sel.size ? "" : "disabled"}><ha-icon icon="mdi:check-bold"></ha-icon>${sel.size} auf die Liste</button>
+        <button class="primary addbtn" data-act="pick-go" ${sel.size && !missing ? "" : "disabled"}><ha-icon icon="mdi:check-bold"></ha-icon>${sel.size} auf die Liste</button>
       </div>
+      ${missing ? `<p class="hint pmiss">🛒 Bitte erst bei allen neuen Zutaten das Geschäft wählen.</p>` : ""}
     </div>`;
   }
 
   _openRecipe(recipe) {
     this._draft = recipe
-      ? { id: recipe.id, name: recipe.name, icon: recipe.icon, steps: recipe.steps || "", heat: (recipe.heat || []).map((h) => ({ ...h })), items: abcSort(recipe.items.map((i) => ({ ...i }))) }
+      ? { id: recipe.id, name: recipe.name, icon: recipe.icon, steps: recipe.steps || "", servings: recipe.servings || null, heat: (recipe.heat || []).map((h) => ({ ...h })), items: abcSort(recipe.items.map((i) => ({ ...i }))) }
       : { id: null, name: "", icon: "mdi:silverware-fork-knife", items: [], heat: [] };
     this._view = "recipe";
     this._draftRendered = false;
@@ -2007,6 +2080,12 @@ class EinkaufslisteCard extends HTMLElement {
           ${this._iconField(dr.icon, 'id="rIcon"')}
         </div>
         <div class="picker" hidden></div>
+        <div class="srow rserv">
+          <ha-icon class="prev" icon="mdi:account-group-outline"></ha-icon>
+          <span class="grow">👥 Die Mengen sind für</span>
+          <input id="rServings" type="number" inputmode="numeric" min="1" max="99" value="${dr.servings || ""}" placeholder="?">
+          <span>Personen</span>
+        </div>
         <div class="photorow" id="rPhotoRow"></div>
         <h3 class="rsub"><ha-icon icon="mdi:food-apple-outline"></ha-icon>Zutaten
           <button class="btn rimportbtn" data-act="rimport-toggle"><ha-icon icon="mdi:clipboard-text-outline"></ha-icon>Rezept einfügen</button></h3>
@@ -2272,6 +2351,7 @@ class EinkaufslisteCard extends HTMLElement {
     dr.name = this.$("rName").value;
     dr.icon = this.$("rIcon").value;
     if (this.$("rSteps")) dr.steps = this.$("rSteps").value;
+    if (this.$("rServings")) { const n = parseInt(this.$("rServings").value, 10); dr.servings = n >= 1 && n <= 99 ? n : null; }
     this._readHeat();
   }
 
@@ -2288,7 +2368,7 @@ class EinkaufslisteCard extends HTMLElement {
     const heat = (dr.heat || []).filter((h) => h.mode || h.temp || h.minutes || h.note)
       .map((h) => ({ device: h.device || "Backofen", mode: h.mode || null, temp: h.temp ? Number(h.temp) : null,
         minutes: h.minutes ? Number(h.minutes) : null, minutes_to: h.minutes_to ? Number(h.minutes_to) : null, preheat: !!h.preheat, note: h.note || null }));
-    const msg = { name: dr.name.trim(), icon: dr.icon || null, items, steps: (dr.steps || "").trim() || null, heat };
+    const msg = { name: dr.name.trim(), icon: dr.icon || null, items, steps: (dr.steps || "").trim() || null, heat, servings: dr.servings || null };
     if (!msg.name) { this.$("rName").classList.add("shake"); return; }
     try {
       const saved = dr.id
@@ -2729,7 +2809,7 @@ class EinkaufslisteCard extends HTMLElement {
   }
 
   _recipeText(r) {
-    const lines = [`🍳 ${r.name}`, "", "Zutaten:"];
+    const lines = [`🍳 ${r.name}`, "", r.servings ? `Zutaten (für ${r.servings} ${r.servings === 1 ? "Person" : "Personen"}):` : "Zutaten:"];
     for (const i of r.items) {
       lines.push(`• ${[i.quantity, i.name].filter(Boolean).join(" ")}${i.note ? ` (${i.note})` : ""}`);
     }
@@ -3541,6 +3621,8 @@ class EinkaufslisteCard extends HTMLElement {
         if (this._pickRecipe === r.id) { this._pickRecipe = null; this._renderRecipes(); break; }
         const open = new Set(this._data.items.filter((i) => !i.checked).map((i) => i.name.toLowerCase()));
         this._pickRecipe = r.id;
+        this._pickPers = r.servings || null; // 👥 Standard: immer erst wie im Rezept
+        this._pickStores = {};
         this._pickSel = new Set(r.items.map((it, n) => (open.has(it.name.toLowerCase()) || it.basic ? -1 : n)).filter((n) => n >= 0));
         this._renderRecipes();
         break;
@@ -3566,6 +3648,15 @@ class EinkaufslisteCard extends HTMLElement {
         this._renderRecipes();
         break;
       }
+      case "pick-store":
+        break; // Auswahl läuft über „change“
+      case "pick-pers": {
+        const r = this._recipe(this._pickRecipe);
+        if (!r?.servings) break;
+        this._pickPers = Math.max(1, Math.min(99, (this._pickPers || r.servings) + Number(el.dataset.d)));
+        this._renderRecipes();
+        break;
+      }
       case "pick-cancel":
         this._pickRecipe = null;
         this._renderRecipes();
@@ -3573,9 +3664,19 @@ class EinkaufslisteCard extends HTMLElement {
       case "pick-go": {
         const r = this._recipe(this._pickRecipe);
         if (!r || !this._pickSel.size) break;
+        if (this._pickMissingStore(r)) { this._toast("🛒 Bitte erst das Geschäft wählen"); break; }
         const items = [...this._pickSel].sort((a, b) => a - b);
+        const f = this._pickFactor(r);
+        const overrides = {};
+        for (const n of items) {
+          const it = r.items[n];
+          const o = {};
+          if (f !== 1 && it.quantity) o.quantity = scaleQty(it.quantity, f);
+          if (String(n) in this._pickStores) o.store_id = this._pickStores[String(n)];
+          if (Object.keys(o).length) overrides[String(n)] = o;
+        }
         this._pickRecipe = null;
-        this._ws({ type: "einkaufsliste/recipe/apply", recipe_id: r.id, items })
+        this._ws({ type: "einkaufsliste/recipe/apply", recipe_id: r.id, items, ...(Object.keys(overrides).length ? { overrides } : {}) })
           .then((res) => {
             this._toast(res.added
               ? `🍽️ ${res.added} Zutaten für „${r.name}“ auf der Liste${res.already ? ` (${res.already} standen schon drauf)` : ""}`
@@ -3650,6 +3751,11 @@ class EinkaufslisteCard extends HTMLElement {
 
   _onChange(e) {
     const t = e.target;
+    if (t.dataset?.act === "pick-store") {
+      this._pickStores[t.dataset.n] = t.value;
+      this._renderRecipes();
+      return;
+    }
     if (t.dataset?.hf === "device") { this._readHeat(); const n = Number(t.closest(".heatrow").dataset.n); this._draft.heat[n].mode = HEAT_DEVICES[t.value]?.modes[0] || null; this._renderHeat(); return; }
     const logKey = { logWho: "who", logStore: "store", logAct: "act" }[t.id];
     if (logKey) {

@@ -164,6 +164,10 @@ Tippst du zweimal auf dasselbe Rezept, kommt nichts doppelt dazu.
 
 **🧺 Von der Liste nehmen:** Stehen Zutaten eines Rezepts auf der Liste, gibt es neben **Auf die Liste** den Knopf **„Von der Liste (3)“**. Ein Tipp nimmt alle offenen Zutaten **dieses** Rezepts auf einmal runter. Andere Rezepte und normale Artikel bleiben stehen.
 
+**👥 Für wie viele Personen:** Im Rezept-Editor unter dem Namen einträgst du, für wie viele Personen die Mengen gedacht sind. Bei „Was davon brauchst du?“ steht dann oben **„👥 Für wie viele?“** mit − und +. Es startet immer mit der Zahl aus dem Rezept. Änderst du sie, rechnen sich die Mengen mit (blau markiert): 200 g für 4 → 300 g für 6. Stückzahlen werden aufgerundet (4,5 Eier → 5x), „Etwas“ oder „nach Geschmack“ bleibt, wie es ist.
+
+**🛒 Noch nie gekauft:** Wurde eine Zutat noch nie gekauft (also kein „Wie zuletzt“-Geschäft bekannt), fragt „Was davon brauchst du?“ direkt darunter: **„Noch nie gekauft – wo kaufen?“**. Erst wenn bei allen neuen Zutaten ein Geschäft (oder „Egal wo“) gewählt ist, geht „Auf die Liste“. Beim nächsten Mal weiß die Liste es dann.
+
 **🔤 Zutaten A–Z:** Die Zutaten eines Rezepts stehen immer alphabetisch sortiert (Ä wie A). Das gilt im Editor, bei der Kochmütze, bei „Was davon brauchst du?“, im Koch-Modus und beim Teilen. Alte Rezepte werden beim ersten Start automatisch sortiert.
 
 **🔎 Vorschläge im Rezept:** Beim Tippen einer Zutat kommen dieselben Vorschläge wie oben in der Liste, zum Beispiel „**Mi**lch · 2 L · 📝 laktosefrei · Aldi“. Ein Tipp übernimmt Menge, Notiz, Für wen, Geschäft und Kategorie. Auch **Zutaten aus Rezepten** kommen als Vorschlag (mit „🍽️ Rezeptname“), selbst wenn sie noch nie auf der Liste standen. Das gilt oben in der Liste genauso.

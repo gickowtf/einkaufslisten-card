@@ -349,11 +349,12 @@ RECIPE_ITEM = vol.Schema(
         vol.Optional("items", default=[]): [RECIPE_ITEM],
         vol.Optional("steps"): OPT_STR,
         vol.Optional("heat"): [HEAT_ROW],
+        vol.Optional("servings"): vol.Any(None, vol.All(vol.Coerce(int), vol.Range(min=1, max=99))),
     }
 )
 @callback
 def ws_recipe_add(hass, connection, msg):
-    _run(hass, connection, msg, lambda m: m.add_recipe(msg["name"], msg["items"], msg.get("icon"), msg.get("steps"), msg.get("heat")))
+    _run(hass, connection, msg, lambda m: m.add_recipe(msg["name"], msg["items"], msg.get("icon"), msg.get("steps"), msg.get("heat"), msg.get("servings")))
 
 
 @websocket_api.websocket_command(
@@ -365,11 +366,12 @@ def ws_recipe_add(hass, connection, msg):
         vol.Optional("items"): [RECIPE_ITEM],
         vol.Optional("steps"): OPT_STR,
         vol.Optional("heat"): [HEAT_ROW],
+        vol.Optional("servings"): vol.Any(None, vol.All(vol.Coerce(int), vol.Range(min=1, max=99))),
     }
 )
 @callback
 def ws_recipe_update(hass, connection, msg):
-    fields = _pick(msg, "name", "icon", "items", "steps", "heat")
+    fields = _pick(msg, "name", "icon", "items", "steps", "heat", "servings")
     _run(hass, connection, msg, lambda m: m.update_recipe(msg["recipe_id"], **fields))
 
 
@@ -386,12 +388,19 @@ def ws_recipe_remove(hass, connection, msg):
         vol.Required("type"): "einkaufsliste/recipe/apply",
         vol.Required("recipe_id"): str,
         vol.Optional("items"): [vol.Coerce(int)],
+        # pro Zutat-Nummer: angepasste Menge (👥 Personen) und/oder gewähltes Geschäft ("" = Egal wo)
+        vol.Optional("overrides"): {
+            vol.Coerce(str): {
+                vol.Optional("quantity"): vol.Any(None, str),
+                vol.Optional("store_id"): vol.Any(None, str),
+            }
+        },
     }
 )
 @callback
 def ws_recipe_apply(hass, connection, msg):
     who = _user_name(hass, connection)
-    _run(hass, connection, msg, lambda m: m.apply_recipe(msg["recipe_id"], who, msg.get("items")))
+    _run(hass, connection, msg, lambda m: m.apply_recipe(msg["recipe_id"], who, msg.get("items"), msg.get("overrides")))
 
 
 @websocket_api.websocket_command(

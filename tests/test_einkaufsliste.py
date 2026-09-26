@@ -1029,3 +1029,24 @@ async def test_recipe_multiple_photos(hass, setup):
     m.remove_recipe(r["id"])
     await hass.async_block_till_done()
     assert key not in m.photos
+
+
+async def test_recipe_servings_and_overrides(hass, setup, hass_ws_client):
+    """👥 Rezept für x Personen; beim Draufsetzen angepasste Menge und gewähltes Geschäft."""
+    client = await hass_ws_client(hass)
+    m = mgr(hass)
+    aldi = m.add_group("stores", "Testmarkt")
+    await client.send_json({"id": 1, "type": "einkaufsliste/recipe/add", "name": "Nudeln", "servings": 4,
+                            "items": [{"name": "Nudeln", "quantity": "500 g"}, {"name": "Tomaten", "quantity": "2x"}]})
+    res = await client.receive_json()
+    assert res["success"] and res["result"]["servings"] == 4
+    rid = res["result"]["id"]
+    await client.send_json({"id": 2, "type": "einkaufsliste/recipe/apply", "recipe_id": rid, "items": [0, 1],
+                            "overrides": {"0": {"quantity": "750 g", "store_id": aldi["id"]}, "1": {"quantity": "3x", "store_id": ""}}})
+    res = await client.receive_json()
+    assert res["success"], res
+    got = {i["name"]: i for i in m.items if i["recipe_id"] == rid}
+    assert got["Nudeln"]["quantity"] == "750 g" and got["Nudeln"]["store_id"] == aldi["id"]
+    assert got["Tomaten"]["quantity"] == "3x" and got["Tomaten"]["store_id"] is None
+    await client.send_json({"id": 3, "type": "einkaufsliste/recipe/update", "recipe_id": rid, "servings": None})
+    assert (await client.receive_json())["result"]["servings"] is None

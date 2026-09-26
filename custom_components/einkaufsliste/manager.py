@@ -85,6 +85,15 @@ def _nice(text: Any) -> str | None:
     return text
 
 
+def _servings(value: Any) -> int | None:
+    """👥 Für wie viele Personen ist das Rezept? (leer = nicht angegeben)"""
+    try:
+        n = int(value)
+    except (TypeError, ValueError):
+        return None
+    return n if 1 <= n <= 99 else None
+
+
 def _abc(entry: dict[str, Any]) -> tuple[str, str]:
     """🔤 Sortier-Schlüssel A–Z wie im Telefonbuch: Ä wie A, ß wie ss, groß/klein egal."""
     def fold(text: Any) -> str:
@@ -264,6 +273,7 @@ class EinkaufslisteManager:
         for recipe in self.recipes:
             recipe.setdefault("steps", None)
             recipe.setdefault("heat", [])
+            recipe.setdefault("servings", None)
             for entry in recipe.get("items", []):
                 entry["note"] = _note(entry.get("note"))
                 entry["quantity"] = norm_qty(entry.get("quantity"))
@@ -1225,6 +1235,7 @@ class EinkaufslisteManager:
         icon: str | None = None,
         steps: str | None = None,
         heat: list[dict[str, Any]] | None = None,
+        servings: int | None = None,
     ) -> dict[str, Any]:
         recipe = {
             "id": _new_id(),
@@ -1233,6 +1244,7 @@ class EinkaufslisteManager:
             "items": self._recipe_items(items or []),
             "steps": _clean_steps(steps),
             "heat": _clean_heat(heat),
+            "servings": _servings(servings),
         }
         self.recipes.append(recipe)
         self._changed()
@@ -1253,6 +1265,8 @@ class EinkaufslisteManager:
             recipe["steps"] = _clean_steps(fields["steps"])
         if "heat" in fields:
             recipe["heat"] = _clean_heat(fields["heat"])
+        if "servings" in fields:
+            recipe["servings"] = _servings(fields["servings"])
         self._changed()
         return recipe
 
@@ -1282,7 +1296,11 @@ class EinkaufslisteManager:
 
     @callback
     def apply_recipe(
-        self, recipe_id: str, added_by: str | None = None, only: list[int] | None = None
+        self,
+        recipe_id: str,
+        added_by: str | None = None,
+        only: list[int] | None = None,
+        overrides: dict[Any, dict[str, Any]] | None = None,
     ) -> dict[str, Any]:
         """Zutaten eines Rezepts auf die Liste setzen (alle oder nur die ausgewählten Nummern)."""
         recipe = self.recipe_by_id(recipe_id)
@@ -1290,18 +1308,25 @@ class EinkaufslisteManager:
             raise ValueError("Dieses Rezept gibt es nicht (mehr).")
         if not recipe["items"]:
             raise ValueError("Das Rezept hat noch keine Zutaten.")
-        entries = recipe["items"]
+        # overrides: {Nummer: {"quantity": "600 g", "store_id": "…" oder "" für Egal wo}}
+        over = {int(k): v or {} for k, v in (overrides or {}).items()}
+        numbered = list(enumerate(recipe["items"]))
         if only is not None:
             wanted = set(only)
-            entries = [e for n, e in enumerate(recipe["items"]) if n in wanted]
-            if not entries:
+            numbered = [(n, e) for n, e in numbered if n in wanted]
+            if not numbered:
                 raise ValueError("Du hast keine Zutat ausgewählt.")
         added = 0
         already = 0
-        for entry in entries:
+        for n, entry in numbered:
+            ov = over.get(n, {})
             hist = self.history_for(entry["name"]) or {}
-            store_id = entry["store_id"] or hist.get("store_id")
+            if "store_id" in ov:  # 🛒 beim Draufsetzen gewählt (noch nie gekauft)
+                store_id = ov["store_id"] or None
+            else:
+                store_id = entry["store_id"] or hist.get("store_id")
             store_id = store_id if self.store_by_id(store_id) else None
+            quantity = norm_qty(_clean(ov["quantity"])) if "quantity" in ov else entry["quantity"]
             cat_id = entry["category_id"] or hist.get("category_id") or self.guess_category(entry["name"])
             same = self._find_same(
                 entry["name"], entry["note"], entry["for_whom"], store_id, recipe_id
@@ -1315,7 +1340,7 @@ class EinkaufslisteManager:
                     entry["name"],
                     store_id=store_id,
                     category_id=cat_id if self.category_by_id(cat_id) else None,
-                    quantity=entry["quantity"],
+                    quantity=quantity,
                     note=entry["note"],
                     for_whom=entry["for_whom"],
                     added_by=added_by,
