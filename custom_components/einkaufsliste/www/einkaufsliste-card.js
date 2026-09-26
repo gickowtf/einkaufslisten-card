@@ -2,7 +2,7 @@
  * Einkaufsliste Card – die Familien-Einkaufsliste für Home Assistant
  * Wird automatisch von der Integration "einkaufsliste" geladen.
  */
-const EL_VERSION = "2.8.0";
+const EL_VERSION = "2.8.1";
 
 // Doppelt-Finder: Wörter, die dasselbe meinen (alles klein, ohne Leer-/Sonderzeichen)
 const DUP_SYNONYMS = (() => {
@@ -85,6 +85,9 @@ function scaleQty(qty, factor) {
   const n = fmt(a) + (b != null && b !== a ? "-" + fmt(b) : "");
   return unit === "x" || unit === "" ? `${n}x` : `${n} ${unit}`;
 }
+
+// 👥 Personen oder 🍰 Bleche: richtige Wörter für die Anzeige
+const servLabel = (unit, n) => (unit === "trays" ? (n === 1 ? "Blech" : "Bleche") : (n === 1 ? "Person" : "Personen"));
 
 // 🔤 Zutaten A–Z (Ä wie A, groß/klein egal) – genau wie im Backend
 const abcSort = (list) => list.sort((a, b) => (a.name || "").localeCompare(b.name || "", "de", { sensitivity: "base" })
@@ -544,6 +547,7 @@ ha-card.compact .group { margin-top:4px; }
 .pstore.need span { color:var(--warning-color,#ff9800); font-weight:600; }
 .pmiss { color:var(--warning-color,#ff9800); }
 .rserv input { width:70px; text-align:center; }
+.rserv select { width:auto; }
 .subtabs { display:flex; gap:6px; flex-wrap:wrap; margin:2px 0 8px; }
 .subtabs .tab ha-icon { --mdc-icon-size:18px; }
 .logfilter { display:grid; grid-template-columns:repeat(auto-fit, minmax(110px, 1fr)); gap:6px; margin:4px 0; }
@@ -2038,11 +2042,11 @@ class EinkaufslisteCard extends HTMLElement {
         </select></div>` : ""}`;
     }).join("");
     const pers = r.servings ? `<div class="ppers">
-        <span>👥 Für wie viele?</span>
+        <span>${r.servings_unit === "trays" ? "🍰 Wie viele Bleche?" : "👥 Für wie viele Personen?"}</span>
         <button class="iconbtn" data-act="pick-pers" data-d="-1" ${this._pickPers <= 1 ? "disabled" : ""} title="Weniger"><ha-icon icon="mdi:minus"></ha-icon></button>
         <b>${this._pickPers}</b>
         <button class="iconbtn" data-act="pick-pers" data-d="1" ${this._pickPers >= 99 ? "disabled" : ""} title="Mehr"><ha-icon icon="mdi:plus"></ha-icon></button>
-        <small>${this._pickPers === r.servings ? "wie im Rezept" : `Rezept ist für ${r.servings} – Mengen umgerechnet`}</small>
+        <small>${this._pickPers === r.servings ? "wie im Rezept" : `Rezept ist für ${r.servings} ${servLabel(r.servings_unit, r.servings)} – Mengen umgerechnet`}</small>
       </div>` : "";
     const missing = this._pickMissingStore(r);
     return `<div class="rpick" data-id="${r.id}">
@@ -2060,7 +2064,7 @@ class EinkaufslisteCard extends HTMLElement {
 
   _openRecipe(recipe) {
     this._draft = recipe
-      ? { id: recipe.id, name: recipe.name, icon: recipe.icon, steps: recipe.steps || "", servings: recipe.servings || null, heat: (recipe.heat || []).map((h) => ({ ...h })), items: abcSort(recipe.items.map((i) => ({ ...i }))) }
+      ? { id: recipe.id, name: recipe.name, icon: recipe.icon, steps: recipe.steps || "", servings: recipe.servings || null, servings_unit: recipe.servings_unit || "persons", heat: (recipe.heat || []).map((h) => ({ ...h })), items: abcSort(recipe.items.map((i) => ({ ...i }))) }
       : { id: null, name: "", icon: "mdi:silverware-fork-knife", items: [], heat: [] };
     this._view = "recipe";
     this._draftRendered = false;
@@ -2081,10 +2085,13 @@ class EinkaufslisteCard extends HTMLElement {
         </div>
         <div class="picker" hidden></div>
         <div class="srow rserv">
-          <ha-icon class="prev" icon="mdi:account-group-outline"></ha-icon>
-          <span class="grow">👥 Die Mengen sind für</span>
+          <ha-icon class="prev" icon="${dr.servings_unit === "trays" ? "mdi:cake-variant" : "mdi:account-group-outline"}"></ha-icon>
+          <span class="grow">Die Mengen sind für</span>
           <input id="rServings" type="number" inputmode="numeric" min="1" max="99" value="${dr.servings || ""}" placeholder="?">
-          <span>Personen</span>
+          <select id="rServUnit">
+            <option value="persons" ${dr.servings_unit !== "trays" ? "selected" : ""}>👥 Personen</option>
+            <option value="trays" ${dr.servings_unit === "trays" ? "selected" : ""}>🍰 Bleche</option>
+          </select>
         </div>
         <div class="photorow" id="rPhotoRow"></div>
         <h3 class="rsub"><ha-icon icon="mdi:food-apple-outline"></ha-icon>Zutaten
@@ -2352,6 +2359,7 @@ class EinkaufslisteCard extends HTMLElement {
     dr.icon = this.$("rIcon").value;
     if (this.$("rSteps")) dr.steps = this.$("rSteps").value;
     if (this.$("rServings")) { const n = parseInt(this.$("rServings").value, 10); dr.servings = n >= 1 && n <= 99 ? n : null; }
+    if (this.$("rServUnit")) dr.servings_unit = this.$("rServUnit").value === "trays" ? "trays" : "persons";
     this._readHeat();
   }
 
@@ -2368,7 +2376,7 @@ class EinkaufslisteCard extends HTMLElement {
     const heat = (dr.heat || []).filter((h) => h.mode || h.temp || h.minutes || h.note)
       .map((h) => ({ device: h.device || "Backofen", mode: h.mode || null, temp: h.temp ? Number(h.temp) : null,
         minutes: h.minutes ? Number(h.minutes) : null, minutes_to: h.minutes_to ? Number(h.minutes_to) : null, preheat: !!h.preheat, note: h.note || null }));
-    const msg = { name: dr.name.trim(), icon: dr.icon || null, items, steps: (dr.steps || "").trim() || null, heat, servings: dr.servings || null };
+    const msg = { name: dr.name.trim(), icon: dr.icon || null, items, steps: (dr.steps || "").trim() || null, heat, servings: dr.servings || null, servings_unit: dr.servings_unit || "persons" };
     if (!msg.name) { this.$("rName").classList.add("shake"); return; }
     try {
       const saved = dr.id
@@ -2809,7 +2817,7 @@ class EinkaufslisteCard extends HTMLElement {
   }
 
   _recipeText(r) {
-    const lines = [`🍳 ${r.name}`, "", r.servings ? `Zutaten (für ${r.servings} ${r.servings === 1 ? "Person" : "Personen"}):` : "Zutaten:"];
+    const lines = [`🍳 ${r.name}`, "", r.servings ? `Zutaten (für ${r.servings} ${servLabel(r.servings_unit, r.servings)}):` : "Zutaten:"];
     for (const i of r.items) {
       lines.push(`• ${[i.quantity, i.name].filter(Boolean).join(" ")}${i.note ? ` (${i.note})` : ""}`);
     }
@@ -3751,6 +3759,10 @@ class EinkaufslisteCard extends HTMLElement {
 
   _onChange(e) {
     const t = e.target;
+    if (t.id === "rServUnit") {
+      t.closest(".srow")?.querySelector(".prev")?.setAttribute("icon", t.value === "trays" ? "mdi:cake-variant" : "mdi:account-group-outline");
+      return;
+    }
     if (t.dataset?.act === "pick-store") {
       this._pickStores[t.dataset.n] = t.value;
       this._renderRecipes();

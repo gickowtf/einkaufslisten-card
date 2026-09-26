@@ -1050,3 +1050,7 @@ async def test_recipe_servings_and_overrides(hass, setup, hass_ws_client):
     assert got["Tomaten"]["quantity"] == "3x" and got["Tomaten"]["store_id"] is None
     await client.send_json({"id": 3, "type": "einkaufsliste/recipe/update", "recipe_id": rid, "servings": None})
     assert (await client.receive_json())["result"]["servings"] is None
+    assert m.recipe_by_id(rid)["servings_unit"] == "persons"
+    await client.send_json({"id": 4, "type": "einkaufsliste/recipe/update", "recipe_id": rid, "servings": 1, "servings_unit": "trays"})
+    res = (await client.receive_json())["result"]
+    assert res["servings"] == 1 and res["servings_unit"] == "trays"

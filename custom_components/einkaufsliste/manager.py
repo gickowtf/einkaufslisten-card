@@ -94,6 +94,11 @@ def _servings(value: Any) -> int | None:
     return n if 1 <= n <= 99 else None
 
 
+def _servings_unit(value: Any) -> str:
+    """👥 Personen oder 🍰 Bleche (z. B. beim Kuchen)."""
+    return "trays" if value == "trays" else "persons"
+
+
 def _abc(entry: dict[str, Any]) -> tuple[str, str]:
     """🔤 Sortier-Schlüssel A–Z wie im Telefonbuch: Ä wie A, ß wie ss, groß/klein egal."""
     def fold(text: Any) -> str:
@@ -274,6 +279,7 @@ class EinkaufslisteManager:
             recipe.setdefault("steps", None)
             recipe.setdefault("heat", [])
             recipe.setdefault("servings", None)
+            recipe.setdefault("servings_unit", "persons")
             for entry in recipe.get("items", []):
                 entry["note"] = _note(entry.get("note"))
                 entry["quantity"] = norm_qty(entry.get("quantity"))
@@ -1236,6 +1242,7 @@ class EinkaufslisteManager:
         steps: str | None = None,
         heat: list[dict[str, Any]] | None = None,
         servings: int | None = None,
+        servings_unit: str | None = None,
     ) -> dict[str, Any]:
         recipe = {
             "id": _new_id(),
@@ -1245,6 +1252,7 @@ class EinkaufslisteManager:
             "steps": _clean_steps(steps),
             "heat": _clean_heat(heat),
             "servings": _servings(servings),
+            "servings_unit": _servings_unit(servings_unit),
         }
         self.recipes.append(recipe)
         self._changed()
@@ -1267,6 +1275,8 @@ class EinkaufslisteManager:
             recipe["heat"] = _clean_heat(fields["heat"])
         if "servings" in fields:
             recipe["servings"] = _servings(fields["servings"])
+        if "servings_unit" in fields:
+            recipe["servings_unit"] = _servings_unit(fields["servings_unit"])
         self._changed()
         return recipe
 
