@@ -2,7 +2,7 @@
  * Einkaufsliste Card – die Familien-Einkaufsliste für Home Assistant
  * Wird automatisch von der Integration "einkaufsliste" geladen.
  */
-const EL_VERSION = "2.9.1";
+const EL_VERSION = "2.9.2";
 
 // Doppelt-Finder: Wörter, die dasselbe meinen (alles klein, ohne Leer-/Sonderzeichen)
 const DUP_SYNONYMS = (() => {
@@ -549,7 +549,6 @@ ha-card.compact .group { margin-top:4px; }
 .rserv input { width:70px; text-align:center; }
 .rserv select { width:auto; }
 .servtag { font-weight:400; opacity:.75; }
-.rgroups { margin:0 2px 6px; }
 .rgrouprow select { width:auto; min-width:150px; }
 .subtabs { display:flex; gap:6px; flex-wrap:wrap; margin:2px 0 8px; }
 .subtabs .tab ha-icon { --mdc-icon-size:18px; }
@@ -1972,9 +1971,8 @@ class EinkaufslisteCard extends HTMLElement {
     if (!(this._data.recipes || []).length) {
       html.push(`<div class="empty"><ha-icon icon="mdi:pot-steam-outline"></ha-icon>Noch keine Rezepte. 🐟<br>Anlegen und bearbeiten kannst du sie über das ⚙️-Zahnrad.</div>`);
     }
-    html.push(this._groupChipsHtml());
-    const found = this._groupFilter(this._recipeMatches(q));
-    if ((q || this._recipeGroupF) && !found.length) html.push(`<div class="empty"><ha-icon icon="mdi:magnify-close"></ha-icon>${q ? `Nix gefunden für „${esc(q)}“. 🕵️<br>Weniger Buchstaben probieren?` : "In dieser Gruppe ist nichts. 🕵️"}</div>`);
+    const found = this._recipeMatches(q);
+    if (q && !found.length) html.push(`<div class="empty"><ha-icon icon="mdi:magnify-close"></ha-icon>Nix gefunden für „${esc(q)}“. 🕵️<br>Weniger Buchstaben probieren?</div>`);
     const onList = (r) => this._data.items.filter((i) => i.recipe_id === r.id && !i.checked).length;
     for (const { r, via, fuzzy } of found) {
       const sub = fuzzy ? "🤓 Meintest du das?"
@@ -2004,8 +2002,8 @@ class EinkaufslisteCard extends HTMLElement {
     if (!box) return;
     const q = (this._recipeFilter || "").trim().toLowerCase();
     this.shadowRoot.querySelectorAll(".rclear").forEach((b) => { b.hidden = !q; });
-    const found = this._groupFilter(this._recipeMatches(q));
-    box.innerHTML = this._groupChipsHtml() + ((q || this._recipeGroupF) && !found.length ? `<p class="hint">${q ? `Nix gefunden für „${esc(q)}“ 🕵️` : "In dieser Gruppe ist nichts 🕵️"}</p>` : "") + found.map(({ r, via, fuzzy }) => `
+    const found = this._recipeMatches(q);
+    box.innerHTML = (q && !found.length ? `<p class="hint">Nix gefunden für „${esc(q)}“ 🕵️</p>` : "") + found.map(({ r, via, fuzzy }) => `
       <div class="recipe" data-id="${r.id}">
         <ha-icon icon="${esc(this._recipeIcon(r))}"></ha-icon>
         <div class="rname" lang="de"><b>${via || fuzzy ? esc(r.name) : this._markHit(r.name, q)}${this._servTag(r)}${this._recipePhotoBtn(r)}</b><small>${
@@ -2157,24 +2155,6 @@ class EinkaufslisteCard extends HTMLElement {
   _rgroup(id) { return (this._data?.recipe_groups || []).find((g) => g.id === id) || null; }
 
   _recipeIcon(r) { return this._rgroup(r?.group)?.icon || "mdi:silverware-fork-knife"; }
-
-  // Filter-Knöpfe: Alle · 🐟 Fisch (3) · … (nur Gruppen, die benutzt werden)
-  _groupChipsHtml() {
-    const recipes = this._data.recipes || [];
-    const used = (this._data.recipe_groups || []).map((g) => ({ g, n: recipes.filter((r) => r.group === g.id).length })).filter((x) => x.n);
-    if (this._recipeGroupF && !used.some((x) => x.g.id === this._recipeGroupF)) this._recipeGroupF = "";
-    if (!used.length) return "";
-    const f = this._recipeGroupF || "";
-    return `<div class="subtabs rgroups">
-      <button class="tab ${!f ? "active" : ""}" data-act="rgroup-filter" data-g="">Alle</button>
-      ${used.map(({ g, n }) => `<button class="tab ${f === g.id ? "active" : ""}" data-act="rgroup-filter" data-g="${esc(g.id)}"><ha-icon icon="${esc(g.icon)}"></ha-icon>${esc(g.name)} <span class="n">${n}</span></button>`).join("")}
-    </div>`;
-  }
-
-  _groupFilter(list) {
-    const f = this._recipeGroupF || "";
-    return f ? list.filter((m) => m.r.group === f) : list;
-  }
 
   // „Pizza – 1 Blech“ / „Lasagne – 4 Personen“ hinter dem Rezeptnamen
   _servTag(r) {
@@ -3673,10 +3653,6 @@ class EinkaufslisteCard extends HTMLElement {
       case "prod-tab":
         this._prodTab = el.dataset.tab;
         this._renderSettings();
-        break;
-      case "rgroup-filter":
-        this._recipeGroupF = el.dataset.g || "";
-        if (this.$("recipeList")) this._renderRecipeList(); else this._renderSetRecipeList();
         break;
       case "recipe-search-clear": {
         this._recipeFilter = "";
