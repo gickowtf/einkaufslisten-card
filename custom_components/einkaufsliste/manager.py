@@ -100,9 +100,9 @@ def _servings_unit(value: Any) -> str:
     return "trays" if value == "trays" else "persons"
 
 
-def _group(value: Any) -> str | None:
-    """🏷️ Rezept-Gruppe (Fisch, Fleisch, Gebäck …) – Unbekanntes wird leer."""
-    return value if value in RECIPE_GROUPS else None
+def _default_recipe_groups() -> list[dict[str, Any]]:
+    """🏷️ Start-Liste der Rezept-Gruppen (änderbar in ⚙️ → Rezept-Gruppen)."""
+    return [{"id": key, "name": name, "icon": icon} for key, (name, icon) in RECIPE_GROUPS.items()]
 
 
 def _abc(entry: dict[str, Any]) -> tuple[str, str]:
@@ -224,6 +224,7 @@ class EinkaufslisteManager:
         self.items: list[dict[str, Any]] = []
         self.recipes: list[dict[str, Any]] = []
         self.persons: list[dict[str, Any]] = []
+        self.recipe_groups: list[dict[str, Any]] = []  # 🏷️ Fisch, Fleisch, Gebäck … (mit Icon)
         self.photos: dict[str, dict[str, Any]] = {}  # Produktname (klein) -> Foto
         self.seen: dict[str, dict[str, str]] = {}  # Benutzer -> Geschäft -> zuletzt angeschaut
         self.barcodes: dict[str, dict[str, Any]] = {}  # Barcode -> gelernter Artikel
@@ -267,6 +268,7 @@ class EinkaufslisteManager:
                 {"id": _new_id(), "name": n, "icon": i, "color": CATEGORY_COLORS[k % len(CATEGORY_COLORS)]}
                 for k, (n, i) in enumerate(DEFAULT_CATEGORIES)
             ]
+            self.recipe_groups = _default_recipe_groups()
             self.last_cleanup = _now_iso()
             self._schedule_save()
             return
@@ -317,6 +319,11 @@ class EinkaufslisteManager:
                 self._schedule_save()
         for k, person in enumerate(self.persons):  # ältere Daten: Farben nachrüsten
             person.setdefault("color", PERSON_COLORS[k % len(PERSON_COLORS)])
+        if "recipe_groups" in data:
+            self.recipe_groups = data["recipe_groups"]
+        else:  # erstes Update mit Rezept-Gruppen: fertige Liste zum Start
+            self.recipe_groups = _default_recipe_groups()
+            self._schedule_save()
 
     def _to_storage(self) -> dict[str, Any]:
         return {
@@ -325,6 +332,7 @@ class EinkaufslisteManager:
             "items": self.items,
             "recipes": self.recipes,
             "persons": self.persons,
+            "recipe_groups": self.recipe_groups,
             "photos": self.photos,
             "barcodes": self.barcodes,
             "seen": self.seen,
@@ -378,7 +386,7 @@ class EinkaufslisteManager:
             "photos": {k: v.get("updated") for k, v in self.photos.items()},
             "photo_counts": {k: 1 + len(v["more"]) for k, v in self.photos.items() if v.get("more")},
             "version": VERSION,
-            "recipe_groups": [{"id": k, "name": v[0], "icon": v[1]} for k, v in RECIPE_GROUPS.items()],
+            "recipe_groups": self.recipe_groups,
             "category_hints": category_hints(self.categories),
             "seen": self.seen,
             "history": history[:300],
@@ -1232,6 +1240,10 @@ class EinkaufslisteManager:
                 self.learn_barcode(code, name, entry["store_id"], entry["category_id"], entry["note"])
         return sorted(out, key=_abc)  # 🔤 Zutaten immer A–Z
 
+    def _group(self, value: Any) -> str | None:
+        """🏷️ Rezept-Gruppe – nur eine, die es in der Liste gibt, sonst leer."""
+        return value if any(g["id"] == value for g in self.recipe_groups) else None
+
     def _recipe_name(self, name: str | None, skip_id: str | None = None) -> str:
         name = _nice(name)
         if not name:
@@ -1262,7 +1274,7 @@ class EinkaufslisteManager:
             "heat": _clean_heat(heat),
             "servings": _servings(servings),
             "servings_unit": _servings_unit(servings_unit),
-            "group": _group(group),
+            "group": self._group(group),
         }
         self.recipes.append(recipe)
         self._changed()
@@ -1288,7 +1300,7 @@ class EinkaufslisteManager:
         if "servings_unit" in fields:
             recipe["servings_unit"] = _servings_unit(fields["servings_unit"])
         if "group" in fields:
-            recipe["group"] = _group(fields["group"])
+            recipe["group"] = self._group(fields["group"])
         self._changed()
         return recipe
 
@@ -1397,6 +1409,8 @@ class EinkaufslisteManager:
             return self.recipes
         if kind == "persons":
             return self.persons
+        if kind == "recipe_groups":
+            return self.recipe_groups
         raise ValueError("Unbekannte Liste.")
 
     def _unique_name(self, kind: str, name: str | None, skip_id: str | None = None) -> str:
@@ -1417,6 +1431,8 @@ class EinkaufslisteManager:
             entry["zone"] = None
         elif kind == "persons":
             entry["color"] = _clean(color) or PERSON_COLORS[len(self.persons) % len(PERSON_COLORS)]
+        elif kind == "recipe_groups":
+            entry["icon"] = _icon(icon, "mdi:silverware-fork-knife")
         else:
             entry["icon"] = _icon(icon, "mdi:tag-outline")
             if kind == "categories":
@@ -1459,6 +1475,13 @@ class EinkaufslisteManager:
         lst.remove(entry)
         if kind == "persons":
             # Artikel behalten den Namen als Text – es geht nichts verloren
+            self._changed()
+            return
+        if kind == "recipe_groups":
+            # Rezepte bleiben, sie haben dann nur keine Gruppe mehr
+            for recipe in self.recipes:
+                if recipe.get("group") == group_id:
+                    recipe["group"] = None
             self._changed()
             return
         field = "store_id" if kind == "stores" else "category_id"

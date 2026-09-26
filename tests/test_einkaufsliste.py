@@ -1054,3 +1054,24 @@ async def test_recipe_servings_and_overrides(hass, setup, hass_ws_client):
     await client.send_json({"id": 4, "type": "einkaufsliste/recipe/update", "recipe_id": rid, "servings": 1, "servings_unit": "trays"})
     res = (await client.receive_json())["result"]
     assert res["servings"] == 1 and res["servings_unit"] == "trays"
+
+
+async def test_recipe_groups(hass, setup, hass_ws_client):
+    """🏷️ Rezept-Gruppen: Start-Liste, eigene Gruppe mit Icon, Löschen nimmt die Gruppe aus den Rezepten."""
+    client = await hass_ws_client(hass)
+    m = mgr(hass)
+    names = [g["name"] for g in m.as_dict()["recipe_groups"]]
+    assert names[:3] == ["Fisch", "Fleisch", "Geflügel"] and "Gebäck" in names
+    fisch = m.recipe_groups[0]
+    assert fisch["icon"] == "mdi:fish"
+    await client.send_json({"id": 1, "type": "einkaufsliste/group/add", "kind": "recipe_groups", "name": "grillen", "icon": "grill"})
+    grill = (await client.receive_json())["result"]
+    assert grill["name"] == "Grillen" and grill["icon"] == "mdi:grill"
+    r = m.add_recipe("Würstchen", [{"name": "Bratwurst"}], group=grill["id"])
+    assert r["group"] == grill["id"]
+    m.update_recipe(r["id"], group="gibtsnicht")
+    assert r["group"] is None
+    m.update_recipe(r["id"], group=grill["id"])
+    await client.send_json({"id": 2, "type": "einkaufsliste/group/remove", "kind": "recipe_groups", "group_id": grill["id"]})
+    assert (await client.receive_json())["success"]
+    assert r["group"] is None and m.recipe_by_id(r["id"]) is not None

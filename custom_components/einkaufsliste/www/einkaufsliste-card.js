@@ -2,7 +2,7 @@
  * Einkaufsliste Card – die Familien-Einkaufsliste für Home Assistant
  * Wird automatisch von der Integration "einkaufsliste" geladen.
  */
-const EL_VERSION = "2.8.2";
+const EL_VERSION = "2.9.0";
 
 // Doppelt-Finder: Wörter, die dasselbe meinen (alles klein, ohne Leer-/Sonderzeichen)
 const DUP_SYNONYMS = (() => {
@@ -549,6 +549,8 @@ ha-card.compact .group { margin-top:4px; }
 .rserv input { width:70px; text-align:center; }
 .rserv select { width:auto; }
 .servtag { font-weight:400; opacity:.75; }
+.rgroups { margin:0 2px 6px; }
+.rgrouprow select { width:auto; min-width:150px; }
 .subtabs { display:flex; gap:6px; flex-wrap:wrap; margin:2px 0 8px; }
 .subtabs .tab ha-icon { --mdc-icon-size:18px; }
 .logfilter { display:grid; grid-template-columns:repeat(auto-fit, minmax(110px, 1fr)); gap:6px; margin:4px 0; }
@@ -1644,12 +1646,12 @@ class EinkaufslisteCard extends HTMLElement {
             ? `<input type="color" value="${esc(e.color || "#9e9e9e")}" data-field="color" title="Farbe">`
             : `<ha-icon class="prev" icon="${esc(kind === "persons" ? "mdi:account-outline" : e.icon || "mdi:tag-outline")}"></ha-icon>`}
         <input class="grow" value="${esc(e.name)}" data-field="name">
-        ${kind === "categories" ? this._iconField(e.icon, 'data-field="icon"') : ""}
+        ${kind === "categories" || kind === "recipe_groups" ? this._iconField(e.icon, 'data-field="icon"') : ""}
         <button class="iconbtn" data-act="up" ${i === 0 ? "disabled" : ""} title="Nach oben"><ha-icon icon="mdi:chevron-up"></ha-icon></button>
         <button class="iconbtn" data-act="down" ${i === len - 1 ? "disabled" : ""} title="Nach unten"><ha-icon icon="mdi:chevron-down"></ha-icon></button>
         <button class="iconbtn" data-act="group-remove" title="Löschen"><ha-icon icon="mdi:trash-can-outline"></ha-icon></button>
       </div>
-      ${kind === "categories" ? `<div class="picker" hidden></div>` : ""}
+      ${kind === "categories" || kind === "recipe_groups" ? `<div class="picker" hidden></div>` : ""}
       ${kind === "stores" && zones.length ? `
       <div class="srow zonerow" data-kind="stores" data-id="${e.id}">
         <ha-icon class="prev" icon="mdi:map-marker-outline"></ha-icon>
@@ -1687,6 +1689,16 @@ class EinkaufslisteCard extends HTMLElement {
         ${recipes.length ? this._recipeSearchHtml("recipeSearchS") : ""}
         <div id="setRecipeList"></div>
         <div class="btnrow"><button class="btn" data-act="recipe-new"><ha-icon icon="mdi:plus"></ha-icon>Neues Rezept</button></div>` },
+      { key: "recipe_groups", icon: "mdi:tag-multiple-outline", title: "Rezept-Gruppen", info: (d.recipe_groups || []).length === 1 ? "1 Gruppe" : `${(d.recipe_groups || []).length} Gruppen`, html: () => `
+        ${(d.recipe_groups || []).map((e, i) => row("recipe_groups", e, i, d.recipe_groups.length)).join("")}
+        <form class="srow" data-addkind="recipe_groups">
+          <ha-icon class="prev" icon="mdi:tag-plus-outline"></ha-icon>
+          <input class="grow" name="name" placeholder="Neue Gruppe, z. B. Grillen">
+          ${this._iconField("", 'name="icon" data-newicon="1"')}
+          <button class="primary" type="submit" title="Hinzufügen"><ha-icon icon="mdi:plus"></ha-icon></button>
+        </form>
+        <div class="picker" hidden></div>
+        <p class="hint">Das Icon der Gruppe bekommen automatisch alle Rezepte dieser Gruppe. Icon: einfach den Namen tippen (z. B. <b>fish</b>, <b>pizza</b> oder <b>cake</b>) und aus der Vorschau antippen.</p>` },
       { key: "persons", icon: "mdi:account-group-outline", title: "Personen", info: persons.length ? `${persons.length} für „Für wen?“` : "noch keine", html: () => `
         ${persons.map((e, i) => row("persons", e, i, persons.length)).join("")}
         <form class="srow" data-addkind="persons">
@@ -1960,24 +1972,26 @@ class EinkaufslisteCard extends HTMLElement {
     if (!(this._data.recipes || []).length) {
       html.push(`<div class="empty"><ha-icon icon="mdi:pot-steam-outline"></ha-icon>Noch keine Rezepte. 🐟<br>Anlegen und bearbeiten kannst du sie über das ⚙️-Zahnrad.</div>`);
     }
-    const found = this._recipeMatches(q);
-    if (q && !found.length) html.push(`<div class="empty"><ha-icon icon="mdi:magnify-close"></ha-icon>Nix gefunden für „${esc(q)}“. 🕵️<br>Weniger Buchstaben probieren?</div>`);
+    html.push(this._groupChipsHtml());
+    const found = this._groupFilter(this._recipeMatches(q));
+    if ((q || this._recipeGroupF) && !found.length) html.push(`<div class="empty"><ha-icon icon="mdi:magnify-close"></ha-icon>${q ? `Nix gefunden für „${esc(q)}“. 🕵️<br>Weniger Buchstaben probieren?` : "In dieser Gruppe ist nichts. 🕵️"}</div>`);
     const onList = (r) => this._data.items.filter((i) => i.recipe_id === r.id && !i.checked).length;
     for (const { r, via, fuzzy } of found) {
       const names = r.items.map((i) => i.name + (i.for_whom ? ` (für ${i.for_whom})` : "")).join(", ");
-      const sub = fuzzy ? `🤓 Meintest du das? · ${r.items.length} Zutaten`
-        : via ? `🥕 enthält ${this._markHit(via, q)} · ${r.items.length} Zutaten`
-        : `${r.items.length} Zutaten · ${esc(names)}`;
+      const sub = fuzzy ? "🤓 Meintest du das?"
+        : via ? `🥕 enthält ${this._markHit(via, q)}`
+        : esc(names);
       html.push(`
         <div class="recipe" data-id="${r.id}">
-          <ha-icon icon="${esc(r.icon || "mdi:silverware-fork-knife")}"></ha-icon>
-          <div class="rname"><b>${via || fuzzy ? esc(r.name) : this._markHit(r.name, q)}${this._servTag(r)}${this._recipePhotoBtn(r)}</b><small>${sub}</small></div>
+          <ha-icon icon="${esc(this._recipeIcon(r))}"></ha-icon>
+          <div class="rname"><b>${via || fuzzy ? esc(r.name) : this._markHit(r.name, q)}${this._servTag(r)}</b><small>${sub}</small></div>
           <div class="rbtns">
             <button class="primary" data-act="recipe-apply" title="Zutaten auswählen"><ha-icon icon="mdi:cart-plus"></ha-icon>Auf die Liste</button>
             ${onList(r) ? `<button class="btn" data-act="recipe-unapply" title="Alle offenen Zutaten dieses Rezepts von der Liste nehmen"><ha-icon icon="mdi:cart-remove"></ha-icon>Von der Liste (${onList(r)})</button>` : ""}
           </div>
         </div>
         <div class="rtools" data-id="${r.id}">
+          ${this._recipePhotoToolBtn(r)}
           ${(r.steps || "").trim() ? `<button class="btn" data-act="recipe-cook"><ha-icon icon="mdi:fire"></ha-icon>Kochen</button>` : ""}
           <button class="btn" data-act="recipe-share"><ha-icon icon="mdi:share-variant-outline"></ha-icon>Teilen</button>
         </div>${this._pickRecipe === r.id ? this._pickHtml(r) : ""}`);
@@ -1991,12 +2005,12 @@ class EinkaufslisteCard extends HTMLElement {
     if (!box) return;
     const q = (this._recipeFilter || "").trim().toLowerCase();
     this.shadowRoot.querySelectorAll(".rclear").forEach((b) => { b.hidden = !q; });
-    const found = this._recipeMatches(q);
-    box.innerHTML = (q && !found.length ? `<p class="hint">Nix gefunden für „${esc(q)}“ 🕵️</p>` : "") + found.map(({ r, via, fuzzy }) => `
+    const found = this._groupFilter(this._recipeMatches(q));
+    box.innerHTML = this._groupChipsHtml() + ((q || this._recipeGroupF) && !found.length ? `<p class="hint">${q ? `Nix gefunden für „${esc(q)}“ 🕵️` : "In dieser Gruppe ist nichts 🕵️"}</p>` : "") + found.map(({ r, via, fuzzy }) => `
       <div class="recipe" data-id="${r.id}">
-        <ha-icon icon="${esc(r.icon || "mdi:silverware-fork-knife")}"></ha-icon>
+        <ha-icon icon="${esc(this._recipeIcon(r))}"></ha-icon>
         <div class="rname"><b>${via || fuzzy ? esc(r.name) : this._markHit(r.name, q)}${this._servTag(r)}${this._recipePhotoBtn(r)}</b><small>${
-          fuzzy ? "🤓 Meintest du das? · " : via ? `🥕 enthält ${this._markHit(via, q)} · ` : ""}${r.items.length} Zutaten${r.steps ? " · 📖 Anleitung" : " · ohne Anleitung"}${(r.heat || []).length ? " · 🔥 Backofen & Co." : ""}</small></div>
+          fuzzy ? "🤓 Meintest du das? · " : via ? `🥕 enthält ${this._markHit(via, q)} · ` : ""}${this._rgroup(r.group) ? esc(this._rgroup(r.group).name) + " · " : "ohne Gruppe · "}${r.items.length} Zutaten${r.steps ? " · 📖 Anleitung" : " · ohne Anleitung"}${(r.heat || []).length ? " · 🔥 Backofen & Co." : ""}</small></div>
         <button class="iconbtn" data-act="recipe-edit" title="Bearbeiten"><ha-icon icon="mdi:pencil-outline"></ha-icon></button>
       </div>`).join("");
   }
@@ -2065,7 +2079,7 @@ class EinkaufslisteCard extends HTMLElement {
 
   _openRecipe(recipe) {
     this._draft = recipe
-      ? { id: recipe.id, name: recipe.name, icon: recipe.icon, steps: recipe.steps || "", servings: recipe.servings || null, servings_unit: recipe.servings_unit || "persons", heat: (recipe.heat || []).map((h) => ({ ...h })), items: abcSort(recipe.items.map((i) => ({ ...i }))) }
+      ? { id: recipe.id, name: recipe.name, group: recipe.group || null, steps: recipe.steps || "", servings: recipe.servings || null, servings_unit: recipe.servings_unit || "persons", heat: (recipe.heat || []).map((h) => ({ ...h })), items: abcSort(recipe.items.map((i) => ({ ...i }))) }
       : { id: null, name: "", icon: "mdi:silverware-fork-knife", items: [], heat: [] };
     this._view = "recipe";
     this._draftRendered = false;
@@ -2080,9 +2094,16 @@ class EinkaufslisteCard extends HTMLElement {
       <div class="sec">
         <h3><ha-icon icon="mdi:chef-hat"></ha-icon>${dr.id ? "Rezept bearbeiten" : "Neues Rezept"}</h3>
         <div class="srow recipehead">
-          <ha-icon class="prev" id="rIconPrev" icon="${esc(dr.icon)}"></ha-icon>
+          <ha-icon class="prev" id="rIconPrev" icon="${esc(this._recipeIcon(dr))}"></ha-icon>
           <input class="grow" id="rName" value="${esc(dr.name)}" placeholder="Name, z. B. Freitags Fisch">
-          ${this._iconField(dr.icon, 'id="rIcon"')}
+        </div>
+        <div class="srow rgrouprow">
+          <ha-icon class="prev" icon="mdi:tag-outline"></ha-icon>
+          <span class="grow">🏷️ Gruppe</span>
+          <select id="rGroup">
+            <option value="">– keine –</option>
+            ${(this._data.recipe_groups || []).map((g) => `<option value="${esc(g.id)}" ${dr.group === g.id ? "selected" : ""}>${esc(g.name)}</option>`).join("")}
+          </select>
         </div>
         <div class="picker" hidden></div>
         <div class="srow rserv">
@@ -2133,6 +2154,29 @@ class EinkaufslisteCard extends HTMLElement {
       ? ` <button class="photobtn" data-act="photo-view" data-name="${esc(key)}" data-title="${esc(r.name)}" title="Rezept-Fotos ansehen"><ha-icon icon="mdi:camera"></ha-icon>${this._data.photo_counts?.[key] > 1 ? `<small class="pcount">${this._data.photo_counts[key]}</small>` : ""}</button>` : "";
   }
 
+  // 🏷️ Rezept-Gruppe und Icon (das Icon kommt immer von der Gruppe)
+  _rgroup(id) { return (this._data?.recipe_groups || []).find((g) => g.id === id) || null; }
+
+  _recipeIcon(r) { return this._rgroup(r?.group)?.icon || "mdi:silverware-fork-knife"; }
+
+  // Filter-Knöpfe: Alle · 🐟 Fisch (3) · … (nur Gruppen, die benutzt werden)
+  _groupChipsHtml() {
+    const recipes = this._data.recipes || [];
+    const used = (this._data.recipe_groups || []).map((g) => ({ g, n: recipes.filter((r) => r.group === g.id).length })).filter((x) => x.n);
+    if (this._recipeGroupF && !used.some((x) => x.g.id === this._recipeGroupF)) this._recipeGroupF = "";
+    if (!used.length) return "";
+    const f = this._recipeGroupF || "";
+    return `<div class="subtabs rgroups">
+      <button class="tab ${!f ? "active" : ""}" data-act="rgroup-filter" data-g="">Alle</button>
+      ${used.map(({ g, n }) => `<button class="tab ${f === g.id ? "active" : ""}" data-act="rgroup-filter" data-g="${esc(g.id)}"><ha-icon icon="${esc(g.icon)}"></ha-icon>${esc(g.name)} <span class="n">${n}</span></button>`).join("")}
+    </div>`;
+  }
+
+  _groupFilter(list) {
+    const f = this._recipeGroupF || "";
+    return f ? list.filter((m) => m.r.group === f) : list;
+  }
+
   // „Pizza – 1 Blech“ / „Lasagne – 4 Personen“ hinter dem Rezeptnamen
   _servTag(r) {
     return r.servings ? `<span class="servtag"> – ${r.servings} ${servLabel(r.servings_unit, r.servings)}</span>` : "";
@@ -2143,6 +2187,14 @@ class EinkaufslisteCard extends HTMLElement {
     if (!dr?.id) return 0;
     const key = this._recipePhotoKey(dr.id);
     return this._data?.photo_counts?.[key] || (this._hasPhoto(key) ? 1 : 0);
+  }
+
+  // 📷 Foto-Knopf in der Knopf-Reihe (neben „Kochen“), mit Anzahl bei mehreren Fotos
+  _recipePhotoToolBtn(r) {
+    const key = this._recipePhotoKey(r.id);
+    if (!this._hasPhoto(key)) return "";
+    const n = this._data.photo_counts?.[key] || 1;
+    return `<button class="btn" data-act="photo-view" data-name="${esc(key)}" data-title="${esc(r.name)}" title="Rezept-Fotos ansehen"><ha-icon icon="mdi:camera"></ha-icon>${n > 1 ? n : ""}</button>`;
   }
 
   _renderRecipePhoto() {
@@ -2362,7 +2414,7 @@ class EinkaufslisteCard extends HTMLElement {
   _readDraft() {
     const dr = this._draft;
     dr.name = this.$("rName").value;
-    dr.icon = this.$("rIcon").value;
+    if (this.$("rGroup")) dr.group = this.$("rGroup").value || null;
     if (this.$("rSteps")) dr.steps = this.$("rSteps").value;
     if (this.$("rServings")) { const n = parseInt(this.$("rServings").value, 10); dr.servings = n >= 1 && n <= 99 ? n : null; }
     if (this.$("rServUnit")) dr.servings_unit = this.$("rServUnit").value === "trays" ? "trays" : "persons";
@@ -2382,7 +2434,7 @@ class EinkaufslisteCard extends HTMLElement {
     const heat = (dr.heat || []).filter((h) => h.mode || h.temp || h.minutes || h.note)
       .map((h) => ({ device: h.device || "Backofen", mode: h.mode || null, temp: h.temp ? Number(h.temp) : null,
         minutes: h.minutes ? Number(h.minutes) : null, minutes_to: h.minutes_to ? Number(h.minutes_to) : null, preheat: !!h.preheat, note: h.note || null }));
-    const msg = { name: dr.name.trim(), icon: dr.icon || null, items, steps: (dr.steps || "").trim() || null, heat, servings: dr.servings || null, servings_unit: dr.servings_unit || "persons" };
+    const msg = { name: dr.name.trim(), group: dr.group || null, items, steps: (dr.steps || "").trim() || null, heat, servings: dr.servings || null, servings_unit: dr.servings_unit || "persons" };
     if (!msg.name) { this.$("rName").classList.add("shake"); return; }
     try {
       const saved = dr.id
@@ -3604,6 +3656,9 @@ class EinkaufslisteCard extends HTMLElement {
         let txt = `„${entry.name}“ löschen?`;
         if (kind === "persons") {
           txt += " Artikel, die schon für diese Person eingetragen sind, behalten den Namen.";
+        } else if (kind === "recipe_groups") {
+          const used = (this._data.recipes || []).filter((r) => r.group === entry.id).length;
+          if (used) txt += ` ${used} ${used === 1 ? "Rezept hat" : "Rezepte haben"} dann keine Gruppe mehr (die Rezepte bleiben).`;
         } else {
           const field = kind === "stores" ? "store_id" : "category_id";
           const used = this._data.items.filter((i) => i[field] === entry.id).length;
@@ -3619,6 +3674,10 @@ class EinkaufslisteCard extends HTMLElement {
       case "prod-tab":
         this._prodTab = el.dataset.tab;
         this._renderSettings();
+        break;
+      case "rgroup-filter":
+        this._recipeGroupF = el.dataset.g || "";
+        if (this.$("recipeList")) this._renderRecipeList(); else this._renderSetRecipeList();
         break;
       case "recipe-search-clear": {
         this._recipeFilter = "";
@@ -3765,6 +3824,10 @@ class EinkaufslisteCard extends HTMLElement {
 
   _onChange(e) {
     const t = e.target;
+    if (t.id === "rGroup") {
+      this.$("rIconPrev")?.setAttribute("icon", this._rgroup(t.value)?.icon || "mdi:silverware-fork-knife");
+      return;
+    }
     if (t.id === "rServUnit") {
       t.closest(".srow")?.querySelector(".prev")?.setAttribute("icon", t.value === "trays" ? "mdi:tray" : "mdi:account-group-outline");
       return;

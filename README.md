@@ -168,6 +168,8 @@ Tippst du zweimal auf dasselbe Rezept, kommt nichts doppelt dazu.
 
 **🛒 Noch nie gekauft:** Wurde eine Zutat noch nie gekauft (also kein „Wie zuletzt“-Geschäft bekannt), fragt „Was davon brauchst du?“ direkt darunter: **„Noch nie gekauft – wo kaufen?“**. Erst wenn bei allen neuen Zutaten ein Geschäft (oder „Egal wo“) gewählt ist, geht „Auf die Liste“. Beim nächsten Mal weiß die Liste es dann.
 
+**🏷️ Rezept-Gruppen:** Jedes Rezept kann eine Gruppe bekommen, z. B. Fisch, Fleisch, Geflügel, Vegetarisch, Nudeln & Reis, Suppen & Eintöpfe, Salate, Pizza & Herzhaftes, Gebäck, Kuchen & Torten, Plätzchen, Brot & Brötchen, Desserts, Frühstück, Soßen & Dips, Getränke oder Sonstiges. Im Rezept-Editor wählst du die Gruppe unter dem Namen aus. **Das Icon des Rezepts kommt automatisch von der Gruppe** (🐟 Fisch → Fisch-Icon), aussuchen musst du es nicht mehr. Bei der Kochmütze 👨‍🍳 und in ⚙️ → Rezepte gibt es unter der Suche Filter-Knöpfe: **Alle · Fisch (3) · Gebäck (5) …** (nur Gruppen, die auch benutzt werden). Die Gruppen selbst verwaltest du in **⚙️ → Rezept-Gruppen**, genau wie die Kategorien: anlegen, umbenennen, Icon ändern, Reihenfolge, löschen. Löschst du eine Gruppe, bleiben die Rezepte, sie haben dann nur keine Gruppe mehr.
+
 **🔤 Zutaten A–Z:** Die Zutaten eines Rezepts stehen immer alphabetisch sortiert (Ä wie A). Das gilt im Editor, bei der Kochmütze, bei „Was davon brauchst du?“, im Koch-Modus und beim Teilen. Alte Rezepte werden beim ersten Start automatisch sortiert.
 
 **🔎 Vorschläge im Rezept:** Beim Tippen einer Zutat kommen dieselben Vorschläge wie oben in der Liste, zum Beispiel „**Mi**lch · 2 L · 📝 laktosefrei · Aldi“. Ein Tipp übernimmt Menge, Notiz, Für wen, Geschäft und Kategorie. Auch **Zutaten aus Rezepten** kommen als Vorschlag (mit „🍽️ Rezeptname“), selbst wenn sie noch nie auf der Liste standen. Das gilt oben in der Liste genauso.
@@ -272,7 +274,7 @@ Bist du bei einem Geschäft, das eine **📍 Zone** hat, wird der ▥-Knopf **gr
 
 ## ⚙️ Die Einstellungen (Zahnrad)
 
-Ein Tipp aufs **⚙️** zeigt eine aufgeräumte Übersicht mit Kacheln: **Geschäfte · Kategorien · Rezepte · Personen · Produkte · Verlauf · Aufräumen**. Tipp auf eine Kachel, und nur dieser Bereich geht auf. Mit **← Übersicht** geht's zurück.
+Ein Tipp aufs **⚙️** zeigt eine aufgeräumte Übersicht mit Kacheln: **Geschäfte · Kategorien · Rezepte · Rezept-Gruppen · Personen · Produkte · Verlauf · Aufräumen**. Tipp auf eine Kachel, und nur dieser Bereich geht auf. Mit **← Übersicht** geht's zurück.
 
 In der Rezept-Übersicht (⚙️ → Rezepte) steht bei jedem Rezept, ob es eine **📖 Anleitung** und **🔥 Backofen-Einstellungen** hat.
 
