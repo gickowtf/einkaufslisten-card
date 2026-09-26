@@ -2,7 +2,7 @@
  * Einkaufsliste Card – die Familien-Einkaufsliste für Home Assistant
  * Wird automatisch von der Integration "einkaufsliste" geladen.
  */
-const EL_VERSION = "2.8.1";
+const EL_VERSION = "2.8.2";
 
 // Doppelt-Finder: Wörter, die dasselbe meinen (alles klein, ohne Leer-/Sonderzeichen)
 const DUP_SYNONYMS = (() => {
@@ -548,6 +548,7 @@ ha-card.compact .group { margin-top:4px; }
 .pmiss { color:var(--warning-color,#ff9800); }
 .rserv input { width:70px; text-align:center; }
 .rserv select { width:auto; }
+.servtag { font-weight:400; opacity:.75; }
 .subtabs { display:flex; gap:6px; flex-wrap:wrap; margin:2px 0 8px; }
 .subtabs .tab ha-icon { --mdc-icon-size:18px; }
 .logfilter { display:grid; grid-template-columns:repeat(auto-fit, minmax(110px, 1fr)); gap:6px; margin:4px 0; }
@@ -1970,7 +1971,7 @@ class EinkaufslisteCard extends HTMLElement {
       html.push(`
         <div class="recipe" data-id="${r.id}">
           <ha-icon icon="${esc(r.icon || "mdi:silverware-fork-knife")}"></ha-icon>
-          <div class="rname"><b>${via || fuzzy ? esc(r.name) : this._markHit(r.name, q)}${this._recipePhotoBtn(r)}</b><small>${sub}</small></div>
+          <div class="rname"><b>${via || fuzzy ? esc(r.name) : this._markHit(r.name, q)}${this._servTag(r)}${this._recipePhotoBtn(r)}</b><small>${sub}</small></div>
           <div class="rbtns">
             <button class="primary" data-act="recipe-apply" title="Zutaten auswählen"><ha-icon icon="mdi:cart-plus"></ha-icon>Auf die Liste</button>
             ${onList(r) ? `<button class="btn" data-act="recipe-unapply" title="Alle offenen Zutaten dieses Rezepts von der Liste nehmen"><ha-icon icon="mdi:cart-remove"></ha-icon>Von der Liste (${onList(r)})</button>` : ""}
@@ -1994,7 +1995,7 @@ class EinkaufslisteCard extends HTMLElement {
     box.innerHTML = (q && !found.length ? `<p class="hint">Nix gefunden für „${esc(q)}“ 🕵️</p>` : "") + found.map(({ r, via, fuzzy }) => `
       <div class="recipe" data-id="${r.id}">
         <ha-icon icon="${esc(r.icon || "mdi:silverware-fork-knife")}"></ha-icon>
-        <div class="rname"><b>${via || fuzzy ? esc(r.name) : this._markHit(r.name, q)}${this._recipePhotoBtn(r)}</b><small>${
+        <div class="rname"><b>${via || fuzzy ? esc(r.name) : this._markHit(r.name, q)}${this._servTag(r)}${this._recipePhotoBtn(r)}</b><small>${
           fuzzy ? "🤓 Meintest du das? · " : via ? `🥕 enthält ${this._markHit(via, q)} · ` : ""}${r.items.length} Zutaten${r.steps ? " · 📖 Anleitung" : " · ohne Anleitung"}${(r.heat || []).length ? " · 🔥 Backofen & Co." : ""}</small></div>
         <button class="iconbtn" data-act="recipe-edit" title="Bearbeiten"><ha-icon icon="mdi:pencil-outline"></ha-icon></button>
       </div>`).join("");
@@ -2042,7 +2043,7 @@ class EinkaufslisteCard extends HTMLElement {
         </select></div>` : ""}`;
     }).join("");
     const pers = r.servings ? `<div class="ppers">
-        <span>${r.servings_unit === "trays" ? "🍰 Wie viele Bleche?" : "👥 Für wie viele Personen?"}</span>
+        <span>${r.servings_unit === "trays" ? "🍕🍰 Wie viele Bleche?" : "👥 Für wie viele Personen?"}</span>
         <button class="iconbtn" data-act="pick-pers" data-d="-1" ${this._pickPers <= 1 ? "disabled" : ""} title="Weniger"><ha-icon icon="mdi:minus"></ha-icon></button>
         <b>${this._pickPers}</b>
         <button class="iconbtn" data-act="pick-pers" data-d="1" ${this._pickPers >= 99 ? "disabled" : ""} title="Mehr"><ha-icon icon="mdi:plus"></ha-icon></button>
@@ -2085,12 +2086,12 @@ class EinkaufslisteCard extends HTMLElement {
         </div>
         <div class="picker" hidden></div>
         <div class="srow rserv">
-          <ha-icon class="prev" icon="${dr.servings_unit === "trays" ? "mdi:cake-variant" : "mdi:account-group-outline"}"></ha-icon>
+          <ha-icon class="prev" icon="${dr.servings_unit === "trays" ? "mdi:tray" : "mdi:account-group-outline"}"></ha-icon>
           <span class="grow">Die Mengen sind für</span>
           <input id="rServings" type="number" inputmode="numeric" min="1" max="99" value="${dr.servings || ""}" placeholder="?">
           <select id="rServUnit">
             <option value="persons" ${dr.servings_unit !== "trays" ? "selected" : ""}>👥 Personen</option>
-            <option value="trays" ${dr.servings_unit === "trays" ? "selected" : ""}>🍰 Bleche</option>
+            <option value="trays" ${dr.servings_unit === "trays" ? "selected" : ""}>🍕🍰 Bleche</option>
           </select>
         </div>
         <div class="photorow" id="rPhotoRow"></div>
@@ -2130,6 +2131,11 @@ class EinkaufslisteCard extends HTMLElement {
     const key = this._recipePhotoKey(r.id);
     return this._hasPhoto(key)
       ? ` <button class="photobtn" data-act="photo-view" data-name="${esc(key)}" data-title="${esc(r.name)}" title="Rezept-Fotos ansehen"><ha-icon icon="mdi:camera"></ha-icon>${this._data.photo_counts?.[key] > 1 ? `<small class="pcount">${this._data.photo_counts[key]}</small>` : ""}</button>` : "";
+  }
+
+  // „Pizza – 1 Blech“ / „Lasagne – 4 Personen“ hinter dem Rezeptnamen
+  _servTag(r) {
+    return r.servings ? `<span class="servtag"> – ${r.servings} ${servLabel(r.servings_unit, r.servings)}</span>` : "";
   }
 
   _recipeSavedPhotos() {
@@ -3760,7 +3766,7 @@ class EinkaufslisteCard extends HTMLElement {
   _onChange(e) {
     const t = e.target;
     if (t.id === "rServUnit") {
-      t.closest(".srow")?.querySelector(".prev")?.setAttribute("icon", t.value === "trays" ? "mdi:cake-variant" : "mdi:account-group-outline");
+      t.closest(".srow")?.querySelector(".prev")?.setAttribute("icon", t.value === "trays" ? "mdi:tray" : "mdi:account-group-outline");
       return;
     }
     if (t.dataset?.act === "pick-store") {
