@@ -32,7 +32,7 @@
 | 📸 **Fotos** | Ein Foto zum Artikel („genau diese Marke!“), auswählbar direkt beim Eintragen. |
 | 🔍 **Barcode** | In der Home-Assistant-App scannen: zu Hause zum **Eintragen** (auch mehrere hintereinander), im Laden zum **Abhaken**. |
 | 📖 **Kategorie raten** | Tippst du „Joghurt“, springt die Kategorie von selbst auf Kühlregal, bei „Pizza“ auf TK-Ware. Dafür gibt es ein eingebautes Wörterbuch mit rund 250 Produkten. Wählst du selbst etwas aus, hat das Vorrang. |
-| 🔁 **„War aus!“** | Gab's bei Aldi nicht? Tipp am Artikel auf **⇄**. Dann entweder **„Nächstes Mal wieder hier“** – der Artikel bleibt bei Aldi offen, alle sehen **„⇄ war aus (Sa)“** (3 Tage lang), und die Aufräum-Frist zählt ab heute neu – oder gleich ein anderes Geschäft, z. B. **Netto**: bei Aldi abgehakt, bei Netto offen. |
+| 🔁 **„War aus!“** | Gab's bei Aldi nicht? Tipp am Artikel auf **🏪✖**. Dann entweder **„Nächstes Mal wieder hier“** – der Artikel bleibt bei Aldi offen, alle sehen **„🏪✖ war aus (Sa)“** (3 Tage lang), und die Aufräum-Frist zählt ab heute neu – oder gleich ein anderes Geschäft, z. B. **Netto**: bei Aldi abgehakt, bei Netto offen. |
 | 📍 **Nächstes Geschäft** | Bist du bei einem Geschäft, springt die Liste automatisch auf dessen Reiter. Jeder sieht dabei sein eigenes Geschäft. |
 | 🛒 **Laden-Modus** | Ein Tipp auf den Wagen oben: große Zeilen, dicke Kreise, das Eingabefeld ist weg. Nur noch abhaken, auch mit einer Hand am Einkaufswagen. |
 | 🔗 **Doppelt-Finder** | Stehen „Tomate“ und „Tomaten“ (oder „Klopapier“ und „Toilettenpapier“) gleichzeitig drauf, fragt die Liste: **Zusammenlegen?** |
@@ -142,12 +142,12 @@ Was du gewählt hast, steht direkt am Symbol, zum Beispiel **🔢 2x · 👤 Oma
 ## 👆 Bedienung in der Liste
 
 - **⭕ Kreis antippen:** abhaken
-- **⇄ antippen:** „War aus!“ – zwei Möglichkeiten:
-  - **Nächstes Mal wieder hier:** Der Artikel bleibt offen beim selben Geschäft und bekommt **„⇄ war aus (Sa)“** – so wissen zu Hause alle Bescheid. Der Hinweis verschwindet nach 3 Tagen oder beim Abhaken. Die 7-Tage-Frist fürs automatische Aufräumen **fängt ab diesem Tag neu an**.
+- **🏪✖ antippen:** „War aus!“ – zwei Möglichkeiten:
+  - **Nächstes Mal wieder hier:** Der Artikel bleibt offen beim selben Geschäft und bekommt **„🏪✖ war aus (Sa)“** – so wissen zu Hause alle Bescheid. Der Hinweis verschwindet nach 3 Tagen oder beim Abhaken. Die 7-Tage-Frist fürs automatische Aufräumen **fängt ab diesem Tag neu an**.
   - **Anderes Geschäft:** Beim alten Geschäft wird der Artikel **abgehakt** (er bleibt dort unten bei „Erledigt“), beim neuen steht er **offen**.
 - **🔗 „Alle“ fasst zusammen:** Gibt es ein Produkt bei mehreren Geschäften, steht es bei **„Alle“ nur einmal**, mit den Geschäften darunter. Oben stehen nur die Geschäfte, wo es noch zu kaufen ist. Unten bei „Erledigt“ tippst du auf den Kreis und wählst **„Wieder drauf bei: Aldi / Netto“**. In den einzelnen Geschäfts-Reitern bleibt alles, wie es ist.
 - **🛒 Schon woanders offen?** Trägst du „Brot“ bei Aldi ein, obwohl es bei Netto noch offen ist, fragt die Liste: **„Nach Aldi verschieben“** oder **„Zusätzlich bei Aldi“**. Nur wenn du „Zusätzlich“ wählst, ist es bei beiden offen. Dann fragt „Alle“ beim Abhaken: **„Wo gekauft?“**
-- **Artikel lange drücken** (am PC: Rechtsklick): Es öffnet sich ein Menü (klappt nach 8 Sekunden ohne Tipp von selbst wieder zu) mit ✏️ **Bearbeiten** · ⇄ **Verschieben** („War aus!“) · 🔢 **Menge** · 📦 **Kategorie** · 📷 **Foto** · ▥ **Barcode**
+- **Artikel lange drücken** (am PC: Rechtsklick): Es öffnet sich ein Menü (klappt nach 8 Sekunden ohne Tipp von selbst wieder zu) mit ✏️ **Bearbeiten** · 🏪✖ **Verschieben** („War aus!“) · 🔢 **Menge** · 📦 **Kategorie** · 📷 **Foto** · ▥ **Barcode**
 - **Auf die Menge tippen** (zum Beispiel „2x“): Es erscheint **[−] 2x [＋]** zum schnellen Ändern
 - **✨ und rote Blase:** Artikel, die **andere** eingetragen haben, seit du zuletzt geschaut hast, bekommen ein ✨. Am Geschäfts-Reiter steht dann zum Beispiel **„+2“**. Die Blase bleibt stehen, bis du **genau diesen Reiter** antippst (nur „Alle“ anschauen reicht nicht), und sie verschwindet **nur bei dir**. Jeder hat seine eigene, wie bei WhatsApp. 🔴
 - **Farbstreifen:** Jede Kategorie hat ihre Farbe (links am Artikel). Die Farben änderst du im ⚙️ Zahnrad bei den Kategorien.
