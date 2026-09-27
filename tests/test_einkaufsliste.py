@@ -1151,7 +1151,7 @@ async def test_photo_order_and_main(hass, setup, hass_ws_client):
 
 
 async def test_check_and_repair(hass, setup, hass_ws_client):
-    """✅ Alles ok?: kaputte Verweise, fehlende Foto-Dateien, verwaiste Rezept-Fotos."""
+    """✅ Alles ok?: jeder Fund einzeln, mit Erklärung; repariert wird nur, was ausgewählt ist – wie gewählt."""
     import base64
 
     client = await hass_ws_client(hass)
@@ -1160,8 +1160,9 @@ async def test_check_and_repair(hass, setup, hass_ws_client):
     await client.send_json({"id": 1, "type": "einkaufsliste/check"})
     res = (await client.receive_json())["result"]
     assert res["count"] == 0, res["problems"]
-    item = m.add_item("Milch")
-    item["store_id"] = "weg"
+    netto, aldi = m.stores[0]["id"], m.stores[1]["id"]
+    milk = m.add_item("Milch", store_id=aldi)
+    milk["store_id"] = "weg"  # Geschäft gelöscht
     r = m.add_recipe("Kuchen", [{"name": "Mehl"}], group="fisch")
     r["group"] = "weg"
     await m.async_set_photo("Brot", base64.b64encode(JPEG).decode())
@@ -1169,22 +1170,42 @@ async def test_check_and_repair(hass, setup, hass_ws_client):
     await m.async_set_photo("rezept#gibtsnicht", base64.b64encode(JPEG).decode())
     await client.send_json({"id": 2, "type": "einkaufsliste/check"})
     res = (await client.receive_json())["result"]
-    assert res["count"] == 5 and not res["fixed"], res
-    assert any(p.startswith("📦 3 Produkt(e) ohne Kategorie") for p in res["problems"])
-    await client.send_json({"id": 3, "type": "einkaufsliste/check", "fix": True})
+    ids = {e["id"]: e for e in res["items"]}
+    assert res["fixed"] == 0
+    # Jeder Fund sagt genau, was los ist und wie repariert wird
+    assert set(ids) >= {"photo_missing:brot", "photo_recipe:rezept#gibtsnicht", f"rgroup:{r['id']}",
+                        f"nostore:{milk['id']}", "nocat:mehl", "nocat:milch"}, list(ids)
+    assert all(e["text"] and e["how"] for e in res["items"])
+    ns = ids[f"nostore:{milk['id']}"]
+    assert "Milch" in ns["text"] and ns["default"] == aldi  # Vorschlag: wie zuletzt
+    assert {o["value"] for o in ns["options"]} == {s["id"] for s in m.stores}
+    assert ids["nocat:mehl"]["default"] == m.find_category("Vorrat & Konserven")
+
+    # Nur zwei Sachen reparieren, und zwar mit eigener Wahl
+    await client.send_json({"id": 3, "type": "einkaufsliste/check", "fixes": {
+        f"nostore:{milk['id']}": netto,               # nicht der Vorschlag Aldi, sondern Netto
+        "nocat:mehl": m.find_category("Backwaren"),     # andere Kategorie als vorgeschlagen
+    }})
     res = (await client.receive_json())["result"]
-    assert res["fixed"]
-    assert item["store_id"] is None and r["group"] is None
+    assert res["fixed"] == 2
+    assert milk["store_id"] == netto
+    assert r["items"][0]["category_id"] == m.find_category("Backwaren")
+    assert r["group"] == "weg" and "brot" in m.photos  # nicht ausgewählt -> unverändert
+
+    # Der Rest mit den Vorschlägen
+    await client.send_json({"id": 4, "type": "einkaufsliste/check", "fix": True})
+    res = (await client.receive_json())["result"]
+    assert res["fixed"] >= 3
     assert "brot" not in m.photos and "rezept#gibtsnicht" not in m.photos
-    # Kategorien aus dem Wörterbuch geraten
-    assert item["category_id"] == m.find_category("Kühlregal & Milch")
-    assert r["items"][0]["category_id"] == m.find_category("Vorrat & Konserven")
-    # Übrig bleibt nur, was keiner raten kann: Milch hat kein Geschäft (auch kein „wie zuletzt“)
-    await client.send_json({"id": 4, "type": "einkaufsliste/check"})
-    res = (await client.receive_json())["result"]
-    assert res["problems"] == ["🛒 1 Artikel auf der Liste ohne Geschäft („Egal wo“): Milch"], res
-    item["store_id"] = m.stores[0]["id"]
+    assert milk["category_id"] == m.find_category("Kühlregal & Milch")
+    # Gruppe hat keinen Vorschlag -> bleibt, bis man selbst wählt
     await client.send_json({"id": 5, "type": "einkaufsliste/check"})
+    res = (await client.receive_json())["result"]
+    assert [e["id"] for e in res["items"]] == [f"rgroup:{r['id']}"], res["problems"]
+    await client.send_json({"id": 6, "type": "einkaufsliste/check", "fixes": {f"rgroup:{r['id']}": ""}})
+    assert (await client.receive_json())["result"]["fixed"] == 1
+    assert r["group"] is None
+    await client.send_json({"id": 7, "type": "einkaufsliste/check"})
     assert (await client.receive_json())["result"]["count"] == 0
 
 

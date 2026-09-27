@@ -540,11 +540,17 @@ def ws_photo_move(hass, connection, msg):
 
 
 @websocket_api.websocket_command(
-    {vol.Required("type"): "einkaufsliste/check", vol.Optional("fix", default=False): bool}
+    {
+        vol.Required("type"): "einkaufsliste/check",
+        vol.Optional("fix", default=False): bool,
+        # ✅ nur diese Funde reparieren: {Fund-ID: gewählter Wert ("" = Vorschlag / leer)}
+        vol.Optional("fixes"): {str: vol.Any(str, None)},
+    }
 )
 @websocket_api.async_response
 async def ws_check(hass, connection, msg):
-    await _run_async(hass, connection, msg, lambda m: m.async_check(msg["fix"]))
+    fixes = {k: v or "" for k, v in (msg.get("fixes") or {}).items()} or None
+    await _run_async(hass, connection, msg, lambda m: m.async_check(msg["fix"], fixes))
 
 
 @websocket_api.websocket_command(

@@ -16,7 +16,7 @@
 | 🗂️ **Kategorien** | Obst & Gemüse, Backwaren, TK-Ware und so weiter. Offene **und** erledigte Artikel werden danach sortiert. |
 | 👨‍👩‍👧‍👦 **Für die ganze Familie** | Jeder, der sich in Home Assistant anmelden kann, kann mitmachen. |
 | ⭕ **Abhaken per Kreis** | Nur ein Tipp auf den Kreis hakt ab. Ein Tipp auf den Namen macht nichts, das verhindert Verdrücker. |
-| ♻️ **Nichts geht verloren** | Abgehakte Artikel bleiben unten unter „Erledigt – schon mal gekauft“. Tippst du den Kreis nochmal an, steht der Artikel wieder auf der Liste. Die Kategorien sind dort eingeklappt, ein Tipp klappt sie auf. |
+| ♻️ **Nichts geht verloren** | Abgehakte Artikel bleiben unten unter „Erledigt – schon mal gekauft“. Tippst du den Kreis nochmal an, steht der Artikel wieder auf der Liste. Die Kategorien sind dort eingeklappt, ein Tipp klappt sie auf – und die vorher offene wieder zu (immer nur eine offen). |
 | 🏷️ **Für wen & wer** | Hinter dem Artikel steht, **für wen** er ist, zum Beispiel *Käse (für Oma)*. Klein darunter steht, **wer** ihn eingetragen oder wieder auf die Liste genommen hat: *✍️ Anna*. |
 | 📝 **Notiz & 👤 Für wen** | Beides kannst du direkt beim Eintragen angeben, zum Beispiel *Käse · 📝 Gerieben · 👤 für Oma*. Die Notiz beginnt automatisch mit einem Großbuchstaben. |
 | 🚫 **Keine Doppelten** | Jeder Artikel steht nur einmal auf der Liste. Ein zweites Mal geht nur mit **anderer Notiz**, **anderem „für wen“** oder **anderem Geschäft** (z. B. Milch bei Aldi und Milch bei Netto). |
@@ -145,7 +145,7 @@ Was du gewählt hast, steht direkt am Symbol, zum Beispiel **🔢 2x · 👤 Oma
 - **✨ und rote Blase:** Artikel, die **andere** eingetragen haben, seit du zuletzt geschaut hast, bekommen ein ✨. Am Geschäfts-Reiter steht dann zum Beispiel **„+2“**. Die Blase bleibt stehen, bis du **genau diesen Reiter** antippst (nur „Alle“ anschauen reicht nicht), und sie verschwindet **nur bei dir**. Jeder hat seine eigene, wie bei WhatsApp. 🔴
 - **Farbstreifen:** Jede Kategorie hat ihre Farbe (links am Artikel). Die Farben änderst du im ⚙️ Zahnrad bei den Kategorien.
 - **Zeit:** Bei Artikeln von heute steht „gerade eben“, „vor 5 Min“ oder „vor 2 Std“.
-- **🛒 Laden-Modus:** Oben auf den **Einkaufswagen** tippen. Die Zeilen und Kreise werden groß, das Eingabefeld verschwindet, und oben steht „Laden-Modus“. Damit es übersichtlich bleibt, sind auch der Titel, Kochmütze, Zahnrad, „seit wann“ und das 🧹 Aufräum-Datum weg – nur das Wichtigste bleibt. Und es steht immer die ganze Liste da, auch wenn oben noch etwas eingetippt war. Nochmal tippen (oder **Beenden**) schaltet zurück. Jedes Handy merkt sich das für sich.
+- **🛒 Laden-Modus:** Oben auf den **Einkaufswagen** tippen. Die Zeilen und Kreise werden groß, das Eingabefeld verschwindet, und oben steht „Laden-Modus“. Damit es übersichtlich bleibt, sind auch Kochmütze, Zahnrad, das ▥ am Artikel, „seit wann“ und das 🧹 Aufräum-Datum weg – nur das Wichtigste bleibt. Und es steht immer die ganze Liste da, auch wenn oben noch etwas eingetippt war. Nochmal tippen (oder **Beenden**) schaltet zurück. Jedes Handy merkt sich das für sich.
 - **🔗 Doppelt-Finder:** Stehen zwei Artikel mit fast gleichem Namen beim selben Geschäft, zum Beispiel „Tomate“ und „Tomaten“, erscheint oben eine Frage. **Zusammenlegen** macht daraus einen Artikel, und Mengen wie 2x + 3x werden zu **5x** zusammengezählt. **Passt so** fragt bei diesem Paar nie wieder.
 - **▥ am Artikel:** Steht klein unter dem Namen ein **▥**, ist für dieses Produkt ein Barcode hinterlegt. Im Lange-drücken-Menü steht dann **„Barcode ✓“**.
 - **[−] [＋] mit Einheiten:** Auf die Menge tippen – das geht auch bei **250 g → 500 g → 750 g** oder **1 L → 2 L**.
@@ -164,7 +164,7 @@ Die Eingabe auf der Einkaufsliste ist bewusst schlank: **Name · 🔢 Menge · �
 - **Kategorie** kommt aus dem Gedächtnis oder dem Wörterbuch – ändern geht nachträglich per **langem Drücken → Kategorie**.
 - **Geschäft** kommt aus dem Gedächtnis (so wie zuletzt gekauft).
 - **Menge** direkt im Namen: „3 milch“ → Milch · 3x, „2 backpulver“ → 2 Pck. (gemerkte Einheit). Die Mengen-Knöpfe zeigen gleich die gemerkte Einheit.
-- Ein Tipp auf einen **Vorschlag** übernimmt Menge, Notiz und Für wen vom letzten Mal. Es gibt **höchstens 4 Vorschläge**, jedes Produkt nur einmal – ein Produkt ist dabei Name **plus** Notiz („Gewürze“ und „Gewürze · Paprika“ sind zwei). Gesucht wird auch in der Notiz: „papr“ findet „Gewürze · 📝 Paprika“.
+- Ein Tipp auf einen **Vorschlag** übernimmt Menge, Notiz und Für wen vom letzten Mal. Es gibt **höchstens 2 Vorschläge**, jedes Produkt nur einmal – ein Produkt ist dabei Name **plus** Notiz („Gewürze“ und „Gewürze · Paprika“ sind zwei). Gesucht wird auch in der Notiz: „papr“ findet „Gewürze · 📝 Paprika“.
 - Beim Tippen klappt unten **„Erledigt“** auf und zeigt die Treffer – gesucht wird nach Name, Notiz oder Person.
 - Barcode zuordnen, Kategorie, Infos: alles per **langem Drücken** auf den Artikel.
 - **📋 Mehrere auf einmal:** „milch, 6 eier, 1,5 kg kartoffeln“ → ✔ → **3 Artikel**. Jeder bekommt sein eigenes Geschäft (gewählter Reiter, sonst wie zuletzt), seine Kategorie und seine Menge. Das Komma in „1,5“ trennt natürlich nicht. Trennen geht mit Komma, Semikolon oder neuer Zeile. (Mit Foto bitte einzeln eintragen.)
@@ -309,7 +309,7 @@ Bist du bei einem Geschäft, das eine **📍 Zone** hat, wird der ▥-Knopf **gr
 
 Ein Tipp aufs **⚙️** zeigt eine aufgeräumte Übersicht mit Kacheln: **Geschäfte · Kategorien · Rezepte · Rezept-Gruppen · Personen · Produkte · Alles ok? · Verlauf · Aufräumen**.
 
-**✅ Alles ok?** sucht kaputte Einträge: Fotos, die auf der Festplatte fehlen oder zu nichts mehr gehören, Fotos von gelöschten Rezepten, Barcodes ohne Produkt und Verweise auf gelöschte Geschäfte, Kategorien, Rezepte oder Gruppen. Außerdem: **Produkte ohne Kategorie** und **Artikel auf der Liste ohne Geschäft** („Egal wo“). Erst wird nur angezeigt, was gefunden wurde. **Reparieren** räumt es dann auf – fehlende Kategorien werden aus dem Wörterbuch geraten, fehlende Geschäfte von „wie zuletzt“ genommen. Was sich nicht raten lässt, bleibt in der Liste stehen, damit du es selbst einträgst. Tipp auf eine Kachel, und nur dieser Bereich geht auf. Mit **← Übersicht** geht's zurück.
+**✅ Alles ok?** sucht kaputte oder unvollständige Einträge: **Produkte ohne Kategorie**, **Artikel ohne Geschäft**, Fotos, die auf der Festplatte fehlen oder zu nichts mehr gehören, Fotos von gelöschten Rezepten, Barcodes ohne Produkt und Verweise auf gelöschte Geschäfte, Kategorien oder Rezept-Gruppen. **Jeder Fund steht einzeln da** – was genau los ist (z. B. „„Gewürze · Paprika“ hat keine Kategorie“) und darunter 🔧 **wie repariert wird**. Wo es mehrere Möglichkeiten gibt, wählst du selbst (Geschäft, Kategorie, Gruppe) – vorausgewählt ist der Vorschlag (Wörterbuch bzw. „wie zuletzt“). **Anhaken, was repariert werden soll** („Alle an / Alle aus“ gibt's auch), dann **„… reparieren“**. Nicht Angehaktes bleibt, wie es ist. Tipp auf eine Kachel, und nur dieser Bereich geht auf. Mit **← Übersicht** geht's zurück.
 
 In der Rezept-Übersicht (⚙️ → Rezepte) steht bei jedem Rezept, ob es eine **📖 Anleitung** und **🔥 Backofen-Einstellungen** hat.
 

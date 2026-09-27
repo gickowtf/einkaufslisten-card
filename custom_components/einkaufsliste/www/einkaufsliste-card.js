@@ -2,7 +2,7 @@
  * Einkaufsliste Card – die Familien-Einkaufsliste für Home Assistant
  * Wird automatisch von der Integration "einkaufsliste" geladen.
  */
-const EL_VERSION = "2.17.4";
+const EL_VERSION = "2.18.0";
 
 // Doppelt-Finder: Wörter, die dasselbe meinen (alles klein, ohne Leer-/Sonderzeichen)
 const DUP_SYNONYMS = (() => {
@@ -720,6 +720,13 @@ ha-card.compact .group { margin-top:4px; }
 .servtag { font-weight:400; opacity:.75; }
 .rgrouprow select { width:auto; min-width:150px; }
 #titleIcon { cursor:pointer; }
+.chklist { display:flex; flex-direction:column; gap:6px; margin:8px 0; }
+.chkrow { display:flex; gap:10px; align-items:flex-start; padding:8px 10px; border:1px solid var(--divider-color, rgba(127,127,127,.3)); border-radius:10px; cursor:pointer; }
+.chkrow input.chk { margin-top:3px; width:18px; height:18px; flex:0 0 auto; }
+.chkrow .ctxt { display:flex; flex-direction:column; gap:3px; min-width:0; flex:1; }
+.chkrow .cwhat { font-weight:500; overflow-wrap:anywhere; }
+.chkrow .chow { font-size:.85em; color:var(--secondary-text-color); }
+.chkrow select { margin-top:2px; max-width:100%; }
 .checklist { margin:4px 0 8px; padding-left:20px; font-size:.9em; }
 .checklist li { margin:2px 0; }
 .subtabs { display:flex; gap:6px; flex-wrap:wrap; margin:2px 0 8px; }
@@ -1367,7 +1374,7 @@ class EinkaufslisteCard extends HTMLElement {
       cands.push(...fuzzy.slice(0, 2));
     }
     cands.sort((a, b) => a.sc - b.sc);
-    return cands.slice(0, recipe ? 8 : 4); // Einkaufsliste: höchstens 4 Vorschläge – sonst wird's zu viel
+    return cands.slice(0, recipe ? 8 : 2); // Einkaufsliste: höchstens 2 Vorschläge – sonst wird's zu viel
   }
 
   _suggestChips(list, q, act, { recipe = false } = {}) {
@@ -1452,7 +1459,7 @@ class EinkaufslisteCard extends HTMLElement {
     if (item.note) meta.push(`<span class="inote">📝 ${esc(item.note)}</span>`);
     const pk = this._pk(item.name, item.note);
     const codes = this._barcodesOf(pk);
-    if (codes.length) meta.push(`<span class="bc" title="Barcode hinterlegt: ${esc(codes.join(", "))}">▥</span>`);
+    if (codes.length && !this._shopMode) meta.push(`<span class="bc" title="Barcode hinterlegt: ${esc(codes.join(", "))}">▥</span>`);
     if (c.show_added_by && item.added_by) meta.push(`<span title="Eingetragen von">✍️ ${esc(this._who(item.added_by))}</span>`);
     if (c.show_dates && item.checked) meta.push(`<span title="Abgehakt von">✓ ${item.checked_by ? esc(this._who(item.checked_by)) : "automatisch"}</span>`);
     const rgrp = recipe && this._rgroup(recipe.group);
@@ -1538,6 +1545,44 @@ class EinkaufslisteCard extends HTMLElement {
   _defaultStore() {
     const tab = this._activeTab;
     return this._formMode === "recipe" ? "" : tab === "none" ? "~none" : tab !== "all" ? tab : "";
+  }
+
+  // ✅ Alles ok? – jeder Fund einzeln: was los ist, wie repariert wird, Haken zum Auswählen
+  _runCheck() {
+    const box = this.$("checkRes");
+    if (!box) return;
+    box.innerHTML = `<p class="hint">Prüfe … 🔍</p>`;
+    this._ws({ type: "einkaufsliste/check" }).then((res) => {
+      const items = res.items || [];
+      if (!items.length) { box.innerHTML = `<p>✅ <b>Alles ok!</b> Nichts gefunden. 🎉</p>`; return; }
+      const shown = items.slice(0, 150);
+      box.innerHTML = `<p><b>⚠️ ${items.length} ${items.length === 1 ? "Sache gefunden" : "Sachen gefunden"}.</b> Anhaken, was repariert werden soll – und wie:</p>
+        <div class="btnrow"><button class="btn" data-act="check-all">Alle an</button><button class="btn" data-act="check-none">Alle aus</button></div>
+        <div class="chklist">${shown.map((e) => {
+          const pick = e.options ? `<select title="So reparieren">${e.default ? "" : `<option value="">– bitte wählen –</option>`}
+              ${e.options.map((o) => `<option value="${esc(o.value)}" ${o.value === e.default ? "selected" : ""}>${esc(o.label)}</option>`).join("")}
+              ${e.empty ? `<option value="">${esc(e.empty)}</option>` : ""}</select>` : "";
+          const on = !e.options || !!e.default;
+          return `<label class="chkrow" data-id="${esc(e.id)}"><input type="checkbox" class="chk" ${on ? "checked" : ""}>
+            <span class="ctxt"><span class="cwhat">${esc(e.text)}</span><span class="chow">🔧 ${esc(e.how)}</span>${pick}</span></label>`;
+        }).join("")}</div>
+        ${items.length > shown.length ? `<p class="hint">… und ${items.length - shown.length} weitere – nach dem Reparieren nochmal prüfen.</p>` : ""}
+        <div class="btnrow"><button class="btn primary" data-act="check-fix" id="checkFixBtn"><ha-icon icon="mdi:wrench-outline"></ha-icon>Ausgewählte reparieren</button></div>`;
+      box.onchange = (ev) => { // Auswahl geändert -> automatisch anhaken
+        const sel = ev.target.closest("select");
+        if (sel) sel.closest(".chkrow").querySelector("input.chk").checked = true;
+        this._checkCount();
+      };
+      this._checkCount();
+    }).catch(() => { box.innerHTML = ""; });
+  }
+
+  _checkCount() {
+    const box = this.$("checkRes"), btn = this.$("checkFixBtn");
+    if (!box || !btn) return;
+    const n = box.querySelectorAll("input.chk:checked").length;
+    btn.innerHTML = `<ha-icon icon="mdi:wrench-outline"></ha-icon>${n ? `${n} ${n === 1 ? "Sache" : "Sachen"} reparieren` : "Nichts ausgewählt"}`;
+    btn.disabled = !n;
   }
 
   // 📦 Kategorie ändern (per langem Drücken → Kategorie)
@@ -1942,7 +1987,7 @@ class EinkaufslisteCard extends HTMLElement {
         <div class="srow"><ha-icon class="prev" icon="mdi:magnify"></ha-icon><input class="grow" id="prodSearch" placeholder="Produkt suchen …" value="${esc(this._prodFilter || "")}"></div>
         <div id="prodList"><p class="hint">Lade Produkte …</p></div>`}` },
       { key: "check", icon: "mdi:check-decagram-outline", title: "Alles ok?", info: "prüfen & reparieren", html: () => `
-        <p class="hint">Sucht nach kaputten Einträgen: Fotos, die fehlen oder zu nichts gehören, Barcodes ohne Produkt und Verweise auf gelöschte Geschäfte, Kategorien, Rezepte oder Gruppen. Erst wird nur geschaut, repariert wird nur auf Knopfdruck.</p>
+        <p class="hint">Sucht nach kaputten oder unvollständigen Einträgen: Produkte ohne Kategorie, Artikel ohne Geschäft, fehlende oder übrige Fotos, Barcodes ohne Produkt und Verweise auf Gelöschtes. Jeder Fund steht einzeln da – mit Haken und wie repariert wird. Repariert wird nur, was du anhakst.</p>
         <div class="btnrow"><button class="btn primary" data-act="check-run"><ha-icon icon="mdi:magnify"></ha-icon>Jetzt prüfen</button></div>
         <div id="checkRes"></div>` },
       { key: "log", icon: "mdi:history", title: "Verlauf", info: "wer, wann, was, wie", html: () => this._logSectionHtml() },
@@ -3179,7 +3224,7 @@ class EinkaufslisteCard extends HTMLElement {
       <p class="elg-sub">Tipp auf eine Überschrift klappt sie auf. Diese Anleitung findest du immer über den <b>Einkaufswagen ganz oben links</b>.</p>
       ${sec("✍️", "Etwas eintragen", `<ul>
         <li>Oben ins Feld tippen, z. B. <b>Milch</b>, dann den grünen Haken <span class="elg-k">✔</span>.</li>
-        <li>Beim Tippen kommen bis zu <b>4 Vorschläge</b>. Antippen übernimmt alles vom letzten Mal (Menge, Notiz, für wen, Geschäft).</li>
+        <li>Beim Tippen kommen bis zu <b>2 Vorschläge</b>. Antippen übernimmt alles vom letzten Mal (Menge, Notiz, für wen, Geschäft).</li>
         <li>Die Menge geht auch direkt: <b>3 Milch</b> oder <b>500 g Mehl</b>. Die Liste merkt sich die Einheit: <b>2 Backpulver</b> wird zu 2 Pck.</li>
         <li><b>Mehrere auf einmal:</b> <b>Milch, 6 Eier, Brot</b> → ✔ → 3 Sachen auf der Liste.</li>
         <li>Die Knöpfe darunter: 🔢 Menge · 📝 Notiz (z. B. Sorte) · 👤 Für wen · 📷 Foto · 🧽 alles leeren.</li>
@@ -4056,8 +4101,10 @@ class EinkaufslisteCard extends HTMLElement {
         break;
       case "toggle-donecat": {
         const key = el.dataset.cat;
-        if (this._openDoneCats.has(key)) this._openDoneCats.delete(key);
-        else this._openDoneCats.add(key);
+        // Immer nur eine Kategorie offen: eine aufmachen schließt die anderen
+        const wasOpen = this._openDoneCats.has(key);
+        this._openDoneCats.clear();
+        if (!wasOpen) this._openDoneCats.add(key);
         this._renderList();
         break;
       }
@@ -4174,23 +4221,27 @@ class EinkaufslisteCard extends HTMLElement {
         this._showGuide();
         break;
       case "check-run":
-      case "check-fix": {
+        this._runCheck();
+        break;
+      case "check-all":
+      case "check-none":
+        this.$("checkRes")?.querySelectorAll("input.chk").forEach((c) => { c.checked = act === "check-all"; });
+        this._checkCount();
+        break;
+      case "check-fix": { // 🔧 nur die angehakten, mit der gewählten Reparatur
         const box = this.$("checkRes");
-        if (!box) break;
-        if (act === "check-fix" && !confirm("Jetzt alles reparieren? Kaputte Verweise werden geleert, fehlende und verwaiste Fotos aufgeräumt.")) break;
-        box.innerHTML = `<p class="hint">${act === "check-fix" ? "Repariere …" : "Prüfe …"} 🔍</p>`;
-        this._ws({ type: "einkaufsliste/check", fix: act === "check-fix" }).then((res) => {
-          if (res.fixed) {
-            box.innerHTML = `<p>🛠️ <b>${res.count} ${res.count === 1 ? "Sache" : "Sachen"} repariert.</b> Alles wieder sauber! ✨</p>`;
-            return;
-          }
-          box.innerHTML = res.count
-            ? `<p><b>⚠️ ${res.count} ${res.count === 1 ? "Sache gefunden" : "Sachen gefunden"}:</b></p>
-               <ul class="checklist">${res.problems.slice(0, 50).map((x) => `<li>${esc(x)}</li>`).join("")}</ul>
-               ${res.count > 50 ? `<p class="hint">… und ${res.count - 50} weitere</p>` : ""}
-               <div class="btnrow"><button class="btn primary" data-act="check-fix"><ha-icon icon="mdi:wrench-outline"></ha-icon>Reparieren</button></div>`
-            : `<p>✅ <b>Alles ok!</b> Nichts Kaputtes gefunden. 🎉</p>`;
-        }).catch(() => { box.innerHTML = ""; });
+        const fixes = {};
+        box?.querySelectorAll(".chkrow").forEach((row) => {
+          if (!row.querySelector("input.chk").checked) return;
+          fixes[row.dataset.id] = row.querySelector("select")?.value || "";
+        });
+        const n = Object.keys(fixes).length;
+        if (!n) { this._toast("Erst anhaken, was repariert werden soll 😉"); break; }
+        if (!confirm(`${n} ${n === 1 ? "Sache" : "Sachen"} so reparieren, wie ausgewählt?`)) break;
+        this._ws({ type: "einkaufsliste/check", fixes }).then((res) => {
+          this._toast(`🛠️ ${res.fixed} ${res.fixed === 1 ? "Sache" : "Sachen"} repariert`);
+          this._runCheck();
+        }).catch(() => {});
         break;
       }
       case "prod-tab":

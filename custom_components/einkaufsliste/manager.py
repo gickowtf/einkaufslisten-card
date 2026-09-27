@@ -1164,14 +1164,32 @@ class EinkaufslisteManager:
         self._changed()
 
     # ------------------------------------------------------------ ✅ Alles ok?
-    async def async_check(self, fix: bool = False) -> dict[str, Any]:
-        """Kaputte Einträge suchen (und auf Wunsch reparieren): Fotos, Barcodes, Verweise."""
-        problems: list[str] = []
+    async def async_check(self, fix: bool = False, fixes: dict[str, str] | None = None) -> dict[str, Any]:
+        """✅ Alles ok? – sucht kaputte oder unvollständige Einträge.
+
+        Jeder Fund ist ein eigener Eintrag mit: was genau los ist (text), wie repariert wird (how)
+        und – wo man wählen kann – Auswahl (options) samt Vorschlag (default).
+        fixes = {Fund-ID: gewählter Wert}: nur diese werden repariert (Wert "" = so wie vorgeschlagen,
+        bei Auswahl-Funden „leer lassen“). fix=True repariert alles mit Vorschlag.
+        """
+        found: list[dict[str, Any]] = []
+        actions: dict[str, Any] = {}
         stores = {s["id"] for s in self.stores}
         cats = {c["id"] for c in self.categories}
         recipes = {r["id"]: r for r in self.recipes}
         groups = {g["id"] for g in self.recipe_groups}
         recipe_keys = {recipe_photo_key(rid): r["name"] for rid, r in recipes.items()}
+        store_opts = [{"value": s["id"], "label": s["name"]} for s in self.stores]
+        cat_opts = [{"value": c["id"], "label": c["name"]} for c in self.categories]
+        group_opts = [{"value": g["id"], "label": g["name"]} for g in self.recipe_groups]
+
+        def add(pid: str, text: str, how: str, action: Any, options: list | None = None,
+                default: str | None = None, empty: str | None = None) -> None:
+            entry: dict[str, Any] = {"id": pid, "text": text, "how": how}
+            if options is not None:
+                entry.update(options=options, default=default or "", empty=empty)
+            found.append(entry)
+            actions[pid] = (action, entry)
 
         def _files() -> set[str]:
             return {f.stem for f in self.photo_dir.glob("*.jpg")} if self.photo_dir.exists() else set()
@@ -1183,81 +1201,107 @@ class EinkaufslisteManager:
             used |= set(ids)
             label = recipe_keys.get(key) or (entry.get("name") or key).replace("|", " · ")
             if key.startswith("rezept#") and key not in recipe_keys:
-                problems.append(f"📷 {len(ids)} Foto(s) von einem gelöschten Rezept")
-                if fix:
-                    await self.async_remove_photo(key)
+                add(f"photo_recipe:{key}", f"📷 {len(ids)} Foto(s) gehören zu einem Rezept, das es nicht mehr gibt",
+                    "Fotos löschen", lambda _v, key=key: self.async_remove_photo(key))
                 continue
             missing = [pid for pid in ids if pid not in files]
             if missing:
-                problems.append(f"📷 „{label}“: {len(missing)} Foto(s) fehlen auf der Festplatte")
-                if fix:
+                def drop(_v, key=key, entry=entry, ids=ids):
                     keep = [pid for pid in ids if pid in files]
                     if keep:
                         entry["id"], entry["more"] = keep[0], keep[1:]
                     else:
                         self.photos.pop(key, None)
+                keep_n = len(ids) - len(missing)
+                add(f"photo_missing:{key}",
+                    f"📷 „{label}“: {len(missing)} von {len(ids)} Foto(s) fehlen auf der Festplatte",
+                    f"Fehlende Fotos austragen{f' ({keep_n} vorhandene bleiben)' if keep_n else ' (Produkt hat dann kein Foto mehr)'}", drop)
         orphans = files - used
         if orphans:
-            problems.append(f"🗂️ {len(orphans)} Foto-Datei(en) gehören zu keinem Produkt mehr")
-            if fix:
+            async def wipe(_v, orphans=sorted(orphans)):
                 for pid in orphans:
                     await self._async_delete_file(pid)
-
-        def ref(thing: dict[str, Any], label: str) -> None:
-            for field, valid, what in (("store_id", stores, "Geschäft"), ("category_id", cats, "Kategorie")):
-                if thing.get(field) and thing[field] not in valid:
-                    problems.append(f"🔗 {label}: {what} gibt es nicht mehr")
-                    if fix:
-                        thing[field] = None
+            add("photo_orphans", f"🗂️ {len(orphans)} Foto-Datei(en) auf der Festplatte gehören zu keinem Produkt mehr",
+                "Dateien löschen (Platz sparen)", wipe)
 
         for code, bc in list(self.barcodes.items()):
             if not bc.get("name"):
-                problems.append(f"▥ Barcode {code} hat keinen Produktnamen")
-                if fix:
-                    self.barcodes.pop(code, None)
-                continue
-            ref(bc, f"Barcode „{bc['name']}“")
-        for item in self.items:
-            ref(item, f"Artikel „{item['name']}“")
-            if item.get("recipe_id") and item["recipe_id"] not in recipes:
-                problems.append(f"🍽️ Artikel „{item['name']}“ gehört zu einem gelöschten Rezept")
-                if fix:
-                    item["recipe_id"] = None
+                add(f"bc_noname:{code}", f"▥ Barcode {code} hat keinen Produktnamen", "Barcode löschen",
+                    lambda _v, code=code: self.barcodes.pop(code, None))
+
+        def ref(pid: str, thing: dict[str, Any], label: str, fields: tuple[str, ...] = ("store_id", "category_id")) -> None:
+            for field in fields:
+                if not thing.get(field):
+                    continue
+                if field == "store_id" and thing[field] not in stores:
+                    add(f"ref:{pid}:store", f"🔗 {label}: das Geschäft gibt es nicht mehr",
+                        "Anderes Geschäft wählen", lambda v, t=thing: t.__setitem__("store_id", v or None),
+                        store_opts, None, "🤷 Egal wo / wie zuletzt")
+                if field == "category_id" and thing[field] not in cats:
+                    guess = self.guess_category(thing.get("name") or "")
+                    add(f"ref:{pid}:cat", f"🔗 {label}: die Kategorie gibt es nicht mehr",
+                        "Andere Kategorie wählen", lambda v, t=thing: t.__setitem__("category_id", v or None),
+                        cat_opts, guess, "📦 Ohne Kategorie")
+
+        for code, bc in self.barcodes.items():
+            if bc.get("name"):
+                ref(f"bc:{code}", bc, f"Barcode „{bc['name']}“")
         for recipe in self.recipes:
-            for ri in recipe["items"]:
-                ref(ri, f"Zutat „{ri['name']}“ in „{recipe['name']}“")
+            for n, ri in enumerate(recipe["items"]):
+                ref(f"ri:{recipe['id']}:{n}", ri, f"Zutat „{ri['name']}“ in „{recipe['name']}“")
             if recipe.get("group") and recipe["group"] not in groups:
-                problems.append(f"🏷️ Rezept „{recipe['name']}“: Gruppe gibt es nicht mehr")
-                if fix:
-                    recipe["group"] = None
-        for hist in self.history.values():
-            ref(hist, f"Vorschlag „{hist.get('name', '?')}“")
+                add(f"rgroup:{recipe['id']}", f"🏷️ Rezept „{recipe['name']}“: die Rezept-Gruppe gibt es nicht mehr",
+                    "Andere Gruppe wählen", lambda v, r=recipe: r.__setitem__("group", v or None),
+                    group_opts, None, "Ohne Gruppe")
+        for hkey, hist in self.history.items():
+            ref(f"hist:{hkey}", hist, f"Gedächtnis „{hist.get('name', '?')}“")
+        for item in self.items:
+            label = item["name"] + (f" · {item['note']}" if item.get("note") else "")
+            ref(f"item:{item['id']}", item, f"Artikel „{label}“", ("category_id",))
+            if item.get("recipe_id") and item["recipe_id"] not in recipes:
+                add(f"item_recipe:{item['id']}", f"🍽️ Artikel „{label}“ gehört zu einem Rezept, das es nicht mehr gibt",
+                    "Rezept-Hinweis entfernen (der Artikel bleibt auf der Liste)",
+                    lambda _v, i=item: i.__setitem__("recipe_id", None))
+            # 🛒 kein (gültiges) Geschäft – Vorschlag: so wie zuletzt gekauft
+            if not item.get("store_id") or item["store_id"] not in stores:
+                last = (self.history_for(item["name"]) or {}).get("store_id")
+                state = "offen" if not item["checked"] else "erledigt"
+                add(f"nostore:{item['id']}",
+                    f"🛒 „{label}“ ({state}) hat kein Geschäft" + (" – das alte gibt es nicht mehr" if item.get("store_id") else " („Egal wo“)"),
+                    "Geschäft setzen" + (" (Vorschlag: wie zuletzt)" if last in stores else ""),
+                    lambda v, i=item: i.__setitem__("store_id", v or None),
+                    store_opts, last if last in stores else None, "🤷 Egal wo lassen")
+        # 📦 Produkte im Katalog ohne Kategorie – Vorschlag aus dem Wörterbuch
+        for prod in self.products():
+            if prod["category_id"] and prod["category_id"] in cats:
+                continue
+            label = prod["name"] + (f" · {prod['note']}" if prod["note"] else "")
+            guess = self.guess_category(prod["name"])
+            add(f"nocat:{prod['key']}", f"📦 „{label}“ hat keine Kategorie",
+                "Kategorie setzen" + (" (Vorschlag aus dem Wörterbuch)" if guess else " – bitte selbst wählen"),
+                lambda v, key=prod["key"]: v and self.update_product(key, category_id=v),
+                cat_opts, guess, "📦 Ohne Kategorie lassen")
 
-        def names(things: list[dict[str, Any]]) -> str:
-            shown = ", ".join(dict.fromkeys(t["name"] for t in things[:6]))
-            return shown + (" …" if len(things) > 6 else "")
-
-        # 📦 Produkte ohne Kategorie – Reparieren rät sie aus dem Wörterbuch (wo es das Produkt kennt)
-        no_cat = [p for p in self.products() if not p["category_id"]]
-        if no_cat:
-            problems.append(f"📦 {len(no_cat)} Produkt(e) ohne Kategorie: {names(no_cat)}")
-            if fix:
-                for prod in no_cat:
-                    guess = self.guess_category(prod["name"])
-                    if guess:
-                        self.update_product(prod["key"], category_id=guess)
-        # 🛒 Artikel auf der Liste ohne Geschäft – Reparieren nimmt das Geschäft von „wie zuletzt“
-        no_store = [i for i in self.items if not i.get("store_id")]
-        if no_store:
-            problems.append(f"🛒 {len(no_store)} Artikel auf der Liste ohne Geschäft („Egal wo“): {names(no_store)}")
-            if fix:
-                for item in no_store:
-                    last = (self.history_for(item["name"]) or {}).get("store_id")
-                    if last and last in stores:
-                        item["store_id"] = last
-        if fix and problems:
+        # 🔧 Reparieren: nur was ausgewählt ist (bzw. bei fix=True alles mit Vorschlag)
+        todo: dict[str, str] = dict(fixes or {})
+        if fix and not fixes:
+            todo = {pid: e.get("default") or "" for pid, (_a, e) in actions.items() if "options" not in e or e.get("default")}
+        fixed = 0
+        for pid, value in todo.items():
+            if pid not in actions:
+                continue
+            action, _entry = actions[pid]
+            try:
+                result = action(value or "")
+                if hasattr(result, "__await__"):
+                    await result
+            except ValueError:  # hat sich durch eine andere Reparatur schon erledigt (z. B. Produkt weg)
+                continue
+            fixed += 1
+        if fixed:
             self._changed()
-        return {"problems": problems, "count": len(problems), "fixed": bool(fix and problems)}
+        problems = [e["text"] for e in found]
+        return {"items": found, "problems": problems, "count": len(found), "fixed": fixed}
 
     async def _async_delete_file(self, photo_id: str) -> None:
         path = self._photo_path(photo_id)
