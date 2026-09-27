@@ -159,7 +159,7 @@ Was du gewählt hast, steht direkt am Symbol, zum Beispiel **🔢 2x · 👤 Oma
 
 ## ⚡ Schnell eintragen
 
-Die Eingabe auf der Einkaufsliste ist bewusst schlank: **Name · 🔢 Menge · 📝 Notiz · 👤 Für wen · 📷 Foto · 🛒 Geschäft** (plus 🧽 Radiergummi zum Leeren). Der **▥ Barcode-Knopf** sitzt oben neben der grünen Lampe – so ist er auch im Laden-Modus da („Scannen & abhaken“), aber nicht direkt neben dem Laden-Knopf. Die Geschäft-Auswahl heißt **„Welches Geschäft?“** und geht über die ganze Breite. Alles andere läuft automatisch:
+Die Eingabe auf der Einkaufsliste ist bewusst schlank: **Name · 🔢 Menge · 📝 Notiz · 👤 Für wen · 📷 Foto · 🛒 Geschäft** (plus 🧽 Radiergummi zum Leeren). Der **▥ Barcode-Knopf** sitzt oben neben der grünen Lampe – so ist er auch im Laden-Modus da („Scannen & abhaken“), aber nicht direkt neben dem Laden-Knopf. Die Geschäft-Auswahl heißt **„Welches Geschäft?“**, hat unten **„Egal wo“** und geht über die ganze Breite. Unter dem Artikel steht der **Geschäft-Name in der Farbe des Geschäfts** (ohne Punkt davor – spart Platz). Alles andere läuft automatisch:
 
 - **Kategorie** kommt aus dem Gedächtnis oder dem Wörterbuch – ändern geht nachträglich per **langem Drücken → Kategorie**.
 - **Geschäft** kommt aus dem Gedächtnis (so wie zuletzt gekauft).
@@ -173,7 +173,9 @@ Die Eingabe auf der Einkaufsliste ist bewusst schlank: **Name · 🔢 Menge · �
 
 ## 📖 Anleitung in der Karte
 
-Ein Tipp auf den **Einkaufswagen oben links** (neben dem Titel) öffnet eine kurze Anleitung für alle in der Familie: Eintragen, Abhaken, Geschäfte, Laden-Modus, Fotos, Rezepte und was die Zeichen oben bedeuten. Die Einstellungen (⚙️) kommen darin bewusst nicht vor – die Anleitung ist für alle, die einfach nur einkaufen. Die einzelnen Teile klappen per Tipp auf. (Ist der Titel per `show_title: false` ausgeblendet, ist auch der Einkaufswagen weg.)
+Ein Tipp auf den **Einkaufswagen ganz oben links** öffnet eine kurze Anleitung für alle in der Familie: Eintragen, Abhaken, Geschäfte, Laden-Modus, Fotos, Rezepte und was die Zeichen oben bedeuten. Die Einstellungen (⚙️) kommen darin bewusst nicht vor – die Anleitung ist für alle, die einfach nur einkaufen. Die einzelnen Teile klappen per Tipp auf. (Mit `show_title: false` ist der Einkaufswagen weg.)
+
+**Oben von links:** 🛒 Einkaufswagen (Anleitung) · 🟢 Verbindung · Zahl der offenen Sachen · ▥ Barcode. Rechts: Laden-Modus · Rezepte · ⚙️. Einen Titel-Text gibt es nicht mehr – der Einkaufswagen reicht.
 
 ## 🍽️ Rezepte
 
@@ -307,7 +309,7 @@ Bist du bei einem Geschäft, das eine **📍 Zone** hat, wird der ▥-Knopf **gr
 
 Ein Tipp aufs **⚙️** zeigt eine aufgeräumte Übersicht mit Kacheln: **Geschäfte · Kategorien · Rezepte · Rezept-Gruppen · Personen · Produkte · Alles ok? · Verlauf · Aufräumen**.
 
-**✅ Alles ok?** sucht kaputte Einträge: Fotos, die auf der Festplatte fehlen oder zu nichts mehr gehören, Fotos von gelöschten Rezepten, Barcodes ohne Produkt und Verweise auf gelöschte Geschäfte, Kategorien, Rezepte oder Gruppen. Erst wird nur angezeigt, was gefunden wurde. **Reparieren** räumt es dann auf. Tipp auf eine Kachel, und nur dieser Bereich geht auf. Mit **← Übersicht** geht's zurück.
+**✅ Alles ok?** sucht kaputte Einträge: Fotos, die auf der Festplatte fehlen oder zu nichts mehr gehören, Fotos von gelöschten Rezepten, Barcodes ohne Produkt und Verweise auf gelöschte Geschäfte, Kategorien, Rezepte oder Gruppen. Außerdem: **Produkte ohne Kategorie** und **Artikel auf der Liste ohne Geschäft** („Egal wo“). Erst wird nur angezeigt, was gefunden wurde. **Reparieren** räumt es dann auf – fehlende Kategorien werden aus dem Wörterbuch geraten, fehlende Geschäfte von „wie zuletzt“ genommen. Was sich nicht raten lässt, bleibt in der Liste stehen, damit du es selbst einträgst. Tipp auf eine Kachel, und nur dieser Bereich geht auf. Mit **← Übersicht** geht's zurück.
 
 In der Rezept-Übersicht (⚙️ → Rezepte) steht bei jedem Rezept, ob es eine **📖 Anleitung** und **🔥 Backofen-Einstellungen** hat.
 
@@ -338,7 +340,7 @@ Alles lässt sich bequem im visuellen Editor einstellen. Für YAML-Fans:
 
 | Option | Standard | Was macht das? |
 |---|---|---|
-| `show_title` | `true` | `false` blendet den Titel oben aus |
+| `show_title` | `true` | `false` blendet den Einkaufswagen oben (Anleitung) aus |
 | `title` | `Einkaufsliste` | Überschrift |
 | `store` | `all` | `all` zeigt alle Geschäfte mit Reitern. Wählst du im Editor ein Geschäft aus, zeigt die Karte **nur dieses Geschäft**. |
 | `show_added_by` | `true` | „✍️ Name“ (wer eingetragen hat) klein unter dem Artikel anzeigen |

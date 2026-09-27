@@ -2,7 +2,7 @@
  * Einkaufsliste Card – die Familien-Einkaufsliste für Home Assistant
  * Wird automatisch von der Integration "einkaufsliste" geladen.
  */
-const EL_VERSION = "2.16.0";
+const EL_VERSION = "2.17.0";
 
 // Doppelt-Finder: Wörter, die dasselbe meinen (alles klein, ohne Leer-/Sonderzeichen)
 const DUP_SYNONYMS = (() => {
@@ -625,6 +625,10 @@ input:focus, select:focus { border-color:var(--primary-color,#03a9f4); }
 .item .meta { font-size:.75em; color:var(--secondary-text-color); display:flex; flex-wrap:wrap; gap:2px 8px; margin-top:1px; }
 .chip { --c:#888; display:inline-flex; align-items:center; gap:4px; }
 .chip::before { content:""; width:7px; height:7px; border-radius:50%; background:var(--c); }
+/* 🏪 Unter dem Artikel: Geschäft-Name in seiner Farbe statt Punkt davor (spart Platz).
+   Etwas mit der Schriftfarbe gemischt, damit auch Gelb gut lesbar bleibt. */
+.meta .chip, .pmeta .chip { color:color-mix(in srgb, var(--c) 60%, var(--primary-text-color, #212121)); font-weight:600; gap:0; }
+.meta .chip::before, .pmeta .chip::before { display:none; }
 .item { border-left:4px solid var(--cc, transparent); padding-left:0; }
 .item[style*="--rc"] { box-shadow: inset -4px 0 0 var(--rc); }
 .item .txt { -webkit-user-select:none; user-select:none; -webkit-touch-callout:none; }
@@ -638,7 +642,7 @@ input:focus, select:focus { border-color:var(--primary-color,#03a9f4); }
 .qbtn[disabled] { opacity:.3; }
 .qval { min-width:44px; text-align:center; font-weight:600; font-size:1.1em; }
 ha-card.shop form.add { display:none; }
-ha-card.shop #btnRecipes, ha-card.shop #btnSettings, ha-card.shop .title .t { display:none; }
+ha-card.shop #btnRecipes, ha-card.shop #btnSettings { display:none; }
 ha-card.shop .item { padding:11px 5px; font-size:1.2em; }
 ha-card.shop .item .name { font-weight:600; }
 ha-card.shop .item .check { padding:9px; --mdc-icon-size:38px; }
@@ -968,7 +972,7 @@ class EinkaufslisteCard extends HTMLElement {
       <style>${STYLE}</style>
       <ha-card>
         <div class="head">
-          <div class="title"><ha-icon id="titleIcon" icon="mdi:cart-variant" data-act="guide" title="📖 Anleitung – antippen"></ha-icon><span class="t" id="title"></span><span class="badge" id="count" hidden></span><span class="live" id="liveDot" title="Verbindung"></span><button class="iconbtn" id="btnScan" type="button" data-act="scan" title="Barcode scannen" hidden><ha-icon icon="mdi:barcode-scan"></ha-icon></button></div>
+          <div class="title"><ha-icon id="titleIcon" icon="mdi:cart-variant" data-act="guide" title="📖 Anleitung – antippen"></ha-icon><span class="live" id="liveDot" title="Verbindung"></span><span class="badge" id="count" hidden></span><span class="t" id="title" hidden></span><button class="iconbtn" id="btnScan" type="button" data-act="scan" title="Barcode scannen" hidden><ha-icon icon="mdi:barcode-scan"></ha-icon></button></div>
           <button class="iconbtn" id="btnShop" data-act="shopmode" title="Laden-Modus"><ha-icon icon="mdi:cart-outline"></ha-icon></button>
           <button class="iconbtn" id="btnRecipes" data-act="view" data-view="recipes" title="Rezepte"><ha-icon icon="mdi:chef-hat"></ha-icon></button>
           <button class="iconbtn" id="btnSettings" data-act="view" data-view="settings" title="Geschäfte & Kategorien"><ha-icon icon="mdi:cog-outline"></ha-icon></button>
@@ -1019,6 +1023,7 @@ class EinkaufslisteCard extends HTMLElement {
     this.$("addForm").addEventListener("submit", (e) => this._onAdd(e));
     this.$("newPhotoFile").addEventListener("change", (e) => this._onNewPhotoFile(e));
     this.$("inCat").addEventListener("change", () => { this._catManual = !!this.$("inCat").value; this._updateTools(); });
+    this.$("inStore").addEventListener("change", () => this._updateTools()); // 🧽 Radiergummi auch nach Geschäft-Wahl
     for (const id of ["inQty", "inNote", "inFor"]) {
       this.$(id).addEventListener("input", () => this._updateTools());
       this.$(id).addEventListener("change", () => this._updateTools());
@@ -1164,7 +1169,6 @@ class EinkaufslisteCard extends HTMLElement {
     const c = this._config;
     const titleText = this._fixedStore && this._store(this._fixedStore)
       ? `${c.title || ""}${c.title ? " · " : ""}${this._store(this._fixedStore).name}` : (c.title || "");
-    const showTitle = c.show_title !== false && !!titleText;
     const cardEl = this.shadowRoot.querySelector("ha-card");
     cardEl.classList.toggle("compact", !!c.compact);
     const shop = !!this._shopMode && this._view === "list";
@@ -1174,8 +1178,9 @@ class EinkaufslisteCard extends HTMLElement {
     btnShop.classList.toggle("on", shop);
     btnShop.title = shop ? "Laden-Modus beenden" : "Laden-Modus (große Zeilen, nur Abhaken)";
     btnShop.querySelector("ha-icon").setAttribute("icon", shop ? "mdi:cart-off" : "mdi:cart-outline");
-    this.$("title").textContent = showTitle ? titleText : "";
-    this.$("titleIcon").hidden = !showTitle;
+    this.$("title").textContent = ""; // Titel-Text ist weg – der Einkaufswagen reicht
+    this.$("titleIcon").hidden = c.show_title === false;
+    this.$("titleIcon").title = `📖 Anleitung – antippen${titleText ? ` · ${titleText}` : ""}`;
     this._renderUpdateBar();
     this._updateLive();
     const err = this.$("error");
@@ -1264,13 +1269,14 @@ class EinkaufslisteCard extends HTMLElement {
     this.$("tFor").hidden = !(d.persons || []).length;
     if (this.$("tFor").hidden) this.$("forBox").hidden = true;
     if ((d.persons || []).some((p) => p.name === prevFor)) pf.value = prevFor;
-    st.innerHTML = this._selectOptions(d.stores, null, "🛒 Welches Geschäft?");
+    st.innerHTML = this._selectOptions(d.stores, null, this._formMode === "recipe" ? "🛒 Wie zuletzt" : "🛒 Welches Geschäft?")
+      + `<option value="~none" ${this._formMode === "recipe" ? "hidden" : ""}>🤷 Egal wo</option>`;
     ct.innerHTML = this._selectOptions(d.categories, null, "📦 Ohne Kategorie");
     const tab = this._activeTab;
     if (this._lastTab !== tab) {
-      st.value = tab !== "all" && tab !== "none" ? tab : "";
+      st.value = this._defaultStore();
       this._lastTab = tab;
-    } else if (d.stores.some((s) => s.id === prevStore)) st.value = prevStore;
+    } else if (prevStore === "~none" || d.stores.some((s) => s.id === prevStore)) st.value = prevStore;
     if (d.categories.some((c) => c.id === prevCat)) ct.value = prevCat;
   }
 
@@ -1512,6 +1518,17 @@ class EinkaufslisteCard extends HTMLElement {
         <button class="qbtn" data-act="qty-plus">＋</button>
         <button class="iconbtn" data-act="qty-done" title="Fertig"><ha-icon icon="mdi:check"></ha-icon></button>
       </div>`;
+  }
+
+  _inStore() {
+    const v = this.$("inStore").value;
+    return v && v !== "~none" ? v : null;
+  }
+
+  // Was steht im Geschäft-Feld, wenn man nichts anfasst? (für den Radiergummi)
+  _defaultStore() {
+    const tab = this._activeTab;
+    return this._formMode === "recipe" ? "" : tab === "none" ? "~none" : tab !== "all" ? tab : "";
   }
 
   // 📦 Kategorie ändern (per langem Drücken → Kategorie)
@@ -2479,6 +2496,8 @@ class EinkaufslisteCard extends HTMLElement {
     this.$("inStore").hidden = false;
     this.$("inStore").value = "";
     this.$("inStore").options[0].textContent = "🛒 Wie zuletzt";
+    const none = this.$("inStore").querySelector('option[value="~none"]');
+    if (none) none.hidden = true;
     this.$("inCat").options[0].textContent = "📦 Wie zuletzt";
     this.$("inName").placeholder = "Zutat, z. B. Fischstäbchen";
     this.$("btnScan").classList.remove("instore");
@@ -2496,6 +2515,9 @@ class EinkaufslisteCard extends HTMLElement {
     this._rEditIdx = null;
     this.$("tBasic").hidden = true;
     this.$("inName").placeholder = "Was brauchen wir?";
+    const none = this.$("inStore").querySelector('option[value="~none"]');
+    if (none) none.hidden = false;
+    this.$("inStore").options[0].textContent = "🛒 Welches Geschäft?";
     this._clearForm();
     this._lastTab = null; // Auswahl-Felder neu aufbauen (Geschäft passend zum Reiter)
   }
@@ -2546,7 +2568,7 @@ class EinkaufslisteCard extends HTMLElement {
       quantity: normQty(qty),
       note: val("inNote") ? val("inNote").charAt(0).toUpperCase() + val("inNote").slice(1) : null,
       for_whom: this.$("inFor").value || null,
-      store_id: this.$("inStore").value || null,
+      store_id: this._inStore(),
       category_id: this.$("inCat").value || null,
       basic: !!this._rBasic,
     };
@@ -2828,7 +2850,7 @@ class EinkaufslisteCard extends HTMLElement {
     this._renderSuggest();
     for (const id of ["qtyBox", "inQty", "inNote", "forBox"]) this.$(id).hidden = true;
     const tab = this._activeTab;
-    this.$("inStore").value = tab !== "all" && tab !== "none" ? tab : "";
+    this.$("inStore").value = tab === "none" ? "~none" : tab !== "all" ? tab : "";
     this._newPhoto = null;
     this._pendingBarcode = null;
     this._catManual = false;
@@ -2930,7 +2952,8 @@ class EinkaufslisteCard extends HTMLElement {
     const clear = this.$("tClear");
     if (clear) {
       const any = ["inName", "inQty", "inNote", "inFor"].some((id) => this.$(id)?.value.trim())
-        || this._newPhoto || this._pendingBarcode || this._catManual;
+        || this._newPhoto || this._pendingBarcode || this._catManual
+        || (!this._fixedStore && (this.$("inStore")?.value || "") !== this._defaultStore());
       clear.hidden = !any;
     }
     if (this.$("inCat")) this.$("inCat").hidden = this._formMode !== "recipe";
@@ -3143,13 +3166,16 @@ class EinkaufslisteCard extends HTMLElement {
     </style>
     <div class="elg">
       <div class="elg-top"><h2>🛒 So funktioniert die Einkaufsliste</h2></div>
-      <p class="elg-sub">Tipp auf eine Überschrift klappt sie auf. Diese Anleitung findest du immer über den <b>Einkaufswagen oben links</b>.</p>
+      <p class="elg-sub">Tipp auf eine Überschrift klappt sie auf. Diese Anleitung findest du immer über den <b>Einkaufswagen ganz oben links</b>.</p>
       ${sec("✍️", "Etwas eintragen", `<ul>
         <li>Oben ins Feld tippen, z. B. <b>Milch</b>, dann den grünen Haken <span class="elg-k">✔</span>.</li>
-        <li>Beim Tippen kommen <b>Vorschläge</b>. Antippen übernimmt alles davon (Menge, Notiz, für wen, Geschäft).</li>
-        <li>Die Menge geht auch direkt: <b>3 Milch</b> oder <b>500 g Mehl</b>.</li>
-        <li>Die Knöpfe darunter: 🔢 Menge · 📝 Notiz (z. B. Sorte) · 👤 Für wen · 📷 Foto · ▥ Barcode.</li>
-        <li>Das <b>Geschäft</b> wählst du darüber, oder „Egal wo“.</li>
+        <li>Beim Tippen kommen bis zu <b>4 Vorschläge</b>. Antippen übernimmt alles vom letzten Mal (Menge, Notiz, für wen, Geschäft).</li>
+        <li>Die Menge geht auch direkt: <b>3 Milch</b> oder <b>500 g Mehl</b>. Die Liste merkt sich die Einheit: <b>2 Backpulver</b> wird zu 2 Pck.</li>
+        <li><b>Mehrere auf einmal:</b> <b>Milch, 6 Eier, Brot</b> → ✔ → 3 Sachen auf der Liste.</li>
+        <li>Die Knöpfe darunter: 🔢 Menge · 📝 Notiz (z. B. Sorte) · 👤 Für wen · 📷 Foto · 🧽 alles leeren.</li>
+        <li>Darunter <b>„Welches Geschäft?“</b> – oder „Egal wo“. Meist ist es schon richtig ausgewählt (so wie zuletzt).</li>
+        <li>Die <b>Kategorie</b> sucht sich die Liste selbst aus.</li>
+        <li>Einen <b>Namen</b> tippen (z. B. von dir) zeigt, was für diese Person auf der Liste steht.</li>
         <li>Vertippt? Die Liste fragt „Meintest du …?“ 😉</li></ul>`, true)}
       ${sec("✅", "Abhaken & wieder draufsetzen", `<ul>
         <li><b>Kreis antippen</b> = gekauft. Das Handy vibriert kurz.</li>
@@ -3162,17 +3188,18 @@ class EinkaufslisteCard extends HTMLElement {
         <li><b>✨</b> am Artikel = neu (verschwindet nach 24 Stunden).</li>
         <li><b>⇄</b> am Artikel = in ein anderes Geschäft schieben, z. B. wenn es aus war.</li></ul>`)}
       ${sec("👆", "Ändern & lange drücken", `<ul>
-        <li>Artikel <b>lange drücken</b> = Menü: Bearbeiten, Verschieben, Foto, Barcode.</li>
-        <li>Menge direkt ändern mit <span class="elg-k">−</span> und <span class="elg-k">＋</span>.</li>
-        <li>Unter dem Artikel steht klein: Geschäft, Notiz, ▥ (Barcode da), wer eingetragen und wer abgehakt hat.</li></ul>`)}
+        <li>Artikel <b>lange drücken</b> = Menü: Bearbeiten, Verschieben, Menge, Kategorie, Foto, Barcode.</li>
+        <li>Menge direkt ändern: auf die Menge tippen, dann <span class="elg-k">−</span> und <span class="elg-k">＋</span>.</li>
+        <li>Unter dem Artikel steht klein: das <b>Geschäft in seiner Farbe</b>, die <b>📝 Notiz</b> (gelb hinterlegt), ▥ (Barcode da), wer eingetragen und wer abgehakt hat.</li></ul>`)}
       ${sec("🛍️", "Im Laden", `<ul>
-        <li>Der <b>Wagen oben rechts</b> schaltet den <b>Laden-Modus</b> ein: große Zeilen, nur Abhaken.</li>
-        <li>Nochmal antippen = wieder normal.</li>
-        <li>Bist du laut Standort im Geschäft, hakt <b>▥ Scannen</b> das Produkt gleich ab (falls es auf der Liste steht).</li></ul>`)}
+        <li>Der <b>Wagen oben rechts</b> schaltet den <b>Laden-Modus</b> ein: große Zeilen, nur Abhaken, nur das Wichtigste.</li>
+        <li>Nochmal antippen (oder <b>Beenden</b>) = wieder normal.</li>
+        <li>Bist du laut Standort im Geschäft, hakt <b>▥</b> (oben neben dem grünen Punkt) das gescannte Produkt gleich ab – falls es auf der Liste steht.</li></ul>`)}
       ${sec("📷", "Fotos & Barcodes", `<ul>
         <li>Das <b>📷</b> am Artikel zeigt das Foto. Wischen = blättern, <b>„Foto dazu“</b> für weitere (bis 6).</li>
         <li>Ein neues Foto <b>ersetzt nie</b> ein altes, es kommt immer dazu.</li>
-        <li><b>▥ Barcode</b> scannen (in der HA-App): Das Produkt wird erkannt und eingetragen.</li></ul>`)}
+        <li><b>▥</b> oben neben dem grünen Punkt = Barcode scannen (in der HA-App): Das Produkt wird erkannt und eingetragen.</li>
+        <li>Einen Barcode nachträglich zuordnen: Artikel lange drücken → <b>Barcode</b>.</li></ul>`)}
       ${sec("👨‍🍳", "Rezepte", `<ul>
         <li>Die <b>Kochmütze</b> oben öffnet die Rezepte. Das Suchfeld findet auch Zutaten (z. B. „Zucchini“).</li>
         <li><b>Auf die Liste</b>: Anhaken, was du brauchst. Was schon draufsteht oder „haben wir immer“ ist (🧂), ist nicht angehakt.</li>
@@ -3182,8 +3209,10 @@ class EinkaufslisteCard extends HTMLElement {
         <li>📷 = Rezept-Fotos · <b>🔥 Kochen</b> = Schritt für Schritt in großer Schrift · <b>Teilen</b> = z. B. per WhatsApp.</li>
         <li>Abgehakte Rezept-Zutaten verschwinden ganz (nicht bei „Erledigt“).</li></ul>`)}
       ${sec("🟢", "Was bedeuten die Zeichen oben?", `<ul>
+        <li>Von links: <b>🛒 Einkaufswagen</b> = diese Anleitung · <b>🟢 Punkt</b> · <b>Zahl</b> · <b>▥ Barcode</b>.</li>
         <li><b>🟢 Grüner Punkt</b> = verbunden, alles ist live auf allen Handys. <b>🔴 Rot</b> = gerade keine Verbindung.</li>
-        <li>Die <b>Zahl</b> neben dem Namen = so viele Sachen sind noch offen.</li>
+        <li>Die <b>Zahl</b> = so viele Sachen sind noch offen.</li>
+        <li>Rechts: <b>Wagen</b> = Laden-Modus · <b>Kochmütze</b> = Rezepte.</li>
         <li>Ein <b>blauer Balken</b> oben = es gibt ein Update, das muss jemand mit Admin-Zugang in Home Assistant fertig machen.</li></ul>`)}
     </div>`;
     const bClose = ovButton("Schließen", true);
@@ -3616,7 +3645,7 @@ class EinkaufslisteCard extends HTMLElement {
     const msg = {
       type: "einkaufsliste/item/add",
       name,
-      store_id: this._fixedStore || this.$("inStore").value || null,
+      store_id: this._fixedStore || this._inStore(),
       category_id: this.$("inCat").value || null,
     };
     for (const [key, id] of [["quantity", "inQty"], ["note", "inNote"], ["for_whom", "inFor"]]) {
@@ -3642,7 +3671,7 @@ class EinkaufslisteCard extends HTMLElement {
     if (this._newPhoto) { this._toast("📷 Mit Foto bitte einzeln eintragen – das Foto gehört ja zu einem Produkt."); return; }
     const tab = this._activeTab;
     const tabStore = this._fixedStore || (tab !== "all" && tab !== "none" && this._store(tab) ? tab : null);
-    const chosen = this.$("inStore").value || null;
+    const chosen = this._inStore();
     const forWhom = this.$("inFor").value || null;
     let added = 0;
     for (const raw of parts) {

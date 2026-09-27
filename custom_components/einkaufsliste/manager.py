@@ -1232,6 +1232,29 @@ class EinkaufslisteManager:
                     recipe["group"] = None
         for hist in self.history.values():
             ref(hist, f"Vorschlag „{hist.get('name', '?')}“")
+
+        def names(things: list[dict[str, Any]]) -> str:
+            shown = ", ".join(dict.fromkeys(t["name"] for t in things[:6]))
+            return shown + (" …" if len(things) > 6 else "")
+
+        # 📦 Produkte ohne Kategorie – Reparieren rät sie aus dem Wörterbuch (wo es das Produkt kennt)
+        no_cat = [p for p in self.products() if not p["category_id"]]
+        if no_cat:
+            problems.append(f"📦 {len(no_cat)} Produkt(e) ohne Kategorie: {names(no_cat)}")
+            if fix:
+                for prod in no_cat:
+                    guess = self.guess_category(prod["name"])
+                    if guess:
+                        self.update_product(prod["key"], category_id=guess)
+        # 🛒 Artikel auf der Liste ohne Geschäft – Reparieren nimmt das Geschäft von „wie zuletzt“
+        no_store = [i for i in self.items if not i.get("store_id")]
+        if no_store:
+            problems.append(f"🛒 {len(no_store)} Artikel auf der Liste ohne Geschäft („Egal wo“): {names(no_store)}")
+            if fix:
+                for item in no_store:
+                    last = (self.history_for(item["name"]) or {}).get("store_id")
+                    if last and last in stores:
+                        item["store_id"] = last
         if fix and problems:
             self._changed()
         return {"problems": problems, "count": len(problems), "fixed": bool(fix and problems)}

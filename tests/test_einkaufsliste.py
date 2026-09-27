@@ -1169,13 +1169,22 @@ async def test_check_and_repair(hass, setup, hass_ws_client):
     await m.async_set_photo("rezept#gibtsnicht", base64.b64encode(JPEG).decode())
     await client.send_json({"id": 2, "type": "einkaufsliste/check"})
     res = (await client.receive_json())["result"]
-    assert res["count"] == 4 and not res["fixed"], res
+    assert res["count"] == 5 and not res["fixed"], res
+    assert any(p.startswith("📦 3 Produkt(e) ohne Kategorie") for p in res["problems"])
     await client.send_json({"id": 3, "type": "einkaufsliste/check", "fix": True})
     res = (await client.receive_json())["result"]
     assert res["fixed"]
     assert item["store_id"] is None and r["group"] is None
     assert "brot" not in m.photos and "rezept#gibtsnicht" not in m.photos
+    # Kategorien aus dem Wörterbuch geraten
+    assert item["category_id"] == m.find_category("Kühlregal & Milch")
+    assert r["items"][0]["category_id"] == m.find_category("Vorrat & Konserven")
+    # Übrig bleibt nur, was keiner raten kann: Milch hat kein Geschäft (auch kein „wie zuletzt“)
     await client.send_json({"id": 4, "type": "einkaufsliste/check"})
+    res = (await client.receive_json())["result"]
+    assert res["problems"] == ["🛒 1 Artikel auf der Liste ohne Geschäft („Egal wo“): Milch"], res
+    item["store_id"] = m.stores[0]["id"]
+    await client.send_json({"id": 5, "type": "einkaufsliste/check"})
     assert (await client.receive_json())["result"]["count"] == 0
 
 
