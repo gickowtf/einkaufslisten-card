@@ -2,7 +2,7 @@
  * Einkaufsliste Card – die Familien-Einkaufsliste für Home Assistant
  * Wird automatisch von der Integration "einkaufsliste" geladen.
  */
-const EL_VERSION = "2.10.1";
+const EL_VERSION = "2.10.2";
 
 // Doppelt-Finder: Wörter, die dasselbe meinen (alles klein, ohne Leer-/Sonderzeichen)
 const DUP_SYNONYMS = (() => {
@@ -46,9 +46,27 @@ const dayDiff = (a, b) => Math.round((startOfDay(a) - startOfDay(b)) / DAY);
 const fmtDay = (d) => `${WD_SHORT[pyWd(d)]} ${String(d.getDate()).padStart(2, "0")}.${String(d.getMonth() + 1).padStart(2, "0")}.`;
 const stripMdi = (icon) => String(icon || "").replace(/^mdi:/, "");
 // 🔢 „3 milch“ / „milch 3x“ / „250g nudeln“ -> Name + Menge (wie in Home Assistant)
-const QTY_UNITS = { x: "x", "×": "x", stk: "x", "stück": "x", st: "x", g: "g", gr: "g", gramm: "g", kg: "kg", ml: "ml",
-  l: "L", ltr: "L", liter: "L", el: "EL", tl: "TL", pck: "Pck.", pkt: "Pck.", "päckchen": "Pck.", packung: "Pck.",
-  prise: "Prise", dose: "Dose", dosen: "Dosen", becher: "Becher", bund: "Bund", flasche: "Flasche", flaschen: "Flaschen" };
+// gleiche Liste wie quantity.py im Server (Schreibweise -> ordentliche Einheit)
+const QTY_UNITS = {};
+for (const [canon, vs] of Object.entries({
+  x: ["x", "×", "mal", "stk", "stück", "st", "stck"], g: ["g", "gr", "gramm"], kg: ["kg", "kilo", "kilogramm"],
+  mg: ["mg"], ml: ["ml", "milliliter"], cl: ["cl"], dl: ["dl"], L: ["l", "ltr", "liter"],
+  EL: ["el", "essl", "esslöffel"], TL: ["tl", "teel", "teelöffel"],
+  "Pck.": ["pck", "pkt", "päckchen", "packung", "packungen", "pack"], Prise: ["prise", "prisen"],
+  Dose: ["dose"], Dosen: ["dosen"], Becher: ["becher"], Bund: ["bund"], Flasche: ["flasche"], Flaschen: ["flaschen"],
+  Kiste: ["kiste"], Kisten: ["kisten"], Glas: ["glas"], "Gläser": ["gläser"], Rolle: ["rolle"], Rollen: ["rollen"],
+  Beutel: ["beutel"], "Tüte": ["tüte"], "Tüten": ["tüten"], Scheiben: ["scheiben"], Zehen: ["zehe", "zehen"],
+})) for (const v of vs) QTY_UNITS[v] = canon;
+const QTY_UNIT_RX = Object.keys(QTY_UNITS).sort((a, b) => b.length - a.length).map((u) => u.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|");
+// „3el“ -> „3 EL“, „500gr“ -> „500 g“, „3“ -> „3x“ (wie norm_qty im Server). Unbekanntes bleibt, wie es ist.
+function normQty(q) {
+  const t = String(q ?? "").trim().replace(/\s+/g, " ");
+  if (!t) return null;
+  const m = t.match(new RegExp(`^(\\d+(?:[.,]\\d+)?(?:\\s*/\\s*\\d+)?)\\s*(?:(${QTY_UNIT_RX})\\.?)?$`, "i"));
+  if (!m) return t;
+  const n = m[1].replace(/\s+/g, ""), c = m[2] ? QTY_UNITS[m[2].toLowerCase()] : "x";
+  return !c || c === "x" ? `${n}x` : `${n} ${c}`;
+}
 function splitQty(text) {
   const t = String(text || "").trim().replace(/\s+/g, " ");
   const units = Object.keys(QTY_UNITS).sort((a, b) => b.length - a.length).map((u) => u.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|");
@@ -2408,7 +2426,7 @@ class EinkaufslisteCard extends HTMLElement {
     const name = raw.charAt(0).toUpperCase() + raw.slice(1);
     const ing = {
       name,
-      quantity: qty,
+      quantity: normQty(qty),
       note: val("inNote") ? val("inNote").charAt(0).toUpperCase() + val("inNote").slice(1) : null,
       for_whom: this.$("inFor").value || null,
       store_id: this.$("inStore").value || null,
