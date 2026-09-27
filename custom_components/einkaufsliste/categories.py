@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from typing import Any
 
 # (Stichworte im Namen deiner Kategorie, Produkte die dazugehören)
@@ -9,7 +10,7 @@ from typing import Any
 # längere dürfen auch in zusammengesetzten Wörtern stecken (z. B. „Vollmilch“).
 DICTIONARY: list[tuple[tuple[str, ...], tuple[str, ...]]] = [
     (
-        ("obst", "gemüse", "gemuese"),
+        ("obst", "gemüse", "gemuese", "fruit", "vegetable", "produce"),
         (
             "apfel", "äpfel", "banane", "birne", "orange", "mandarine", "clementine", "zitrone",
             "limette", "traube", "erdbeere", "himbeere", "heidelbeere", "blaubeere", "kiwi",
@@ -22,7 +23,7 @@ DICTIONARY: list[tuple[tuple[str, ...], tuple[str, ...]]] = [
         ),
     ),
     (
-        ("back", "brot"),
+        ("back", "brot", "bakery", "bread"),
         (
             "brot", "brötchen", "baguette", "toast", "croissant", "brezel", "laugen", "semmel",
             "kuchen", "torte", "knäcke", "zwieback", "wrap", "tortilla", "fladenbrot",
@@ -30,7 +31,7 @@ DICTIONARY: list[tuple[tuple[str, ...], tuple[str, ...]]] = [
         ),
     ),
     (
-        ("kühl", "kuehl", "milch"),
+        ("kühl", "kuehl", "milch", "dairy", "chilled", "fridge"),
         (
             "milch", "joghurt", "jogurt", "quark", "käse", "butter", "sahne", "schmand",
             "creme fraiche", "crème fraîche", "frischkäse", "mozzarella", "feta", "gouda",
@@ -40,16 +41,16 @@ DICTIONARY: list[tuple[tuple[str, ...], tuple[str, ...]]] = [
         ),
     ),
     (
-        ("fleisch", "wurst", "fisch"),
+        ("fleisch", "wurst", "fisch", "meat", "fish", "sausage"),
         (
             "fleisch", "hack", "hähnchen", "huhn", "hühnchen", "pute", "schnitzel", "steak",
             "wurst", "würstchen", "salami", "schinken", "speck", "bacon", "aufschnitt",
-            "frikadelle", "gulasch", "braten", "kotelett", "filet", "lachs", "fisch", "garnele",
+            "frikadelle", "gulasch", "braten", "schwein", "rind", "kotelett", "filet", "lachs", "fisch", "garnele",
             "krabben", "hering", "forelle", "chicken", "nuggets", "leberkäse", "mett",
         ),
     ),
     (
-        ("tk", "tiefkühl", "tiefkuehl"),
+        ("tk", "tiefkühl", "tiefkuehl", "frozen", "freezer"),
         (
             "tk", "tiefkühl", "pizza", "eis", "eiscreme", "pommes", "fischstäbchen",
             "kroketten", "rahmspinat", "schlemmerfilet", "eiswürfel", "flammkuchen",
@@ -57,7 +58,7 @@ DICTIONARY: list[tuple[tuple[str, ...], tuple[str, ...]]] = [
         ),
     ),
     (
-        ("vorrat", "konserve"),
+        ("vorrat", "konserve", "pantry", "canned"),
         (
             "nudeln", "spaghetti", "pasta", "penne", "fusilli", "lasagne", "reis", "mehl",
             "zucker", "salz", "pfeffer", "öl", "olivenöl", "essig", "konserve", "dose", "mais",
@@ -69,7 +70,7 @@ DICTIONARY: list[tuple[tuple[str, ...], tuple[str, ...]]] = [
         ),
     ),
     (
-        ("süß", "suess", "snack"),
+        ("süß", "suess", "snack", "sweet"),
         (
             "schokolade", "schoko", "chips", "gummibärchen", "gummibär", "bonbon", "keks",
             "süßigkeit", "riegel", "nüsse", "erdnüsse", "popcorn", "flips", "lakritz",
@@ -77,7 +78,7 @@ DICTIONARY: list[tuple[tuple[str, ...], tuple[str, ...]]] = [
         ),
     ),
     (
-        ("getränk", "getraenk"),
+        ("getränk", "getraenk", "drink", "beverage"),
         (
             "wasser", "sprudel", "saft", "schorle", "cola", "fanta", "sprite", "limo",
             "limonade", "bier", "wein", "sekt", "eistee", "energy", "radler", "mineralwasser",
@@ -85,7 +86,7 @@ DICTIONARY: list[tuple[tuple[str, ...], tuple[str, ...]]] = [
         ),
     ),
     (
-        ("drogerie",),
+        ("drogerie", "drugstore", "toiletries", "personal care"),
         (
             "zahnpasta", "zahnbürste", "zahnseide", "mundspülung", "shampoo", "duschgel",
             "seife", "deo", "creme", "windel", "feuchttücher", "rasier", "tampon", "binden",
@@ -95,7 +96,7 @@ DICTIONARY: list[tuple[tuple[str, ...], tuple[str, ...]]] = [
         ),
     ),
     (
-        ("haushalt",),
+        ("haushalt", "household", "cleaning"),
         (
             "spülmittel", "waschmittel", "weichspüler", "müllbeutel", "müllsack", "küchenrolle",
             "alufolie", "frischhaltefolie", "backpapier", "schwamm", "putzmittel", "reiniger",
@@ -107,15 +108,31 @@ DICTIONARY: list[tuple[tuple[str, ...], tuple[str, ...]]] = [
 ]
 
 
+# 🌍 Englische Produkt-Wörter (gleiche Reihenfolge wie DICTIONARY). Die zählen nur als GANZES Wort –
+# sonst würde z. B. „wine“ in „Schweinebauch“ stecken.
+DICTIONARY_EN: list[tuple[str, ...]] = [
+    ("apple", "banana", "pear", "lemon", "lime", "grape", "strawberr", "raspberr", "blueberr", "cherry", "cherries", "peach", "plum", "pineapple", "tomato", "cucumber", "pepper", "lettuce", "onion", "garlic", "potato", "carrot", "broccoli", "cauliflower", "mushroom", "leek", "celery", "radish", "ginger", "parsley", "herbs", "spinach", "sweet potato", "pumpkin", "asparagus", "zucchini", "courgette", "cabbage", "fruit", "vegetable"),
+    ("bread", "roll", "rolls", "bagel", "bun", "buns", "cake", "pastry", "cookies", "pretzel"),
+    ("milk", "yogurt", "yoghurt", "cheese", "cream", "egg", "eggs", "sour cream", "cream cheese", "cottage cheese", "custard"),
+    ("meat", "beef", "pork", "turkey", "sausage", "ham", "mince", "minced", "salmon", "tuna steak", "shrimp", "prawn", "fish"),
+    ("frozen", "ice cream", "fries", "fish sticks", "fish fingers", "ice cubes"),
+    ("noodles", "rice", "flour", "sugar", "salt", "oil", "olive oil", "vinegar", "beans", "lentils", "chickpeas", "tuna", "tomato paste", "mustard", "stock", "broth", "spice", "cereal", "oats", "honey", "jam", "coffee", "tea", "cocoa", "sauce", "baking powder", "peanut butter", "syrup", "soup", "canned"),
+    ("chocolate", "candy", "sweets", "gummy", "biscuit", "cookie", "nuts", "peanuts", "pretzels", "chewing gum"),
+    ("water", "juice", "soda", "lemonade", "beer", "wine", "iced tea", "sparkling"),
+    ("toothpaste", "toothbrush", "floss", "mouthwash", "shower gel", "soap", "deodorant", "diaper", "nappies", "wipes", "razor", "tissues", "band-aid", "plaster", "sunscreen", "conditioner", "hand cream", "lotion"),
+    ("dish soap", "detergent", "laundry", "fabric softener", "trash bag", "bin bag", "paper towel", "kitchen roll", "aluminum foil", "tin foil", "cling film", "baking paper", "sponge", "cleaner", "toilet paper", "battery", "batteries", "light bulb", "candle", "napkins", "freezer bags"),
+]
+
+
 def category_hints(categories: list[dict[str, Any]]) -> list[dict[str, Any]]:
     """Wörterbuch auf deine eigenen Kategorien umgerechnet (für die Karte)."""
     hints = []
-    for cat_words, products in DICTIONARY:
+    for n, (cat_words, products) in enumerate(DICTIONARY):
         cat = next(
             (c for c in categories if any(w in c["name"].lower() for w in cat_words)), None
         )
         if cat is not None:
-            hints.append({"id": cat["id"], "words": list(products)})
+            hints.append({"id": cat["id"], "words": list(products), "en": list(DICTIONARY_EN[n]) if n < len(DICTIONARY_EN) else []})
     return hints
 
 
@@ -127,6 +144,11 @@ def _best_in(text: str, hints: list[dict[str, Any]], min_len: int, whole: bool) 
                 continue
             hit = (text == word) if (whole and len(word) <= 3) else (word in text)
             if hit:
+                best = (len(word), hint["id"])
+        for word in hint.get("en", ()):
+            if len(word) < min_len or len(word) <= best[0]:
+                continue
+            if re.search(rf"(?<![a-zäöüß]){re.escape(word)}(?:s|es)?(?![a-zäöüß])", text):
                 best = (len(word), hint["id"])
     return best[1]
 

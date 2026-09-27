@@ -2,7 +2,7 @@
  * Einkaufsliste Card – die Familien-Einkaufsliste für Home Assistant
  * Wird automatisch von der Integration "einkaufsliste" geladen.
  */
-const EL_VERSION = "2.20.3";
+const EL_VERSION = "2.21.0";
 
 // Doppelt-Finder: Wörter, die dasselbe meinen (alles klein, ohne Leer-/Sonderzeichen)
 const DUP_SYNONYMS = (() => {
@@ -40,6 +40,115 @@ const WD_LONG = ["Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Sam
 const pyWd = (d) => (d.getDay() + 6) % 7;
 const DAY = 86400000;
 
+// 🌍 Englisch als zweite Sprache: Die Karte ist auf Deutsch geschrieben. Ist Home Assistant NICHT auf Deutsch
+// (oder steht in der Karte „language: en“), holt sie sich einmal das Wörterbuch einkaufsliste-en.json
+// und übersetzt alles, was sie anzeigt. Deine eigenen Einträge (Artikel, Notizen, Rezepte) bleiben, wie sie sind.
+let EL_LANG = "de";
+let EL_DICT = null;       // exakte Texte: deutsch -> englisch
+let EL_PATTERNS = [];     // Texte mit Platzhaltern („{}“)
+let EL_DICT_PROMISE = null;
+const EL_I18N_ROOTS = new Set();
+const EL_SKIP = ".name,.rname,.pname,.inote,.delname,.lname,.stitle,textarea,style,script,[translate=no]";
+const EL_ATTRS = ["placeholder", "title", "aria-label", "label", "alt"];
+const EL_UNIT_RX = /^([\d½¼¾⅓⅔⅛][\d.,/½¼¾⅓⅔⅛\s-]*?)\s*(EL|TL|Msp\.|Pck\.|Prisen?|Dosen?|Becher|Bund|Flaschen?|Kisten?|Glas|Gläser|Rollen?|Beutel|Tüten?|Scheiben?|Zehen?|Tassen?|Schluck|Schuss|Spritzer|Tropfen|Handvoll|Stangen?|Kopf|Köpfe|Würfel|Zweige?|Blatt|Knollen?|Kugeln?|Schalen?|Netze?)$/;
+const EL_DAY_RX = /^(Mo|Di|Mi|Do|Fr|Sa|So)(?= \d)/;
+const elNorm = (t) => t.replace(/\s+/g, " ").trim();
+function elWantLang(hass, config) {
+  const want = String(config?.language || "auto").toLowerCase();
+  const l = want !== "auto" ? want : String(hass?.locale?.language || hass?.language || "de").toLowerCase();
+  return l.startsWith("de") ? "de" : "en";
+}
+function elLoadDict() {
+  if (!EL_DICT_PROMISE) {
+    EL_DICT_PROMISE = fetch(`${EL_BASE}/einkaufsliste-en.json?v=${EL_VERSION}`).then((r) => r.json()).then((raw) => {
+      const dict = {};
+      const pats = [];
+      for (const [de, en] of Object.entries(raw)) {
+        const key = elNorm(de);
+        if (!key.includes("{}")) { dict[key] = en; continue; }
+        const parts = key.split("{}");
+        const rx = new RegExp("^" + parts.map((x) => x.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("(.*?)") + "$", "s");
+        pats.push([rx, en, parts.join("").length]);
+      }
+      pats.sort((a, b) => b[2] - a[2]); // genauere Muster zuerst
+      EL_DICT = dict;
+      EL_PATTERNS = pats;
+      for (const root of EL_I18N_ROOTS) elTranslateTree(root);
+    }).catch(() => { EL_DICT_PROMISE = null; });
+  }
+  return EL_DICT_PROMISE;
+}
+function elT(text, depth = 0) {
+  if (EL_LANG === "de" || !EL_DICT || text == null) return text;
+  const raw = String(text);
+  const key = elNorm(raw);
+  if (!key || !/[A-Za-zÄÖÜäöüß]/.test(key)) return raw;
+  const lead = raw.match(/^\s*/)[0], trail = raw.match(/\s*$/)[0];
+  const wrap = (x) => lead + x + trail;
+  if (key in EL_DICT) return wrap(EL_DICT[key]);
+  for (const [rx, en] of EL_PATTERNS) {
+    const m = key.match(rx);
+    if (!m) continue;
+    return wrap(en.replace(/\{(\d)\}/g, (_, i) => {
+      const g = m[Number(i) + 1] ?? "";
+      return depth < 2 ? elT(g, depth + 1) : g;
+    }));
+  }
+  let m = key.match(EL_UNIT_RX);
+  if (m && EL_DICT[m[2]]) return wrap(`${m[1].trim()} ${EL_DICT[m[2]]}`);
+  m = key.match(EL_DAY_RX);
+  if (m && EL_DICT[m[1]]) return wrap(EL_DICT[m[1]] + key.slice(m[1].length));
+  m = depth < 2 && key.match(/^([^\p{L}\p{N}„“"(]+?)\s(.+)$/u); // „🏪 Geschäfte“: Zeichen vorne weg, Rest übersetzen
+  if (m) { const rest = elT(m[2], depth + 1); if (rest !== m[2]) return wrap(`${m[1]} ${rest}`); }
+  return raw;
+}
+function elTranslateNode(node) {
+  if (node.nodeType === 3) {
+    const p = node.parentElement;
+    if (!p || p.closest(EL_SKIP)) return;
+    const t = elT(node.data);
+    if (t !== node.data) node.data = t;
+    return;
+  }
+  if (node.nodeType !== 1) return;
+  {
+    for (const a of EL_ATTRS) {
+      const v = node.getAttribute(a);
+      if (v) { const t = elT(v); if (t !== v) node.setAttribute(a, t); }
+    }
+  }
+}
+function elTranslateTree(root) {
+  if (EL_LANG === "de" || !EL_DICT || !root) return;
+  if (root.nodeType === 1 || root.nodeType === 3) elTranslateNode(root);
+  if (root.nodeType === 3) return;
+  const w = document.createTreeWalker(root, 5 /* Elemente + Text */);
+  let n;
+  while ((n = w.nextNode())) elTranslateNode(n);
+}
+// Einmal pro Karte: alles Neue im Schatten-DOM gleich übersetzen
+function elWatch(root, keep = true) {
+  if (EL_LANG === "de" && !keep) return;
+  if (EL_I18N_ROOTS.has(root)) return;
+  if (keep) EL_I18N_ROOTS.add(root); // Einblendungen (Anleitung, Kochen …) nicht merken – die verschwinden wieder
+  new MutationObserver((muts) => {
+    if (EL_LANG === "de" || !EL_DICT) return;
+    for (const mu of muts) {
+      if (mu.type === "childList") mu.addedNodes.forEach((x) => elTranslateTree(x));
+      else if (mu.type === "characterData") elTranslateNode(mu.target);
+      else elTranslateNode(mu.target);
+    }
+  }).observe(root, { childList: true, subtree: true, characterData: true, attributes: true, attributeFilter: EL_ATTRS });
+  elTranslateTree(root);
+}
+function elUseLang(hass, config, root) {
+  const lang = elWantLang(hass, config);
+  if (lang !== EL_LANG) EL_LANG = lang;
+  if (root) elWatch(root);
+  if (EL_LANG !== "de") elLoadDict();
+}
+const elConfirm = (msg) => confirm(elT(msg));
+
 const esc = (s) =>
   String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
 const startOfDay = (d) => { const x = new Date(d); x.setHours(0, 0, 0, 0); return x; };
@@ -50,21 +159,21 @@ const stripMdi = (icon) => String(icon || "").replace(/^mdi:/, "");
 // „3el“ -> „3 EL“, „1“ -> „1x“, „1/2 tl“ -> „0,5 TL“, „2 bis 3 el“ -> „2-3 EL“, „2 tasse“ -> „2 Tassen“
 // [Einzahl, Mehrzahl, Schreibweisen] – Einzahl bei genau 1, sonst Mehrzahl
 const QTY_DEFS = [
-  ["x", "x", ["x", "×", "mal", "stk", "stück", "st", "stck"]], ["g", "g", ["g", "gr", "gramm"]],
-  ["kg", "kg", ["kg", "kilo", "kilogramm"]], ["mg", "mg", ["mg", "milligramm"]], ["ml", "ml", ["ml", "milliliter"]],
-  ["cl", "cl", ["cl"]], ["dl", "dl", ["dl"]], ["L", "L", ["l", "ltr", "liter"]],
-  ["EL", "EL", ["el", "essl", "esslöffel"]], ["TL", "TL", ["tl", "teel", "teelöffel"]],
+  ["x", "x", ["x", "×", "mal", "stk", "stück", "st", "stck", "pc", "pcs", "piece", "pieces"]], ["g", "g", ["g", "gr", "gramm", "gram", "grams"]],
+  ["kg", "kg", ["kg", "kilo", "kilogramm", "kilos"]], ["mg", "mg", ["mg", "milligramm"]], ["ml", "ml", ["ml", "milliliter"]],
+  ["cl", "cl", ["cl"]], ["dl", "dl", ["dl"]], ["L", "L", ["l", "ltr", "liter", "litre", "litres", "liters"]],
+  ["EL", "EL", ["el", "essl", "esslöffel", "tbsp", "tbs"]], ["TL", "TL", ["tl", "teel", "teelöffel", "tsp"]],
   ["Msp.", "Msp.", ["msp", "messerspitze", "messerspitzen"]],
-  ["Pck.", "Pck.", ["pck", "pkt", "päckchen", "packung", "packungen", "pack"]], ["Prise", "Prisen", ["prise", "prisen"]],
-  ["Dose", "Dosen", ["dose", "dosen"]], ["Becher", "Becher", ["becher"]], ["Bund", "Bund", ["bund"]],
-  ["Flasche", "Flaschen", ["flasche", "flaschen"]], ["Kiste", "Kisten", ["kiste", "kisten"]],
-  ["Glas", "Gläser", ["glas", "gläser"]], ["Rolle", "Rollen", ["rolle", "rollen"]], ["Beutel", "Beutel", ["beutel"]],
-  ["Tüte", "Tüten", ["tüte", "tüten"]], ["Scheibe", "Scheiben", ["scheibe", "scheiben"]], ["Zehe", "Zehen", ["zehe", "zehen"]],
-  ["Tasse", "Tassen", ["tasse", "tassen"]], ["Schluck", "Schluck", ["schluck", "schlucke"]], ["Schuss", "Schuss", ["schuss"]],
-  ["Spritzer", "Spritzer", ["spritzer"]], ["Tropfen", "Tropfen", ["tropfen"]], ["Handvoll", "Handvoll", ["handvoll"]],
-  ["Stange", "Stangen", ["stange", "stangen"]], ["Kopf", "Köpfe", ["kopf", "köpfe"]], ["Würfel", "Würfel", ["würfel"]],
-  ["Zweig", "Zweige", ["zweig", "zweige"]], ["Blatt", "Blatt", ["blatt", "blätter"]], ["Knolle", "Knollen", ["knolle", "knollen"]],
-  ["Kugel", "Kugeln", ["kugel", "kugeln"]], ["Schale", "Schalen", ["schale", "schalen"]], ["Netz", "Netze", ["netz", "netze"]],
+  ["Pck.", "Pck.", ["pck", "pkt", "päckchen", "packung", "packungen", "pack", "packs", "package", "packages", "packet", "packets"]], ["Prise", "Prisen", ["prise", "prisen", "pinch", "pinches"]],
+  ["Dose", "Dosen", ["dose", "dosen", "can", "cans", "tin", "tins"]], ["Becher", "Becher", ["becher", "tub", "tubs"]], ["Bund", "Bund", ["bund", "bunch", "bunches"]],
+  ["Flasche", "Flaschen", ["flasche", "flaschen", "bottle", "bottles"]], ["Kiste", "Kisten", ["kiste", "kisten", "crate", "crates"]],
+  ["Glas", "Gläser", ["glas", "gläser", "jar", "jars"]], ["Rolle", "Rollen", ["rolle", "rollen"]], ["Beutel", "Beutel", ["beutel", "bag", "bags"]],
+  ["Tüte", "Tüten", ["tüte", "tüten"]], ["Scheibe", "Scheiben", ["scheibe", "scheiben", "slice", "slices"]], ["Zehe", "Zehen", ["zehe", "zehen", "clove", "cloves"]],
+  ["Tasse", "Tassen", ["tasse", "tassen", "cup", "cups"]], ["Schluck", "Schluck", ["schluck", "schlucke"]], ["Schuss", "Schuss", ["schuss"]],
+  ["Spritzer", "Spritzer", ["spritzer"]], ["Tropfen", "Tropfen", ["tropfen", "drop", "drops"]], ["Handvoll", "Handvoll", ["handvoll", "handful", "handfuls"]],
+  ["Stange", "Stangen", ["stange", "stangen", "stick", "sticks"]], ["Kopf", "Köpfe", ["kopf", "köpfe", "head", "heads"]], ["Würfel", "Würfel", ["würfel", "cube", "cubes"]],
+  ["Zweig", "Zweige", ["zweig", "zweige", "sprig", "sprigs"]], ["Blatt", "Blatt", ["blatt", "blätter", "leaf", "leaves"]], ["Knolle", "Knollen", ["knolle", "knollen", "bulb", "bulbs"]],
+  ["Kugel", "Kugeln", ["kugel", "kugeln", "scoop", "scoops"]], ["Schale", "Schalen", ["schale", "schalen", "tray", "trays"]], ["Netz", "Netze", ["netz", "netze"]],
 ];
 const QTY_UNITS = {}; // Schreibweise -> [Einzahl, Mehrzahl]
 for (const [one, many, vs] of QTY_DEFS) for (const v of vs) QTY_UNITS[v] = [one, many];
@@ -332,6 +441,10 @@ function guessCategory(name, hints) {
       if (w.length < minLen || w.length <= len) continue;
       if ((whole && w.length <= 3) ? t === w : t.includes(w)) { len = w.length; id = h.id; }
     }
+    for (const h of hints) for (const w of h.en || []) { // 🌍 englische Wörter nur als ganzes Wort
+      if (w.length < minLen || w.length <= len) continue;
+      if (new RegExp(`(?<![a-zäöüß])${w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?:s|es)?(?![a-zäöüß])`).test(t)) { len = w.length; id = h.id; }
+    }
     return id;
   };
   const long = best(text.replace(/-/g, ""), 8, false);
@@ -366,7 +479,7 @@ function showPhotoOverlay(src, title) {
   cap.textContent = title;
   Object.assign(cap.style, { color: "#fff", font: "500 17px Roboto, sans-serif", marginTop: "14px", textAlign: "center" });
   const hint = document.createElement("div");
-  hint.textContent = "Tippen zum Schließen";
+  hint.textContent = elT("Tippen zum Schließen");
   Object.assign(hint.style, { color: "#aaa", font: "13px Roboto, sans-serif", marginTop: "4px" });
   overlay.append(img, cap, hint);
   const close = () => { overlay.remove(); document.removeEventListener("keydown", onKey); };
@@ -411,6 +524,7 @@ function makeOverlay() {
     touchAction: "none",
   });
   document.body.appendChild(ov);
+  elWatch(ov, false);
   return ov;
 }
 
@@ -725,6 +839,10 @@ ha-card.compact .group { margin-top:4px; }
 #titleIcon { cursor:pointer; }
 .item .meta .iout { color:var(--primary-text-color); font-weight:500; background:color-mix(in srgb, var(--error-color, #db4437) 9%, transparent); border-radius:6px; padding:0 6px; font-weight:400; }
 .moverow .outbtn { --c:var(--primary-color,#03a9f4); display:inline-flex; align-items:center; gap:4px; --mdc-icon-size:16px; }
+/* 👨‍🍳 Knöpfe unter der Kochmütze: Foto blau, Kochen rot, Teilen grün (nur das Symbol) */
+.rtools [data-act="photo-view"] ha-icon { color:var(--primary-color,#03a9f4); }
+.rtools [data-act="recipe-cook"] ha-icon { color:var(--error-color,#e53935); }
+.rtools [data-act="recipe-share"] ha-icon { color:var(--success-color,#43a047); }
 .bclist { display:flex; flex-wrap:wrap; gap:6px; }
 .bcchip { display:inline-flex; align-items:center; gap:2px; font-size:.85em; padding:0 0 0 8px; border:1px solid var(--divider-color, rgba(127,127,127,.35)); border-radius:8px; --mdc-icon-size:18px; }
 .chklist { display:flex; flex-direction:column; gap:6px; margin:8px 0; }
@@ -738,6 +856,10 @@ ha-card.compact .group { margin-top:4px; }
 .checklist li { margin:2px 0; }
 .subtabs { display:flex; gap:6px; flex-wrap:wrap; margin:2px 0 8px; }
 .subtabs .tab ha-icon { --mdc-icon-size:18px; }
+.xferfmt { margin:4px 0 10px; padding-left:20px; }
+.xferfmt li { margin:3px 0; }
+#xferText { width:100%; box-sizing:border-box; font:inherit; padding:8px; border-radius:8px; border:1px solid var(--divider-color,#ccc); background:var(--card-background-color); color:var(--primary-text-color); margin:4px 0 6px; }
+label.btn { cursor:pointer; }
 .logfilter { display:grid; grid-template-columns:repeat(auto-fit, minmax(110px, 1fr)); gap:6px; margin:4px 0; }
 .logday { font-size:.78em; font-weight:600; text-transform:uppercase; letter-spacing:.04em; color:var(--secondary-text-color); margin:10px 2px 2px; }
 .logrow { display:flex; gap:8px; align-items:flex-start; padding:6px 4px; border-bottom:1px solid var(--divider-color, rgba(127,127,127,.12)); font-size:.9em; }
@@ -858,6 +980,7 @@ class EinkaufslisteCard extends HTMLElement {
   set hass(hass) {
     this._hass = hass;
     if (!this._built) this._build();
+    elUseLang(hass, this._config, this.shadowRoot);
     if (!this._unsub && !this._subscribing && this.isConnected) this._subscribe();
     this._autoStore();
     this._updateLive();
@@ -976,7 +1099,7 @@ class EinkaufslisteCard extends HTMLElement {
   }
 
   _toast(message) {
-    this.dispatchEvent(new CustomEvent("hass-notification", { detail: { message }, bubbles: true, composed: true }));
+    this.dispatchEvent(new CustomEvent("hass-notification", { detail: { message: elT(message) }, bubbles: true, composed: true }));
   }
 
   $(id) { return this.shadowRoot.getElementById(id); }
@@ -1316,7 +1439,7 @@ class EinkaufslisteCard extends HTMLElement {
     const items = [...this._data.items].sort((a, b) =>
       (recipe ? 0 : this._matchesTab(b) - this._matchesTab(a)) || (b.checked - a.checked)
       || String(b.added_at || "").localeCompare(String(a.added_at || "")));
-    // 👤 Name einer Person getippt („marco“)? Dann zuerst alles, was für sie auf der Liste steht
+    // 👤 Name einer Person getippt („max“)? Dann zuerst alles, was für sie auf der Liste steht
     let forPerson = null;
     if (!recipe && q.length >= 2) {
       const whoNames = [...(this._data.persons || []).map((p) => p.name), ...this._data.items.map((i) => i.for_whom).filter(Boolean)];
@@ -1339,6 +1462,14 @@ class EinkaufslisteCard extends HTMLElement {
       seenVariant.add(key);
       names.add(i.name.toLowerCase());
       cands.push({ sc, name: i.name, item: i });
+    }
+    // 🏷️ Spitzname getippt („temp“ -> Tempos -> Taschentücher)
+    if (q.length >= 2) for (const a of this._data.aliases || []) {
+      if (!a.alias.startsWith(q) || seenVariant.has(pkey(a.name, a.note))) continue;
+      const last = items.find((i) => !i.recipe_id && pkey(i.name, i.note) === pkey(a.name, a.note));
+      seenVariant.add(pkey(a.name, a.note));
+      names.add(a.name.toLowerCase());
+      cands.push({ sc: 0, name: a.name, alias: a.alias, item: last || { name: a.name, note: a.note || null, checked: true } });
     }
     for (const h of this._data.history || []) {
       const low = h.name.toLowerCase();
@@ -1401,6 +1532,7 @@ class EinkaufslisteCard extends HTMLElement {
         if (!i.checked && !recipe) bits.push("steht drauf");
         if (c.fromRecipe) bits.push("🍽️ " + esc(c.fromRecipe));
       }
+      if (c.alias) bits.unshift("🏷️ " + esc(c.alias));
       if (c.fuzzy) return `<button type="button" class="sug fuzzy" data-act="${act}" data-n="${n}"><span>Meintest du <b>${esc(c.name)}</b>?</span></button>`;
       return `<button type="button" class="sug" data-act="${act}" data-n="${n}"><span>${mark(c.name)}</span>${
         bits.length ? `<span class="on">· ${bits.join(" · ")}</span>` : ""}</button>`;
@@ -1670,7 +1802,7 @@ class EinkaufslisteCard extends HTMLElement {
     this._grpMap = new Map();
     const rawOpen = items.filter((i) => !i.checked);
     const open = allView ? this._groupStores(rawOpen) : rawOpen;
-    // 🔎 Was oben getippt wird, sucht unten in „Erledigt“ – nach Name, Notiz oder Person („marco“).
+    // 🔎 Was oben getippt wird, sucht unten in „Erledigt“ – nach Name, Notiz oder Person („max“).
     // Im Laden-Modus zählt das nicht (da soll immer die ganze Liste stehen).
     const typed = this._shopMode ? "" : splitMany(this.$("inName").value).pop() || "";
     const filter = (splitQty(typed).name || typed).trim().toLowerCase();
@@ -2000,6 +2132,7 @@ class EinkaufslisteCard extends HTMLElement {
         <p class="hint">Sucht nach kaputten oder unvollständigen Einträgen: Produkte ohne Kategorie, Artikel ohne Geschäft, fehlende oder übrige Fotos, Barcodes ohne Produkt und Verweise auf Gelöschtes. Jeder Fund steht einzeln da – mit Haken und wie repariert wird. Repariert wird nur, was du anhakst.</p>
         <div class="btnrow"><button class="btn primary" data-act="check-run"><ha-icon icon="mdi:magnify"></ha-icon>Jetzt prüfen</button></div>
         <div id="checkRes"></div>` },
+      { key: "transfer", icon: "mdi:database-import-outline", title: "Import & Sicherung", info: "Rezepte, andere Apps, Backup", html: () => this._xferHtml() },
       { key: "log", icon: "mdi:history", title: "Verlauf", info: "wer, wann, was, wie", html: () => this._logSectionHtml() },
       { key: "cleanup", icon: "mdi:broom", title: "Aufräumen", info: `${WD_SHORT[s.cleanup_weekday]} ${s.cleanup_time} Uhr`, html: () => `
         <p>Jeden <b>${WD_LONG[s.cleanup_weekday]}</b> um <b>${s.cleanup_time} Uhr</b> werden alle offenen Artikel <b>abgehakt</b>, die mindestens <b>${s.min_age_days} Tage</b> auf der Liste stehen. Gelöscht wird nichts – so kannst du sie später mit einem Tipp wieder auf die Liste nehmen.</p>
@@ -2034,7 +2167,118 @@ class EinkaufslisteCard extends HTMLElement {
     if (cur.key === "log") { this._renderLogList(); this._loadLog(); }
     if (cur.key === "products" && this._prodTab !== "delete") { this._renderProducts(); this._loadProducts(); }
     if (cur.key === "recipes") this._renderSetRecipeList();
+    if (cur.key === "transfer" && this._xferTab === "apps") this._loadTodoLists();
     this._renderDelList();
+  }
+
+  // 📥 Import & Sicherung: Rezepte aus Datei, andere Apps, Backup
+  _xferHtml() {
+    const tab = this._xferTab || "recipes";
+    const admin = !!this._hass?.user?.is_admin;
+    const t = (k, icon, label) => `<button class="tab ${tab === k ? "active" : ""}" data-act="xfer-tab" data-tab="${k}"><ha-icon icon="${icon}"></ha-icon>${label}</button>`;
+    const stores = this._selectOptions(this._data.stores, this._data.stores[0]?.id, "🛒 Welches Geschäft?");
+    let body = "";
+    if (tab === "recipes") {
+      body = `
+        <p class="hint">Eine Datei mit Rezepten einlesen – z. B. aus einer anderen Rezept-App oder selbst getippt. Amerikanische Maße (cup, oz, lb, tbsp, °F) werden dabei automatisch umgerechnet.</p>
+        <ul class="hint xferfmt">
+          <li><b>.txt / .md</b>: jedes Rezept beginnt mit <code># Name</code>, danach „Zutaten“ (eine pro Zeile) und „Zubereitung“.</li>
+          <li><b>.csv</b>: Spalten <code>Rezept;Menge;Einheit;Zutat;Notiz;Zubereitung</code> – eine Zeile pro Zutat.</li>
+          <li><b>.json</b>: Rezepte aus einer Sicherung oder im gleichen Aufbau.</li>
+        </ul>
+        ${admin ? `<div class="btnrow"><label class="btn primary"><ha-icon icon="mdi:file-upload-outline"></ha-icon>Datei auswählen<input type="file" id="xferRecipeFile" accept=".txt,.md,.csv,.json,text/*,application/json" hidden></label></div>` : `<p class="hint">🔒 Rezepte einlesen darf nur ein Admin.</p>`}
+        <div id="xferRes"></div>`;
+    } else if (tab === "apps") {
+      body = `
+        <p class="hint"><b>Aus Home Assistant</b>: Die Artikel einer anderen HA-Liste (z. B. der eingebauten Einkaufsliste oder einer Google-/Bring!-Liste, die in HA eingebunden ist) herüberholen. Die alte Liste bleibt, wie sie ist.</p>
+        <div class="srow"><ha-icon class="prev" icon="mdi:format-list-checks"></ha-icon><select class="grow" id="xferTodo"><option value="">Lade Listen …</option></select></div>
+        <div class="srow"><ha-icon class="prev" icon="mdi:store-outline"></ha-icon><select class="grow" id="xferTodoStore">${stores}</select></div>
+        <div class="btnrow"><button class="btn primary" data-act="xfer-todo"><ha-icon icon="mdi:import"></ha-icon>Herüberholen</button></div>
+        <p class="hint" style="margin-top:14px"><b>Text einfügen</b>: In Bring!, Google Keep & Co. die Liste „teilen“ oder kopieren und hier einfügen – ein Artikel pro Zeile. Aufzählungszeichen und Häkchen stören nicht, schon abgehakte (☑, [x]) bleiben draußen.</p>
+        <textarea id="xferText" rows="6" placeholder="Milch&#10;2 Äpfel&#10;- Brot&#10;☐ Butter"></textarea>
+        <div class="srow"><ha-icon class="prev" icon="mdi:store-outline"></ha-icon><select class="grow" id="xferTextStore">${stores}</select></div>
+        <div class="btnrow"><button class="btn primary" data-act="xfer-text"><ha-icon icon="mdi:playlist-plus"></ha-icon>Auf die Liste</button></div>
+        <div id="xferRes"></div>`;
+    } else {
+      body = admin ? `
+        <p class="hint"><b>Sicherung herunterladen</b>: Alles in einer Datei (.zip) – Liste, Rezepte, Produkte, Barcodes, Fotos, Geschäfte, Personen, Verlauf. Gut für vor einem Umzug oder einfach so.</p>
+        <div class="btnrow"><button class="btn primary" data-act="xfer-backup"><ha-icon icon="mdi:download"></ha-icon>Sicherung herunterladen</button></div>
+        <p class="hint" style="margin-top:14px"><b>Sicherung einspielen</b>: Ersetzt <b>alles</b>, was jetzt da ist, durch den Stand aus der Datei. Vorher am besten selbst noch eine Sicherung ziehen 😉</p>
+        <div class="btnrow"><label class="btn" style="--c:var(--error-color,#db4437)"><ha-icon icon="mdi:backup-restore"></ha-icon>Sicherung einspielen …<input type="file" id="xferRestore" accept=".zip,application/zip" hidden></label></div>
+        <div id="xferRes"></div>` : `<p class="hint">🔒 Sicherungen darf nur ein Admin herunterladen oder einspielen.</p>`;
+    }
+    return `<div class="subtabs">${t("recipes", "mdi:file-document-outline", "Rezepte aus Datei")}${t("apps", "mdi:swap-horizontal-circle-outline", "Aus anderen Apps")}${t("backup", "mdi:content-save-outline", "Sicherung")}</div>${body}`;
+  }
+
+  _xferResult(html) {
+    const el = this.$("xferRes");
+    if (el) el.innerHTML = html;
+  }
+
+  async _loadTodoLists() {
+    let lists = [];
+    try { lists = await this._ws({ type: "einkaufsliste/import/todo_lists" }); } catch (_) { /* Meldung kam schon */ }
+    const sel = this.$("xferTodo");
+    if (!sel) return;
+    lists = lists?.lists || lists || [];
+    sel.innerHTML = lists.length
+      ? lists.map((l) => `<option value="${esc(l.entity_id)}">${esc(l.name)}${l.open != null ? ` · ${l.open}` : ""}</option>`).join("")
+      : `<option value="">Keine andere Liste in Home Assistant gefunden</option>`;
+  }
+
+  _xferStore(id) {
+    const v = this.$(id)?.value;
+    return v && v !== "~none" ? v : null;
+  }
+
+  _xferImported(res) {
+    const n = res?.added || 0;
+    this._toast(n ? `📥 ${n} Artikel auf die Liste gesetzt` : "Nichts Neues gefunden 🤷");
+    this._xferResult(`<p class="hint">✅ ${n} übernommen${res?.skipped ? `, ${res.skipped} übersprungen (schon abgehakt oder leer)` : ""}.</p>`);
+  }
+
+  async _xferBackup() {
+    try {
+      const r = await this._hass.fetchWithAuth("/api/einkaufsliste/sicherung");
+      if (!r.ok) throw new Error(r.status === 401 || r.status === 403 ? "Nur für Admins 🔒" : `Fehler ${r.status}`);
+      const blob = await r.blob();
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(blob);
+      a.download = `einkaufsliste-sicherung-${new Date().toISOString().slice(0, 10)}.zip`;
+      document.body.appendChild(a);
+      a.click();
+      setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 2000);
+      this._toast("💾 Sicherung heruntergeladen");
+    } catch (err) {
+      this._toast(err?.message || "Sicherung ging nicht 🙈");
+    }
+  }
+
+  async _xferRestore(file) {
+    if (!elConfirm(`„${file.name}“ einspielen?\n\nDas ersetzt ALLES, was jetzt da ist (Liste, Rezepte, Produkte, Fotos …).`)) return;
+    this._xferResult(`<p class="hint">⏳ Spiele ein …</p>`);
+    try {
+      const r = await this._hass.fetchWithAuth("/api/einkaufsliste/sicherung", { method: "POST", body: file, headers: { "Content-Type": "application/zip" } });
+      const res = await r.json().catch(() => ({}));
+      if (!r.ok) throw new Error(res.error || `Fehler ${r.status}`);
+      this._toast("♻️ Sicherung eingespielt");
+      this._xferResult(`<p class="hint">✅ Fertig: ${res.items} Artikel, ${res.recipes} Rezepte, ${res.photos} Fotos (Sicherung von Version ${esc(res.version || "?")}).</p>`);
+    } catch (err) {
+      this._toast(err?.message || "Einspielen ging nicht 🙈");
+      this._xferResult(`<p class="hint">❌ ${esc(err?.message || "Einspielen ging nicht")}</p>`);
+    }
+  }
+
+  async _xferRecipeFile(file) {
+    const text = await file.text();
+    try {
+      const res = await this._ws({ type: "einkaufsliste/recipe/import_file", text, filename: file.name });
+      const n = res.added || 0;
+      this._toast(n ? `👨‍🍳 ${n} ${n === 1 ? "Rezept" : "Rezepte"} eingelesen` : "Keine Rezepte in der Datei gefunden 🤔");
+      this._xferResult(n
+        ? `<p class="hint">✅ Eingelesen:</p><ul class="hint">${res.names.map((x) => `<li>${esc(x)}</li>`).join("")}</ul>`
+        : `<p class="hint">🤔 Keine Rezepte gefunden. Passt der Aufbau (siehe oben)?</p>`);
+    } catch (_) { /* Meldung kam schon */ }
   }
 
   // 📋 Verlauf: wer hat wann was wie gemacht?
@@ -2137,6 +2381,7 @@ class EinkaufslisteCard extends HTMLElement {
       const bits = [
         st ? `<span class="chip" style="--c:${esc(st.color)}">${esc(st.name)}</span>` : "",
         cat ? `<span>${esc(cat.name)}</span>` : "",
+        (p.aliases || []).length ? `<span title="Spitznamen">🏷️ ${esc(p.aliases.join(", "))}</span>` : "",
         p.barcodes.length ? `<span>▥ ${p.barcodes.length}</span>` : "",
         p.photos ? `<span>📷 ${p.photos}${p.photos >= 6 ? " (voll)" : ""}</span>` : "",
         p.open ? `<span>🛒 steht drauf</span>` : "",
@@ -2145,6 +2390,7 @@ class EinkaufslisteCard extends HTMLElement {
         return `<div class="prodedit" data-key="${esc(p.key)}">
           <input id="peName" value="${esc(p.name)}" placeholder="Name">
           <input id="peNote" value="${esc(p.note || "")}" placeholder="📝 Notiz / Sorte">
+          <input id="peAliases" value="${esc((p.aliases || []).join(", "))}" data-orig="${esc((p.aliases || []).join(", "))}" placeholder="🏷️ Spitznamen, z. B. Tempos, Tempo (mit Komma)" title="Wer so etwas eintippt, landet bei diesem Produkt">
           <select id="peCat">${this._selectOptions(this._data.categories, p.category_id, "📦 Ohne Kategorie")}</select>
           <select id="peStore">${this._selectOptions(this._data.stores, p.store_id, "🛒 Kein Standard-Geschäft")}</select>
           ${p.barcodes.length ? `<div class="bclist">${p.barcodes.map((code) => `<span class="bcchip">▥ ${esc(code)}<button type="button" class="iconbtn" data-act="bc-remove" data-code="${esc(code)}" title="Diesen Barcode löschen"><ha-icon icon="mdi:delete-outline"></ha-icon></button></span>`).join("")}</div>` : ""}
@@ -2703,7 +2949,7 @@ class EinkaufslisteCard extends HTMLElement {
       if (i.basic) o.basic = true;
       return o;
     });
-    if (this.$("inName").value.trim() && !confirm("Oben steht noch eine Zutat, die nicht mit ✔ übernommen wurde. Trotzdem speichern?")) return;
+    if (this.$("inName").value.trim() && !elConfirm("Oben steht noch eine Zutat, die nicht mit ✔ übernommen wurde. Trotzdem speichern?")) return;
     const heat = (dr.heat || []).filter((h) => h.mode || h.temp || h.minutes || h.note)
       .map((h) => ({ device: h.device || "Backofen", mode: h.mode || null, temp: h.temp ? Number(h.temp) : null,
         minutes: h.minutes ? Number(h.minutes) : null, minutes_to: h.minutes_to ? Number(h.minutes_to) : null, preheat: !!h.preheat, note: h.note || null }));
@@ -3176,7 +3422,7 @@ class EinkaufslisteCard extends HTMLElement {
     });
     bClose.onclick = close;
     bDel.onclick = async () => {
-      if (!confirm("Dieses Foto löschen?")) return;
+      if (!elConfirm("Dieses Foto löschen?")) return;
       try {
         await this._ws({ type: "einkaufsliste/photo/remove", name: key, index: idx });
         for (const k of [...this._photoCache.keys()]) if (k.startsWith(key + "#")) this._photoCache.delete(k);
@@ -3225,7 +3471,7 @@ class EinkaufslisteCard extends HTMLElement {
       .elg b { color:#fff; }
       .elg .elg-k { display:inline-block; background:#333; border-radius:6px; padding:0 6px; }
     </style>
-    <div class="elg">
+    ${EL_LANG !== "de" ? this._guideEn(sec) : `<div class="elg">
       <div class="elg-top"><h2>🛒 So funktioniert die Einkaufsliste</h2></div>
       <p class="elg-sub">Tipp auf eine Überschrift klappt sie auf. Diese Anleitung findest du immer über den <b>Einkaufswagen ganz oben links</b>.</p>
       ${sec("✍️", "Etwas eintragen", `<ul>
@@ -3275,7 +3521,7 @@ class EinkaufslisteCard extends HTMLElement {
         <li>Die <b>Zahl</b> = so viele Sachen sind noch offen.</li>
         <li>Rechts: <b>Wagen</b> = Laden-Modus · <b>Kochmütze</b> = Rezepte.</li>
         <li>Ein <b>blauer Balken</b> oben = es gibt ein Update, das muss jemand mit Admin-Zugang in Home Assistant fertig machen.</li></ul>`)}
-    </div>`;
+    </div>`}`;
     const bClose = ovButton("Schließen", true);
     Object.assign(bClose.style, { marginTop: "14px" });
     ov.append(bClose);
@@ -3284,6 +3530,61 @@ class EinkaufslisteCard extends HTMLElement {
     document.addEventListener("keydown", onKey);
     bClose.onclick = close;
     ov.addEventListener("click", (e) => { if (e.target === ov) close(); });
+  }
+
+  // 📖 Die Anleitung auf Englisch (für alle, deren Home Assistant nicht auf Deutsch läuft)
+  _guideEn(sec) {
+    return `<div class="elg" translate="no">
+      <div class="elg-top"><h2>🛒 How the shopping list works</h2></div>
+      <p class="elg-sub">Tap a heading to open it. You can always find this guide via the <b>shopping cart at the top left</b>.</p>
+      ${sec("✍️", "Adding things", `<ul>
+        <li>Type into the field at the top, e.g. <b>milk</b>, then tap the green check mark <span class="elg-k">✔</span>.</li>
+        <li>While typing you get up to <b>2 suggestions</b>. Tapping one takes over everything from last time (quantity, note, for whom, store).</li>
+        <li>Quantities work directly too: <b>3 milk</b> or <b>500 g flour</b>. The list remembers the unit: <b>2 baking powder</b> becomes 2 packs.</li>
+        <li><b>Several at once:</b> <b>milk, 6 eggs, bread</b> → ✔ → 3 things on the list.</li>
+        <li>The buttons below: 🔢 quantity · 📝 note (e.g. variety) · 👤 for whom · 📷 photo · 🧽 clear everything.</li>
+        <li>Below that <b>“Which store?”</b> – or “Anywhere”. Usually it's already picked correctly (like last time).</li>
+        <li>Next to it the <b>category</b> – the list usually picks it itself. If it's wrong, just change it.</li>
+        <li>Typing a <b>name</b> (e.g. yours) shows what's on the list for that person.</li>
+        <li>Typo? The list asks “Did you mean …?” 😉</li></ul>`, true)}
+      ${sec("✅", "Checking off & adding again", `<ul>
+        <li><b>Tap the circle</b> = bought. The phone vibrates briefly.</li>
+        <li>Bought things slide down to <b>“Done – bought before”</b>.</li>
+        <li>Tap the circle there = <b>back on the list</b>. No need to type anything again.</li>
+        <li>Once a week the list tidies itself up: old things get checked off, <b>nothing gets deleted</b>.</li></ul>`)}
+      ${sec("🏪", "Stores & tabs", `<ul>
+        <li>At the top the tabs: <b>All</b> and your stores. The number shows how much is still open there.</li>
+        <li>The <b>red bubble</b> means: something new was added since you last looked.</li>
+        <li><b>✨</b> on the item = new (disappears after 24 hours).</li>
+        <li><b>⇄</b> on the item = was out: <b>“Here again next time”</b> (stays open, everyone sees “was out”) or move it straight to another store.</li></ul>`)}
+      ${sec("👆", "Changing & long-press", `<ul>
+        <li><b>Long-press</b> an item = menu: edit, move, quantity, category, photo, barcode.</li>
+        <li>Change the quantity directly: tap the quantity, then <span class="elg-k">−</span> and <span class="elg-k">＋</span>.</li>
+        <li>Below the item in small print: the <b>store in its color</b>, the <b>📝 note</b> (yellow background), ▥ (has a barcode), who added it and who checked it off.</li></ul>`)}
+      ${sec("🛍️", "In the store", `<ul>
+        <li>The <b>cart at the top right</b> switches on <b>shop mode</b>: big rows, checking off only, just the essentials.</li>
+        <li>Tap again (or <b>Finish</b>) = back to normal.</li>
+        <li>If your location says you are in the store, <b>▥</b> (top, next to the green dot) checks off the scanned product right away – if it is on the list.</li></ul>`)}
+      ${sec("📷", "Photos & barcodes", `<ul>
+        <li>The <b>📷</b> on the item shows the photo. Swipe = browse, <b>“Add photo”</b> for more (up to 6).</li>
+        <li>A new photo <b>never replaces</b> an old one, it is always added.</li>
+        <li><b>▥</b> at the top next to the green dot = scan a barcode (in the HA app): the product is recognized and added.</li>
+        <li>Assign a barcode later: long-press the item → <b>Barcode</b>.</li></ul>`)}
+      ${sec("👨‍🍳", "Recipes", `<ul>
+        <li>The <b>chef's hat</b> at the top opens the recipes. The search also finds ingredients (e.g. “zucchini”).</li>
+        <li><b>Add to list</b>: tick what you need. Whatever is already on the list or “we always have it” (🧂) is not ticked.</li>
+        <li><b>👥 For how many?</b> or <b>🍕🍰 How many trays?</b> With − / ＋ the quantities are recalculated.</li>
+        <li>If it says <b>“Never bought – where to buy?”</b>, just pick the store.</li>
+        <li><b>Off the list (3)</b> takes this recipe's ingredients off again.</li>
+        <li>📷 = recipe photos · <b>🔥 Cook</b> = step by step in large print · <b>Share</b> = e.g. via WhatsApp.</li>
+        <li>Checked recipe ingredients disappear completely (not under “Done”).</li></ul>`)}
+      ${sec("🟢", "What do the symbols at the top mean?", `<ul>
+        <li>From the left: <b>🛒 shopping cart</b> = this guide · <b>🟢 dot</b> · <b>number</b> · <b>▥ barcode</b>.</li>
+        <li><b>🟢 Green dot</b> = connected, everything is live on all phones. <b>🔴 Red</b> = no connection right now.</li>
+        <li>The <b>number</b> = this many things are still open.</li>
+        <li>Right: <b>cart</b> = shop mode · <b>chef's hat</b> = recipes.</li>
+        <li>A <b>blue bar</b> at the top = there's an update that someone with admin access has to finish in Home Assistant.</li></ul>`)}
+    </div>`;
   }
 
   // 👨‍🍳 Koch-Modus: Schritt für Schritt, groß, Bildschirm bleibt an
@@ -3883,7 +4184,7 @@ class EinkaufslisteCard extends HTMLElement {
       case "item-delete": {
         const itemId = el.closest(".delrow").dataset.id;
         const item = this._data.items.find((i) => i.id === itemId);
-        if (!item || !confirm(`„${item.name}“ endgültig löschen? Dann ist es auch aus „Erledigt“ weg.`)) return;
+        if (!item || !elConfirm(`„${item.name}“ endgültig löschen? Dann ist es auch aus „Erledigt“ weg.`)) return;
         this._ws({ type: "einkaufsliste/item/remove", item_id: itemId })
           .then(() => { this._toast(`🗑️ „${item.name}“ gelöscht`); setTimeout(() => this._renderDelList(), 50); })
           .catch(() => {});
@@ -4105,7 +4406,7 @@ class EinkaufslisteCard extends HTMLElement {
         this._takePhoto(el.dataset.name, null);
         break;
       case "photo-remove":
-        if (!confirm(`Foto von „${this._pkLabel(el.dataset.name)}“ löschen?`)) return;
+        if (!elConfirm(`Foto von „${this._pkLabel(el.dataset.name)}“ löschen?`)) return;
         this._ws({ type: "einkaufsliste/photo/remove", name: el.dataset.name })
           .then(() => { this._toast("Foto gelöscht 🗑️"); this._editing = null; this._renderList(); }).catch(() => {});
         break;
@@ -4160,6 +4461,8 @@ class EinkaufslisteCard extends HTMLElement {
           name: this.$("peName").value.trim(), note: this.$("peNote").value.trim() || null,
           category_id: this.$("peCat").value || null, store_id: this.$("peStore").value || null,
         };
+        const pa = this.$("peAliases");
+        if (pa && pa.value.trim() !== pa.dataset.orig) msg.aliases = pa.value.split(/[,;]/).map((x) => x.trim()).filter(Boolean);
         if (!msg.name) { this.$("peName").classList.add("shake"); break; }
         this._ws(msg).then(() => { this._toast("📦 Produkt gespeichert"); this._prodEdit = null; this._loadProducts(); }).catch(() => {});
         break;
@@ -4170,7 +4473,7 @@ class EinkaufslisteCard extends HTMLElement {
         const label = prod ? prod.name + (prod.note ? ` · ${prod.note}` : "") : key;
         const where = (this._data.recipes || []).filter((r) => r.items.some((ri) => this._pk(ri.name, ri.note) === key)).map((r) => r.name);
         const onList = this._data.items.filter((i) => !i.recipe_id && this._pk(i.name, i.note) === key).length;
-        if (!confirm(`„${label}“ ganz löschen?\n\nWeg sind dann: Fotos, Barcodes, Vorschlag${onList ? ` und ${onList}× auf der Einkaufsliste` : ""}.`
+        if (!elConfirm(`„${label}“ ganz löschen?\n\nWeg sind dann: Fotos, Barcodes, Vorschlag${onList ? ` und ${onList}× auf der Einkaufsliste` : ""}.`
           + (where.length ? `\n\n⚠️ Steht noch in: ${where.join(", ")}. Dort bleibt es stehen, bis du das Rezept änderst.` : ""))) break;
         this._ws({ type: "einkaufsliste/product/remove", key })
           .then(() => { this._toast(`🗑️ „${label}“ gelöscht`); this._prodEdit = null; this._loadProducts(); }).catch(() => {});
@@ -4178,7 +4481,7 @@ class EinkaufslisteCard extends HTMLElement {
       }
       case "bc-remove": {
         const code = el.dataset.code;
-        if (!confirm(`Barcode ${code} löschen? Das Produkt bleibt.`)) break;
+        if (!elConfirm(`Barcode ${code} löschen? Das Produkt bleibt.`)) break;
         this._ws({ type: "einkaufsliste/barcode/remove", code })
           .then(() => { this._toast("▥ Barcode gelöscht"); this._loadProducts(); }).catch(() => {});
         break;
@@ -4188,7 +4491,7 @@ class EinkaufslisteCard extends HTMLElement {
         this._renderLogList();
         break;
       case "log-clear":
-        if (!confirm("Den ganzen Verlauf löschen? Das geht nicht rückgängig.")) break;
+        if (!elConfirm("Den ganzen Verlauf löschen? Das geht nicht rückgängig.")) break;
         this._ws({ type: "einkaufsliste/log/clear" }).then(() => { this._toast("🧽 Verlauf geleert"); this._loadLog(); }).catch(() => {});
         break;
       case "cleanup-now":
@@ -4196,7 +4499,7 @@ class EinkaufslisteCard extends HTMLElement {
           .then((r) => this._toast(r.checked ? `${r.checked} alte Artikel abgehakt 🧹` : "Nix zu tun – alles noch frisch! ✨")).catch(() => {});
         break;
       case "check-all":
-        if (!confirm("Wirklich ALLE offenen Artikel abhaken?")) return;
+        if (!elConfirm("Wirklich ALLE offenen Artikel abhaken?")) return;
         this._ws({ type: "einkaufsliste/cleanup", force: true })
           .then((r) => this._toast(`${r.checked} Artikel abgehakt ✅`)).catch(() => {});
         break;
@@ -4236,7 +4539,7 @@ class EinkaufslisteCard extends HTMLElement {
           const used = this._data.items.filter((i) => i[field] === entry.id).length;
           if (used) txt += ` ${used} Artikel landen dann bei „${kind === "stores" ? "Egal wo" : "Ohne Kategorie"}“.`;
         }
-        if (!confirm(txt)) return;
+        if (!elConfirm(txt)) return;
         this._ws({ type: "einkaufsliste/group/remove", kind, group_id: entry.id }).then(() => this._renderSettings()).catch(() => {});
         break;
       }
@@ -4263,7 +4566,7 @@ class EinkaufslisteCard extends HTMLElement {
         });
         const n = Object.keys(fixes).length;
         if (!n) { this._toast("Erst anhaken, was repariert werden soll 😉"); break; }
-        if (!confirm(`${n} ${n === 1 ? "Sache" : "Sachen"} so reparieren, wie ausgewählt?`)) break;
+        if (!elConfirm(`${n} ${n === 1 ? "Sache" : "Sachen"} so reparieren, wie ausgewählt?`)) break;
         this._ws({ type: "einkaufsliste/check", fixes }).then((res) => {
           this._toast(`🛠️ ${res.fixed} ${res.fixed === 1 ? "Sache" : "Sachen"} repariert`);
           this._runCheck();
@@ -4274,6 +4577,27 @@ class EinkaufslisteCard extends HTMLElement {
         this._prodTab = el.dataset.tab;
         this._renderSettings();
         break;
+      case "xfer-tab":
+        this._xferTab = el.dataset.tab;
+        this._renderSettings();
+        break;
+      case "xfer-backup":
+        this._xferBackup();
+        break;
+      case "xfer-todo": {
+        const entity_id = this.$("xferTodo")?.value;
+        if (!entity_id) { this._toast("Erst eine Liste auswählen 😉"); break; }
+        this._ws({ type: "einkaufsliste/import/todo", entity_id, store_id: this._xferStore("xferTodoStore") })
+          .then((res) => this._xferImported(res)).catch(() => {});
+        break;
+      }
+      case "xfer-text": {
+        const text = this.$("xferText")?.value || "";
+        if (!text.trim()) { this._toast("Erst etwas einfügen 😉"); break; }
+        this._ws({ type: "einkaufsliste/import/text", text, store_id: this._xferStore("xferTextStore") })
+          .then((res) => { this._xferImported(res); if (res?.added) this.$("xferText").value = ""; }).catch(() => {});
+        break;
+      }
       case "recipe-search-clear": {
         this._recipeFilter = "";
         const inp = this.$("recipeSearch") || this.$("recipeSearchS");
@@ -4297,7 +4621,7 @@ class EinkaufslisteCard extends HTMLElement {
       }
       case "recipe-unapply": {
         const r = this._recipe(el.closest(".recipe").dataset.id);
-        if (!r || !confirm(`Alle offenen Zutaten von „${r.name}“ von der Liste nehmen?`)) break;
+        if (!r || !elConfirm(`Alle offenen Zutaten von „${r.name}“ von der Liste nehmen?`)) break;
         this._ws({ type: "einkaufsliste/recipe/unapply", recipe_id: r.id })
           .then((res) => this._toast(`🧺 ${res.removed} Zutaten von „${r.name}“ von der Liste genommen`))
           .catch(() => {});
@@ -4370,7 +4694,7 @@ class EinkaufslisteCard extends HTMLElement {
         break;
       }
       case "rphoto-remove":
-        if (!this._draft || !confirm("Die neuen, noch nicht gespeicherten Fotos verwerfen?")) break;
+        if (!this._draft || !elConfirm("Die neuen, noch nicht gespeicherten Fotos verwerfen?")) break;
         this._draft.newPhotos = [];
         this._renderRecipePhoto();
         break;
@@ -4409,7 +4733,7 @@ class EinkaufslisteCard extends HTMLElement {
         this._saveRecipe();
         break;
       case "recipe-delete": {
-        if (!confirm(`Rezept „${this._draft.name}“ wirklich löschen?`)) return;
+        if (!elConfirm(`Rezept „${this._draft.name}“ wirklich löschen?`)) return;
         this._ws({ type: "einkaufsliste/recipe/remove", recipe_id: this._draft.id })
           .then(() => { this._draft = null; this._view = "settings"; this._renderAll(); }).catch(() => {});
         break;
@@ -4419,6 +4743,12 @@ class EinkaufslisteCard extends HTMLElement {
 
   _onChange(e) {
     const t = e.target;
+    if (t.id === "xferRecipeFile" || t.id === "xferRestore") {
+      const file = t.files?.[0];
+      t.value = "";
+      if (file) (t.id === "xferRestore" ? this._xferRestore(file) : this._xferRecipeFile(file));
+      return;
+    }
     if (t.id === "rGroup") {
       this._groupAuto = false; // selbst gewählt – nicht mehr überschreiben
       if (this.$("rGroupHint")) this.$("rGroupHint").hidden = true;
@@ -4510,12 +4840,15 @@ const EDITOR_LABELS = {
   auto_store: "📍 Automatisch zum Geschäft springen, bei dem ich gerade bin",
   compact: "📱 Kompakt-Modus (kleinere Zeilen, ohne Zusatz-Infos)",
   show_settings: "Zahnrad für Einstellungen anzeigen",
+  language: "🌍 Sprache / Language",
 };
 
 class EinkaufslisteCardEditor extends HTMLElement {
   setConfig(config) { this._config = { store: "all", ...config }; this._render(); }
   set hass(hass) {
     this._hass = hass;
+    elUseLang(hass, this._config, null);
+    if (EL_LANG !== "de" && !EL_DICT) elLoadDict().then(() => { if (this._form) this._form.schema = this._schema(); });
     if (!this._stores && !this._loading) {
       this._loading = true;
       hass.callWS({ type: "einkaufsliste/get" })
@@ -4525,30 +4858,34 @@ class EinkaufslisteCardEditor extends HTMLElement {
     this._render();
   }
   _schema() {
-    const stores = (this._stores || []).map((s) => ({ value: s.id, label: `Nur ${s.name}` }));
+    const stores = (this._stores || []).map((s) => ({ value: s.id, label: elT(`Nur ${s.name}`) }));
+    const L = (list) => list.map((o) => ({ ...o, label: elT(o.label) }));
     return [
       { name: "show_title", selector: { boolean: {} } },
       { name: "title", selector: { text: {} } },
-      { name: "store", selector: { select: { mode: "dropdown", options: [{ value: "all", label: "Alle (mit Reitern oben)" }, ...stores] } } },
+      { name: "store", selector: { select: { mode: "dropdown", options: [...L([{ value: "all", label: "Alle (mit Reitern oben)" }]), ...stores] } } },
       { name: "show_added_by", selector: { boolean: {} } },
-      { name: "added_by_style", selector: { select: { mode: "dropdown", options: [
+      { name: "added_by_style", selector: { select: { mode: "dropdown", options: L([
         { value: "name", label: "Ganzer Name (Max Mustermann)" },
         { value: "first", label: "Vorname (Max)" },
         { value: "initials", label: "Kürzel (MM)" },
-      ] } } },
+      ]) } } },
       { name: "show_checked", selector: { boolean: {} } },
       { name: "show_dates", selector: { boolean: {} } },
       { name: "show_recipes", selector: { boolean: {} } },
       { name: "auto_store", selector: { boolean: {} } },
       { name: "compact", selector: { boolean: {} } },
       { name: "show_settings", selector: { boolean: {} } },
+      { name: "language", selector: { select: { mode: "dropdown", options: [
+        { value: "auto", label: elT("Automatisch") + " (Home Assistant)" }, { value: "de", label: "Deutsch" }, { value: "en", label: "English" },
+      ] } } },
     ];
   }
   _render() {
     if (!this._hass || !this._config) return;
     if (!this._form) {
       this._form = document.createElement("ha-form");
-      this._form.computeLabel = (s) => EDITOR_LABELS[s.name] || s.name;
+      this._form.computeLabel = (s) => elT(EDITOR_LABELS[s.name] || s.name);
       this._form.addEventListener("value-changed", (ev) => {
         this._config = ev.detail.value;
         this.dispatchEvent(new CustomEvent("config-changed", { detail: { config: this._config }, bubbles: true, composed: true }));
@@ -4558,7 +4895,7 @@ class EinkaufslisteCardEditor extends HTMLElement {
     this._form.hass = this._hass;
     this._form.data = {
       title: "Einkaufsliste", show_title: true, show_checked: true, show_added_by: true, added_by_style: "name",
-      show_dates: true, show_recipes: true, show_settings: true, auto_store: true, ...this._config,
+      show_dates: true, show_recipes: true, show_settings: true, auto_store: true, language: "auto", ...this._config,
     };
     this._form.schema = this._schema();
   }

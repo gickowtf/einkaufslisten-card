@@ -20,6 +20,7 @@ from homeassistant.helpers.typing import ConfigType
 from . import websocket as ws
 from .const import DOMAIN
 from .frontend import async_setup_frontend
+from .transfer import async_register_views
 from .manager import EinkaufslisteManager, person_name_for_user
 
 _LOGGER = logging.getLogger(__name__)
@@ -68,6 +69,7 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     manager = EinkaufslisteManager(hass, entry)
     await manager.async_load()
+    async_register_views(hass)  # 💾 Sicherung herunterladen / einspielen
     hass.data[DOMAIN]["manager"] = manager
     manager.async_start_scheduler()
     entry.async_on_unload(manager.async_stop)

@@ -14,6 +14,7 @@ from homeassistant.helpers.dispatcher import async_dispatcher_connect
 from .barcode import async_auto_photo, async_lookup, async_product_info
 from .recipe_import import async_import
 from .const import DOMAIN, SIGNAL_UPDATED
+from .transfer import async_todo_text, import_recipe_file, import_text, todo_lists
 from .manager import EinkaufslisteManager, person_name_for_user, product_key
 
 OPT_STR = vol.Any(None, str)
@@ -49,6 +50,10 @@ def async_register(hass: HomeAssistant) -> None:
         ws_product_remove,
         ws_barcode_remove,
         ws_item_out,
+        ws_recipe_import_file,
+        ws_import_text,
+        ws_import_todo_lists,
+        ws_import_todo,
         ws_seen,
         ws_group_add,
         ws_group_update,
@@ -450,6 +455,7 @@ def ws_products(hass, connection, msg):
         vol.Optional("category_id"): OPT_STR,
         vol.Optional("store_id"): OPT_STR,
         vol.Optional("unit"): OPT_STR,  # 📏 "" oder None = automatisch lernen
+        vol.Optional("aliases"): [str],  # 🏷️ Spitznamen („Tempos“)
     }
 )
 @callback
@@ -462,7 +468,14 @@ def ws_product_update(hass, connection, msg):
     for k in ("category_id", "store_id"):
         if k in fields and fields[k] is None:
             fields[k] = ""
-    _run(hass, connection, msg, lambda m: m.update_product(msg["key"], **fields))
+
+    def do(m):
+        prod = m.update_product(msg["key"], **fields)
+        if "aliases" in msg:
+            m.set_aliases(prod["key"], msg["aliases"])
+            prod = next((p for p in m.products() if p["key"] == prod["key"]), prod)
+        return prod
+    _run(hass, connection, msg, do)
 
 
 @websocket_api.websocket_command(
@@ -472,6 +485,43 @@ def ws_product_update(hass, connection, msg):
 async def ws_product_remove(hass, connection, msg):
     # 🗑️ ganz löschen: Fotos, Barcodes, Vorschlag und von der Einkaufsliste (Rezepte bleiben)
     await _run_async(hass, connection, msg, lambda m: m.async_delete_product(msg["key"]))
+
+
+@websocket_api.websocket_command(
+    {vol.Required("type"): "einkaufsliste/recipe/import_file", vol.Required("text"): str,
+     vol.Optional("filename"): OPT_STR}
+)
+@websocket_api.require_admin
+@callback
+def ws_recipe_import_file(hass, connection, msg):
+    _run(hass, connection, msg, lambda m: import_recipe_file(m, msg["text"], msg.get("filename")))
+
+
+@websocket_api.websocket_command(
+    {vol.Required("type"): "einkaufsliste/import/text", vol.Required("text"): str, vol.Optional("store_id"): OPT_STR}
+)
+@callback
+def ws_import_text(hass, connection, msg):
+    _run(hass, connection, msg, lambda m: import_text(m, msg["text"], msg.get("store_id") or None))
+
+
+@websocket_api.websocket_command({vol.Required("type"): "einkaufsliste/import/todo_lists"})
+@callback
+def ws_import_todo_lists(hass, connection, msg):
+    connection.send_result(msg["id"], todo_lists(hass))
+
+
+@websocket_api.websocket_command(
+    {vol.Required("type"): "einkaufsliste/import/todo", vol.Required("entity_id"): str, vol.Optional("store_id"): OPT_STR}
+)
+@websocket_api.async_response
+async def ws_import_todo(hass, connection, msg):
+    try:  # erst die offenen Einträge holen, dann wie „Text einfügen“ eintragen (mit „wer“)
+        text = await async_todo_text(hass, msg["entity_id"])
+    except ValueError as err:
+        connection.send_error(msg["id"], "invalid", str(err))
+        return
+    _run(hass, connection, msg, lambda m: import_text(m, text, msg.get("store_id") or None))
 
 
 @websocket_api.websocket_command(

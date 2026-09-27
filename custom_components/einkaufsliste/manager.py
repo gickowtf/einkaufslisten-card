@@ -34,6 +34,9 @@ from .const import (
     HISTORY_LIMIT,
     MAX_PHOTOS,
     RECIPE_GROUPS,
+    RECIPE_GROUP_NAMES_EN,
+    DEFAULT_CATEGORIES_EN,
+    DEFAULT_STORES_EN,
     VERSION,
     PERSON_COLORS,
     LOG_DAY_CHOICES,
@@ -100,10 +103,11 @@ def _servings_unit(value: Any) -> str:
     return "trays" if value == "trays" else "persons"
 
 
-def _default_recipe_groups() -> list[dict[str, Any]]:
+def _default_recipe_groups(english: bool = False) -> list[dict[str, Any]]:
     """🏷️ Start-Liste der Rezept-Gruppen (änderbar in ⚙️ → Rezept-Gruppen)."""
     return [
-        {"id": key, "name": name, "icon": icon, "color": CATEGORY_COLORS[k % len(CATEGORY_COLORS)]}
+        {"id": key, "name": RECIPE_GROUP_NAMES_EN.get(key, name) if english else name, "icon": icon,
+         "color": CATEGORY_COLORS[k % len(CATEGORY_COLORS)]}
         for k, (key, (name, icon)) in enumerate(RECIPE_GROUPS.items())
     ]
 
@@ -231,6 +235,7 @@ class EinkaufslisteManager:
         self.photos: dict[str, dict[str, Any]] = {}  # Produktname (klein) -> Foto
         self.seen: dict[str, dict[str, str]] = {}  # Benutzer -> Geschäft -> zuletzt angeschaut
         self.barcodes: dict[str, dict[str, Any]] = {}  # Barcode -> gelernter Artikel
+        self.aliases: dict[str, dict[str, Any]] = {}  # 🏷️ Spitzname (klein) -> {"name", "note"} des Produkts
         self.photo_dir = Path(hass.config.path("einkaufsliste_fotos"))
         self.history: dict[str, dict[str, Any]] = {}
         self.last_cleanup: str | None = None
@@ -263,15 +268,17 @@ class EinkaufslisteManager:
     async def async_load(self) -> None:
         data = await self._store.async_load()
         if data is None:
+            # 🌍 Erstes Einrichten: Startwerte in der Sprache von Home Assistant (Deutsch oder sonst Englisch)
+            english = not str(getattr(self.hass.config, "language", "de") or "de").lower().startswith("de")
             self.stores = [
                 {"id": _new_id(), "name": n, "color": c, "icon": i}
-                for n, c, i in DEFAULT_STORES
+                for n, c, i in (DEFAULT_STORES_EN if english else DEFAULT_STORES)
             ]
             self.categories = [
                 {"id": _new_id(), "name": n, "icon": i, "color": CATEGORY_COLORS[k % len(CATEGORY_COLORS)]}
-                for k, (n, i) in enumerate(DEFAULT_CATEGORIES)
+                for k, (n, i) in enumerate(DEFAULT_CATEGORIES_EN if english else DEFAULT_CATEGORIES)
             ]
-            self.recipe_groups = _default_recipe_groups()
+            self.recipe_groups = _default_recipe_groups(english)
             self.last_cleanup = _now_iso()
             self._schedule_save()
             return
@@ -311,6 +318,7 @@ class EinkaufslisteManager:
         for k, cat in enumerate(self.categories):  # ältere Daten: Farben nachrüsten
             cat.setdefault("color", CATEGORY_COLORS[k % len(CATEGORY_COLORS)])
         self.barcodes = data.get("barcodes", {})
+        self.aliases = data.get("aliases", {})
         self.log = data.get("log", [])
         self.log_days = int(data.get("log_days", LOG_DEFAULT_DAYS))
         if "persons" in data:
@@ -349,6 +357,7 @@ class EinkaufslisteManager:
             "barcodes": self.barcodes,
             "seen": self.seen,
             "history": self.history,
+            "aliases": self.aliases,
             "last_cleanup": self.last_cleanup,
             "log": self.log,
             "log_days": self.log_days,
@@ -403,6 +412,7 @@ class EinkaufslisteManager:
             "seen": self.seen,
             "history": history[:300],
             "barcodes_by_name": self._barcodes_by_name(),
+            "aliases": [{"alias": a, "name": t["name"], "note": t.get("note")} for a, t in sorted(self.aliases.items())],
             "settings": {
                 "cleanup_weekday": self.cleanup_weekday,
                 "cleanup_time": "%02d:%02d" % self.cleanup_time,
@@ -435,6 +445,7 @@ class EinkaufslisteManager:
                     "store_id": hist.get("store_id"),
                     "count": hist.get("count", 0),
                     "last_used": hist.get("last_used"),
+                    "aliases": sorted(a for a, t in self.aliases.items() if product_key(t["name"], t.get("note")) == key),
                     "unit": hist.get("unit"),  # 📏 gemerkte Einheit beim direkten Eintragen
                     "unit_fixed": bool(hist.get("unit_fixed")),
                     "barcodes": [],
@@ -538,6 +549,9 @@ class EinkaufslisteManager:
                     bc["category_id"] = cat
                 if store_id is not None:
                     bc["store_id"] = store
+        for target in self.aliases.values():  # 🏷️ Spitznamen zeigen aufs neue Produkt
+            if product_key(target["name"], target.get("note")) == key:
+                target.update(name=new_name, note=new_note)
         if new_key != key and key in self.photos and new_key not in self.photos:
             self.photos[new_key] = self.photos.pop(key)
             self.photos[new_key]["name"] = new_key
@@ -568,6 +582,28 @@ class EinkaufslisteManager:
         self._changed()
         return next((p for p in self.products() if p["key"] == new_key), {"key": new_key})
 
+    def resolve_alias(self, name: str | None, note: str | None) -> tuple[str | None, str | None]:
+        """🏷️ Spitzname -> richtiges Produkt („Tempos“ -> Taschentücher). Eigene Notiz hat Vorrang."""
+        target = self.aliases.get((name or "").strip().lower())
+        if not target:
+            return name, note
+        return target["name"], note or target.get("note")
+
+    def set_aliases(self, key: str, aliases: list[str]) -> None:
+        """Spitznamen eines Produkts setzen (alte werden ersetzt; gehört ein Name schon woanders hin, zieht er um)."""
+        key = (key or "").lower()
+        prod = next((p for p in self.products() if p["key"] == key), None)
+        if prod is None:
+            raise ValueError("Dieses Produkt gibt es nicht (mehr).")
+        for a in [a for a, t in self.aliases.items() if product_key(t["name"], t.get("note")) == key]:
+            self.aliases.pop(a, None)
+        for raw in aliases:
+            alias = " ".join(str(raw).split()).lower()[:40]
+            if not alias or alias == prod["name"].lower():
+                continue
+            self.aliases[alias] = {"name": prod["name"], "note": prod["note"]}
+        self._changed()
+
     def recipes_with(self, key: str) -> list[str]:
         """In welchen Rezepten steht dieses Produkt (Name + Notiz) noch?"""
         key = (key or "").lower()
@@ -585,6 +621,8 @@ class EinkaufslisteManager:
             self.items.remove(item)
             self._log("remove", item)
         await self.async_forget_product(key)
+        for a in [a for a, t in self.aliases.items() if product_key(t["name"], t.get("note")) == key]:
+            self.aliases.pop(a, None)
         self._changed()
         return {"removed": len(gone), "recipes": in_recipes}
 
@@ -844,7 +882,7 @@ class EinkaufslisteManager:
             name, quantity, bare = split_qty_ex(name)  # „3 milch“ -> Milch · 3x
         else:
             bare = is_bare(quantity)
-        name = _nice(name)
+        name, note = self.resolve_alias(_nice(name), note)  # 🏷️ „Tempos“ -> Taschentücher
         if not name:
             raise ValueError("Ohne Namen geht's nicht – was soll denn gekauft werden?")
         store_id = self._check_store(store_id)
@@ -1497,13 +1535,13 @@ class EinkaufslisteManager:
             raw_name, qty = raw.get("name"), raw.get("quantity")
             if not _clean(qty):
                 raw_name, qty = split_qty(raw_name)
-            name = _nice(raw_name)
+            name, alias_note = self.resolve_alias(_nice(raw_name), raw.get("note"))  # 🏷️ Spitzname
             if not name:
                 continue
             entry = {
                 "name": name,
                 "quantity": norm_qty(_clean(qty)),
-                "note": _note(raw.get("note")),
+                "note": _note(alias_note),
                 "for_whom": _clean(raw.get("for_whom")),
                 "store_id": self._check_store(raw.get("store_id")),
                 "category_id": self._check_category(raw.get("category_id")),

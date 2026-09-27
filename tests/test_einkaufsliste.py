@@ -1247,7 +1247,7 @@ async def test_update_product_store_propagation(hass, setup):
     r = m.add_recipe("Kuchen", [{"name": "Zucker", "store_id": netto}])
 
     offen = m.add_item("Zucker", store_id=netto)
-    abgehakt = m.add_item("Zucker", store_id=netto, for_whom="Marco")
+    abgehakt = m.add_item("Zucker", store_id=netto, for_whom="Max")
     abgehakt["checked"] = True
 
     m.update_product("zucker", store_id=aldi)
@@ -1393,3 +1393,158 @@ async def test_out_of_stock_restarts_cleanup(hass, setup, hass_ws_client, freeze
     assert milch["checked"] and milch["out_at"] is None
     with pytest.raises(ValueError):
         m.mark_out(milch["id"])  # abgehakt -> geht nicht
+
+
+async def test_aliases(hass, setup, hass_ws_client):
+    """🏷️ Spitznamen: „Tempos“ landet bei Taschentücher – beim Eintragen, im Rezept, nach Umbenennen und Löschen."""
+    client = await hass_ws_client(hass)
+    m = mgr(hass)
+    m.add_item("Taschentücher")
+    await client.send_json({"id": 1, "type": "einkaufsliste/product/update", "key": "taschentücher", "aliases": ["Tempos", " tempo ", "Taschentücher"]})
+    res = await client.receive_json()
+    assert res["success"], res
+    assert res["result"]["aliases"] == ["tempo", "tempos"]  # eigener Name wird nicht Spitzname
+    assert m.as_dict()["aliases"][0]["name"] == "Taschentücher"
+    item = m.add_item("tempos", for_whom="Oma")
+    assert item["name"] == "Taschentücher"
+    r = m.add_recipe("Schnupfen-Set", [{"name": "2 tempo"}])
+    assert r["items"][0]["name"] == "Taschentücher" and r["items"][0]["quantity"] == "2x"
+    # Umbenennen zieht die Spitznamen mit
+    m.update_product("taschentücher", name="Papiertaschentücher")
+    assert m.add_item("Tempos", for_whom="Opa")["name"] == "Papiertaschentücher"
+    # Ganz löschen nimmt sie mit
+    await m.async_delete_product("papiertaschentücher")
+    assert m.aliases == {}
+
+
+def test_convert_foreign_units():
+    """⚖️ Umrechnen beim Rezept-Import: cup, oz, lb, tbsp, °F."""
+    from custom_components.einkaufsliste.convert import convert_temps
+    from custom_components.einkaufsliste.recipe_import import parse_line, parse_text
+
+    got = {line: parse_line(line)["quantity"] for line in (
+        "1 cup flour", "2 cups sugar", "1 1/2 cups milk", "8 oz cheddar cheese", "1 lb ground beef",
+        "2 tbsp olive oil", "1 tsp salt", "2 sticks butter", "200 g Mehl", "3 Eier")}
+    assert got == {
+        "1 cup flour": "125 g", "2 cups sugar": "400 g", "1 1/2 cups milk": "360 ml", "8 oz cheddar cheese": "225 g",
+        "1 lb ground beef": "455 g", "2 tbsp olive oil": "2 EL", "1 tsp salt": "1 TL", "2 sticks butter": "225 g",
+        "200 g Mehl": "200 g", "3 Eier": "3x"}
+    assert parse_text("1 cup of chopped nuts")[0] == {"name": "Chopped nuts", "quantity": "140 g", "note": None}
+    assert convert_temps("Bake at 350°F, then 425 degrees F.") == "Bake at 175 °C, then 220 °C."
+
+
+async def test_backup_roundtrip(hass, setup, hass_client):
+    """💾 Sicherung herunterladen und wieder einspielen – samt Fotos."""
+    import base64
+
+    client = await hass_client()
+    m = mgr(hass)
+    m.add_item("Sicherungs-Milch", note="Bio")
+    m.add_recipe("Sicherungs-Kuchen", [{"name": "Mehl", "quantity": "500 g"}])
+    await m.async_set_photo("sicherungs-milch|bio", base64.b64encode(JPEG).decode())
+    resp = await client.get("/api/einkaufsliste/sicherung")
+    assert resp.status == 200 and resp.headers["Content-Type"] == "application/zip"
+    backup = await resp.read()
+    # alles durcheinanderbringen …
+    m.items.clear()
+    m.recipes.clear()
+    await m.async_remove_photo("sicherungs-milch|bio")
+    assert "sicherungs-milch|bio" not in m.photos
+    # … und zurückholen
+    resp = await client.post("/api/einkaufsliste/sicherung", data=backup)
+    res = await resp.json()
+    assert resp.status == 200, res
+    assert res["photos"] == 1
+    assert [i["name"] for i in m.items] == ["Sicherungs-Milch"] and m.recipes[0]["name"] == "Sicherungs-Kuchen"
+    assert "sicherungs-milch|bio" in m.photos and m._photo_path(m.photos["sicherungs-milch|bio"]["id"]).exists()
+    bad = await client.post("/api/einkaufsliste/sicherung", data=b"kein zip")
+    assert bad.status == 400
+
+
+async def test_recipe_file_import(hass, setup, hass_ws_client):
+    """📄 Rezepte aus einer Datei: Text mit „# Name“, CSV und JSON."""
+    client = await hass_ws_client(hass)
+    m = mgr(hass)
+    text = """# Pfannkuchen
+250 g Mehl
+3 Eier
+500 ml Milch
+Zubereitung:
+Alles verrühren.
+In der Pfanne backen.
+
+# Pancakes (US)
+1 cup flour
+2 tbsp sugar
+"""
+    await client.send_json({"id": 1, "type": "einkaufsliste/recipe/import_file", "text": text, "filename": "kochbuch.txt"})
+    res = await client.receive_json()
+    assert res["success"], res
+    assert res["result"]["added"] == 2
+    pf = next(r for r in m.recipes if r["name"] == "Pfannkuchen")
+    assert [i["name"] for i in pf["items"]] == ["Eier", "Mehl", "Milch"] and pf["steps"] == "Alles verrühren.\nIn der Pfanne backen."
+    us = next(r for r in m.recipes if r["name"] == "Pancakes (US)")
+    assert {i["name"]: i["quantity"] for i in us["items"]} == {"Flour": "125 g", "Sugar": "2 EL"}
+    # CSV – gleicher Name bekommt „(Import)“
+    csv_text = "Rezept;Menge;Zutat;Notiz\nPfannkuchen;1 Prise;Salz;\nSalat;1;Gurke;Bio\n"
+    await client.send_json({"id": 2, "type": "einkaufsliste/recipe/import_file", "text": csv_text, "filename": "r.csv"})
+    res = (await client.receive_json())["result"]
+    assert res["added"] == 2 and "Pfannkuchen (Import)" in res["names"]
+    salat = next(r for r in m.recipes if r["name"] == "Salat")
+    assert salat["items"][0] == {**salat["items"][0], "name": "Gurke", "quantity": "1x", "note": "Bio"}
+    # JSON
+    import json as _json
+    js = _json.dumps([{"name": "Tee", "items": ["1 Beutel Pfefferminztee"], "steps": ["Wasser kochen"]}])
+    await client.send_json({"id": 3, "type": "einkaufsliste/recipe/import_file", "text": js, "filename": "r.json"})
+    assert (await client.receive_json())["result"]["added"] == 1
+    await client.send_json({"id": 4, "type": "einkaufsliste/recipe/import_file", "text": "nix", "filename": "x.txt"})
+    assert not (await client.receive_json())["success"]
+
+
+async def test_import_from_other_apps(hass, setup, hass_ws_client):
+    """🔁 Aus anderen Apps: Text (Bring!/Keep teilen) und HA-To-do-Listen."""
+    client = await hass_ws_client(hass)
+    m = mgr(hass)
+    aldi = m.stores[1]["id"]
+    text = "Einkauf:\n☐ Milch\n☑ Brot\n- [ ] 2 Äpfel\n- [x] Käse\n• Butter\n"
+    await client.send_json({"id": 1, "type": "einkaufsliste/import/text", "text": text, "store_id": aldi})
+    res = await client.receive_json()
+    assert res["success"], res
+    assert res["result"] == {"added": 3, "skipped": 2}
+    assert {(i["name"], i["quantity"], i["store_id"]) for i in m.items} == {("Milch", None, aldi), ("Äpfel", "2x", aldi), ("Butter", None, aldi)}
+
+    # HA-To-do-Liste (hier die eingebaute HA-Einkaufsliste)
+    import os
+    if os.path.exists(hass.config.path(".shopping_list.json")):  # Reste aus früheren Testläufen weg
+        os.remove(hass.config.path(".shopping_list.json"))
+    sl = MockConfigEntry(domain="shopping_list")
+    sl.add_to_hass(hass)
+    assert await hass.config_entries.async_setup(sl.entry_id)
+    await hass.async_block_till_done()
+    await hass.services.async_call("todo", "add_item", {"entity_id": "todo.einkaufsliste", "item": "Kaffee"}, blocking=True)
+    await hass.services.async_call("todo", "add_item", {"entity_id": "todo.einkaufsliste", "item": "3 Joghurt"}, blocking=True)
+    await client.send_json({"id": 2, "type": "einkaufsliste/import/todo_lists"})
+    lists = (await client.receive_json())["result"]
+    assert any(x["entity_id"] == "todo.einkaufsliste" for x in lists)
+    await client.send_json({"id": 3, "type": "einkaufsliste/import/todo", "entity_id": "todo.einkaufsliste"})
+    res = await client.receive_json()
+    assert res["success"], res
+    assert res["result"]["added"] == 2
+    assert any(i["name"] == "Joghurt" and i["quantity"] == "3x" for i in m.items)
+
+
+@pytest.mark.english
+async def test_english_defaults(hass: HomeAssistant, setup) -> None:
+    """🌍 Home Assistant auf Englisch: Start-Geschäfte, Kategorien und Gruppen auf Englisch, Wörterbuch und Einheiten verstehen Englisch."""
+    m = mgr(hass)
+    assert [c["name"] for c in m.categories][:3] == ["Fruit & vegetables", "Bakery", "Dairy & chilled"]
+    assert "Supermarket" in [s["name"] for s in m.stores]
+    assert any(g["name"] == "Poultry" for g in m.recipe_groups)
+    cat = {c["id"]: c["name"] for c in m.categories}
+    assert cat[m.guess_category("Milk")] == "Dairy & chilled"
+    assert cat[m.guess_category("Frozen pizza")] == "Frozen"
+    assert cat[m.guess_category("Toilet paper")] == "Household"
+    item = m.add_item("Tomatoes 2 cans", store_id=m.stores[0]["id"])
+    assert (item["name"], item["quantity"]) == ("Tomatoes", "2 Dosen")
+    from custom_components.einkaufsliste.quantity import norm_qty
+    assert norm_qty("3 tbsp") == "3 EL"

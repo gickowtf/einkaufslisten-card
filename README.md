@@ -2,6 +2,8 @@
 
 # 🛒 Einkaufsliste für Home Assistant
 
+🇬🇧 **English?** → [README in English](README.en.md)
+
 **Die Familien-Einkaufsliste direkt im Dashboard.** Du bekommst mehrere Geschäfte, Kategorien, Rezepte und Live-Sync auf allen Handys. Hinter jedem Artikel steht, wer ihn eingetragen hat. Was gekauft ist, wird abgehakt und bleibt als „schon mal gekauft“ in der Liste. So ist es beim nächsten Mal mit einem Tipp wieder drauf.
 
 ![Vorschau – Einkaufsliste hell und dunkel](docs/screenshot.png)
@@ -37,6 +39,10 @@
 | 🛒 **Laden-Modus** | Ein Tipp auf den Wagen oben: große Zeilen, dicke Kreise, das Eingabefeld ist weg. Nur noch abhaken, auch mit einer Hand am Einkaufswagen. |
 | 🔗 **Doppelt-Finder** | Stehen „Tomate“ und „Tomaten“ (oder „Klopapier“ und „Toilettenpapier“) gleichzeitig drauf, fragt die Liste: **Zusammenlegen?** |
 | ✨ **Ordentliche Namen** | Aus „  milch “ wird automatisch „Milch“. |
+| 🏷️ **Spitznamen** | „Tempos“ ist Taschentücher, „Zewa“ ist Küchenrolle: Beim Produkt Spitznamen eintragen – wer den Spitznamen tippt, landet beim richtigen Produkt. Nichts steht doppelt drauf. |
+| 📥 **Import & Sicherung** | Rezepte aus einer Datei einlesen, Listen aus Bring!, Google Keep oder der HA-Einkaufsliste herüberholen und alles als Sicherung (.zip) herunterladen. |
+| ⚖️ **Umrechnen** | Amerikanische Rezepte? „1 cup flour“ wird zu „125 g flour“, „2 tbsp“ zu „2 EL“, „350 °F“ zu „175 °C“. |
+| 🌍 **Englisch** | Läuft Home Assistant auf Englisch (oder einer anderen Sprache), spricht die Karte Englisch. |
 | 🔎 **Merkt sich Produkte** | Beim Tippen kommen Vorschläge, Geschäft und Kategorie werden automatisch ausgefüllt. Tippst du einen Vorschlag an, kommen auch Menge, Notiz und „für wen“ mit. |
 
 ---
@@ -176,7 +182,7 @@ Die Eingabe auf der Einkaufsliste ist bewusst schlank: **Name · 🔢 Menge · �
 - Barcode zuordnen, Kategorie, Infos: alles per **langem Drücken** auf den Artikel.
 - **📋 Mehrere auf einmal:** „milch, 6 eier, 1,5 kg kartoffeln“ → ✔ → **3 Artikel**. Jeder bekommt sein eigenes Geschäft (gewählter Reiter, sonst wie zuletzt), seine Kategorie und seine Menge. Das Komma in „1,5“ trennt natürlich nicht. Trennen geht mit Komma, Semikolon oder neuer Zeile. (Mit Foto bitte einzeln eintragen.)
 - **📝 Notizen** sind dezent gelb hinterlegt – in der Liste, im Rezept-Editor, bei „Auf die Liste“ und im Koch-Modus –, damit man sie nicht übersieht.
-- **👤 Nach Person suchen:** Tippst du oben einen Namen („marco“), zeigen die Vorschläge alles, was für diese Person auf der Liste steht – offen, abgehakt und aus Rezepten. Antippen übernimmt Menge, Notiz und Für wen, z. B. um etwas Abgehaktes wieder draufzusetzen.
+- **👤 Nach Person suchen:** Tippst du oben einen Namen („max“), zeigen die Vorschläge alles, was für diese Person auf der Liste steht – offen, abgehakt und aus Rezepten. Antippen übernimmt Menge, Notiz und Für wen, z. B. um etwas Abgehaktes wieder draufzusetzen.
 
 ## 📖 Anleitung in der Karte
 
@@ -228,6 +234,8 @@ Unter jedem Artikel steht klein, zu welchem Rezept er gehört (🍽️ Freitags 
 
 **🔎 Rezept-Suche:** Oben bei der Kochmütze 👨‍🍳 (und in ⚙️ → Rezepte) gibt es ein Suchfeld. Es funktioniert wie die Vorschläge in der Liste: Rezepte, deren Name (oder ein Wort darin) mit den getippten Buchstaben **anfängt**, stehen oben. Danach kommen Rezepte, bei denen die Buchstaben irgendwo im Namen stecken. Außerdem findet die Suche **Zutaten**: „Zucchini“ zeigt auch die Lasagne, mit „🥕 enthält Zucchini“. Bei Tippfehlern („Lasange“) kommt „🤓 Meintest du das?“. Das ✕ leert die Suche.
 
+**⚖️ Umrechnen beim Import:** Kopierst du ein amerikanisches oder englisches Rezept rein (Text, Link oder Datei), rechnet die Liste die Maße gleich um: **cup** → Gramm (Mehl 125 g, Zucker 200 g, Butter 227 g …, Flüssiges 240 ml), **oz** → g, **lb** → g, **fl oz / pint / quart** → ml, **tbsp** → EL, **tsp** → TL und in der Zubereitung **°F → °C** (auf 5 Grad gerundet). Ehrlich gesagt: Eine Tasse wiegt je nach Zutat anders – bei den häufigen Zutaten stimmt es gut, bei exotischen wird wie Wasser gerechnet. Kurz drüberschauen lohnt sich.
+
 **🧂 Grundvorrat:** Im Rezept-Editor den Salzstreuer 🧂 antippen, bevor du die Zutat mit ✔ übernimmst (z. B. Salz, Pfeffer, Öl). Bei „Was davon brauchst du?“ sind solche Zutaten **nicht** angehakt und stehen klein mit „🧂 haben wir immer“ da.
 
 ---
@@ -253,7 +261,7 @@ Damit keiner mehr die falschen Nudeln mitbringt. 😄
 3. Fertig! Hinter dem Artikel erscheint ein kleines **📷**. Tippst du darauf, geht das Foto groß auf. Noch ein Tipp, und es ist wieder zu.
 
 - Das Foto **bleibt beim Produkt**, auch nach dem Abhaken und Wieder-Reinnehmen. Einmal knipsen reicht.
-- **Produkt = Name + Notiz.** „Käse · Leerdammer“ und „Käse · Gouda“ haben also jeweils ihr **eigenes** Foto und ihren **eigenen** Barcode. „Für wen“ spielt dafür keine Rolle: Leerdammer für Marco und Leerdammer für Oma stehen zwar als zwei Zeilen auf der Liste, teilen sich aber Foto und Barcode (ist ja dieselbe Packung).
+- **Produkt = Name + Notiz.** „Käse · Leerdammer“ und „Käse · Gouda“ haben also jeweils ihr **eigenes** Foto und ihren **eigenen** Barcode. „Für wen“ spielt dafür keine Rolle: Leerdammer für Max und Leerdammer für Oma stehen zwar als zwei Zeilen auf der Liste, teilen sich aber Foto und Barcode (ist ja dieselbe Packung).
 - Auch **Rezept-Zutaten** können ein Foto haben: Das geht im Rezept über den 📷-Knopf neben der Zutat.
 - Fotos werden noch auf dem Handy **automatisch verkleinert**, auf ungefähr 100 KB.
 - Gespeichert wird alles **nur bei dir** unter `/config/einkaufsliste_fotos` und mit deinen Backups gesichert.
@@ -314,7 +322,7 @@ Bist du bei einem Geschäft, das eine **📍 Zone** hat, wird der ▥-Knopf **gr
 
 ## ⚙️ Die Einstellungen (Zahnrad)
 
-Ein Tipp aufs **⚙️** zeigt eine aufgeräumte Übersicht mit Kacheln: **Geschäfte · Kategorien · Rezepte · Rezept-Gruppen · Personen · Produkte · Alles ok? · Verlauf · Aufräumen**.
+Ein Tipp aufs **⚙️** zeigt eine aufgeräumte Übersicht mit Kacheln: **Geschäfte · Kategorien · Rezepte · Rezept-Gruppen · Personen · Produkte · Alles ok? · Import & Sicherung · Verlauf · Aufräumen**.
 
 **✅ Alles ok?** sucht kaputte oder unvollständige Einträge: **Produkte ohne Kategorie**, **Artikel ohne Geschäft**, Fotos, die auf der Festplatte fehlen oder zu nichts mehr gehören, Fotos von gelöschten Rezepten, Barcodes ohne Produkt und Verweise auf gelöschte Geschäfte, Kategorien oder Rezept-Gruppen. **Jeder Fund steht einzeln da** – was genau los ist (z. B. „„Gewürze · Paprika“ hat keine Kategorie“) und darunter 🔧 **wie repariert wird**. Wo es mehrere Möglichkeiten gibt, wählst du selbst (Geschäft, Kategorie, Gruppe) – vorausgewählt ist der Vorschlag (Wörterbuch bzw. „wie zuletzt“). **Anhaken, was repariert werden soll** („Alle an / Alle aus“ gibt's auch), dann **„… reparieren“**. Nicht Angehaktes bleibt, wie es ist. Tipp auf eine Kachel, und nur dieser Bereich geht auf. Mit **← Übersicht** geht's zurück.
 
@@ -329,9 +337,24 @@ Alle Produkte, die die Liste kennt – mit Kategorie, Standard-Geschäft, Anzahl
 
 **„Alle Produkte“ hat Vorrang:** Änderst du hier die Kategorie, zieht sie überall mit. Änderst du das **Geschäft**, zieht es in **allen Rezepten** und bei **schon abgehakten** Artikeln mit. Artikel, die **noch offen** auf der Liste stehen, bleiben bei ihrem Geschäft – damit dir beim Einkaufen nichts unter der Nase wegspringt. Gibt es den Artikel beim neuen Geschäft schon, wird nichts doppelt angelegt.
 
+**🏷️ Spitznamen:** Im Produkt gibt es das Feld **„Spitznamen“** (mit Komma trennen, z. B. `Tempos, Tempo`). Tippt jemand „Tempos“, kommt als Vorschlag **„Taschentücher · 🏷️ tempos“** – und auch ohne Antippen landet es bei den Taschentüchern (mit deren Geschäft, Kategorie und Einheit). Das gilt auch für Rezepte, Automationen und Sprachbefehle. Benennst du das Produkt um, ziehen die Spitznamen mit.
+
 **▥ Barcode einzeln löschen:** Im Produkt steht jeder Barcode mit 🗑️ daneben – das Produkt bleibt. **Fotos einzeln löschen:** Produkt → **Fotos** → 🗑️.
 
 **🗑️ Ganz löschen** entfernt das Produkt komplett: Fotos, Barcodes, Vorschlag **und** alle Einträge auf der Einkaufsliste (offen und erledigt). Steht es noch in einem **Rezept**, sagt die Karte vorher, in welchem – im Rezept bleibt es stehen, bis du es dort änderst. Das geht auch direkt bei „✅ Alles ok?“: Bei „ohne Kategorie“ / „ohne Geschäft“ gibt es in der Auswahl **„🗑️ Produkt ganz löschen“** – praktisch für Tippfehler und Sachen, die es gar nicht gibt.
+
+### 📥 Import & Sicherung
+Drei Knöpfe oben:
+
+- **📄 Rezepte aus Datei** (nur Admins): Eine Datei mit Rezepten einlesen.
+  - **.txt / .md:** Jedes Rezept beginnt mit `# Name`, dann „Zutaten“ (eine pro Zeile) und „Zubereitung“.
+  - **.csv:** Spalten `Rezept;Menge;Einheit;Zutat;Notiz;Zubereitung`, eine Zeile pro Zutat (Excel „Speichern als CSV“ klappt).
+  - **.json:** z. B. Rezepte aus einer Sicherung.
+  - Gibt es den Namen schon, bekommt das neue Rezept „(Import)“ dahinter – überschrieben wird nichts. Fremde Maße werden umgerechnet (siehe ⚖️).
+- **🔁 Aus anderen Apps:**
+  - **Aus Home Assistant:** Jede To-do-Liste in HA (die eingebaute Einkaufsliste, Google Tasks, Bring! über deren Integration …) auswählen, Geschäft wählen, **Herüberholen**. Die alte Liste bleibt, wie sie ist.
+  - **Text einfügen:** In Bring!, Google Keep & Co. die Liste teilen oder kopieren und einfügen – ein Artikel pro Zeile. Aufzählungszeichen, ☐ und `- [ ]` stören nicht, schon Abgehaktes (☑, `[x]`) bleibt draußen. Mengen wie „2 Äpfel“ werden erkannt.
+- **💾 Sicherung** (nur Admins): **Herunterladen** packt alles in eine .zip – Liste, Rezepte, Produkte, Barcodes, Fotos, Geschäfte, Kategorien, Personen, Verlauf. **Einspielen** ersetzt nach einer Rückfrage **alles** durch den Stand aus der Datei. Praktisch für einen Umzug auf ein neues Home Assistant.
 
 ### 📋 Verlauf: wer hat wann was wie gemacht?
 - Alles steht drin, das Neueste oben, nach Tagen sortiert: **eingetragen**, **wieder drauf**, **abgehakt**, **geändert** (mit Details wie „Menge 2x → 4x“), **verschoben** („Aldi → Netto“) und **gelöscht**.
@@ -360,6 +383,7 @@ Alles lässt sich bequem im visuellen Editor einstellen. Für YAML-Fans:
 | `compact` | `false` | 📱 Kompakt-Modus: kleinere Zeilen ohne Zusatz-Infos |
 | `auto_store` | `true` | 📍 Automatisch zum Geschäft springen, bei dem man gerade ist |
 | `show_settings` | `true` | Zahnrad für Geschäfte und Kategorien anzeigen (zum Beispiel fürs Kinder-Tablet ausschalten) |
+| `language` | `auto` | 🌍 `auto` = wie Home Assistant (Deutsch, sonst Englisch), `de` = immer Deutsch, `en` = immer Englisch |
 
 **Geschäfte, Kategorien & Personen:** Tipp auf das ⚙️-Zahnrad. Dort kannst du alles anlegen, umbenennen, sortieren (▲▼) und löschen. Geschäfte kannst du außerdem einfärben.
 **Icons:** Tippe einfach den Namen ein, ohne „mdi:“, zum Beispiel `hund`, `dog` oder `fish`. Die passenden Icons erscheinen direkt als Vorschau zum Antippen.
@@ -407,7 +431,10 @@ data:
 ## ❓ Häufige Fragen
 
 **Wo werden die Daten gespeichert?**
-Lokal in deinem Home Assistant (`/config/.storage/einkaufsliste.data`). Keine Cloud, nichts geht nach draußen. Deine Backups sichern die Liste automatisch mit.
+Lokal in deinem Home Assistant (`/config/.storage/einkaufsliste.data`). Keine Cloud, nichts geht nach draußen. Deine Backups sichern die Liste automatisch mit. Zusätzlich gibt es **⚙️ → Import & Sicherung → Sicherung** für eine eigene .zip-Datei.
+
+**Gibt's das auch auf Englisch?**
+Ja. Läuft Home Assistant nicht auf Deutsch, zeigt die Karte alles auf Englisch (Option `language` im Karten-Editor). Wird die Integration auf einem englischen Home Assistant neu eingerichtet, sind auch die Start-Geschäfte, Kategorien und Rezept-Gruppen englisch, und das Kategorie-Wörterbuch versteht englische Produkte („Milk“ → Dairy). Deine eigenen Einträge werden nicht übersetzt.
 
 **Die Karte sagt „Integration nicht eingerichtet“.**
 Dann fehlt noch Schritt 2: unter Geräte & Dienste die Integration **Einkaufsliste** hinzufügen.

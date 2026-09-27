@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 DOMAIN = "einkaufsliste"
-VERSION = "2.20.3"
+VERSION = "2.21.0"
 
 STORAGE_KEY = f"{DOMAIN}.data"
 STORAGE_VERSION = 1
@@ -60,6 +60,27 @@ DEFAULT_CATEGORIES = [
     ("Sonstiges", "mdi:dots-horizontal"),
 ]
 
+# 🌍 Dasselbe auf Englisch – wenn Home Assistant beim ersten Einrichten nicht auf Deutsch läuft
+DEFAULT_STORES_EN = [
+    ("Supermarket", "#1f8fd6", "mdi:cart"),
+    ("Discounter", "#f5c400", "mdi:cart"),
+    ("Drugstore", "#7a3fa8", "mdi:lotion"),
+]
+
+DEFAULT_CATEGORIES_EN = [
+    ("Fruit & vegetables", "mdi:food-apple"),
+    ("Bakery", "mdi:baguette"),
+    ("Dairy & chilled", "mdi:cheese"),
+    ("Meat & fish", "mdi:food-steak"),
+    ("Frozen", "mdi:snowflake"),
+    ("Pantry & cans", "mdi:package-variant"),
+    ("Sweets & snacks", "mdi:candy"),
+    ("Drinks", "mdi:bottle-soda"),
+    ("Drugstore", "mdi:lotion"),
+    ("Household", "mdi:spray-bottle"),
+    ("Other", "mdi:dots-horizontal"),
+]
+
 # Farben für die Kategorien (Streifen am Artikel), der Reihe nach vergeben
 CATEGORY_COLORS = [
     "#43a047", "#ff9800", "#fdd835", "#e53935", "#29b6f6", "#8d6e63",
@@ -98,4 +119,11 @@ RECIPE_GROUPS = {
     "sossen": ("Soßen & Dips", "mdi:soy-sauce"),
     "getraenke": ("Getränke", "mdi:glass-cocktail"),
     "sonstiges": ("Sonstiges", "mdi:silverware-fork-knife"),
+}
+RECIPE_GROUP_NAMES_EN = {
+    "fisch": "Fish", "fleisch": "Meat", "gefluegel": "Poultry", "vegetarisch": "Vegetarian",
+    "nudeln": "Pasta & rice", "suppen": "Soups & stews", "salate": "Salads", "herzhaft": "Pizza & savory",
+    "gebaeck": "Pastries", "kuchen": "Cakes", "plaetzchen": "Cookies", "brot": "Bread & rolls",
+    "desserts": "Desserts", "fruehstueck": "Breakfast", "sossen": "Sauces & dips", "getraenke": "Drinks",
+    "sonstiges": "Other",
 }

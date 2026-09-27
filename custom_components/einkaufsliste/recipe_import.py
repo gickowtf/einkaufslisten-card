@@ -18,6 +18,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
 from .const import VERSION
+from .convert import convert_line, convert_temps
 from .quantity import NUM, UNIT_WORDS, norm_qty
 
 _LOGGER = logging.getLogger(__name__)
@@ -47,7 +48,7 @@ def _nice(text: str) -> str:
 def parse_line(line: str) -> dict[str, Any] | None:
     """Eine Zutaten-Zeile zerlegen: „200 g Mehl (Type 405)“ -> Menge 200 g, Name Mehl, Notiz Type 405."""
     line = html.unescape(line)
-    line = _BULLET.sub("", line).strip()
+    line = convert_line(_BULLET.sub("", line).strip())  # ⚖️ cup, oz, lb … -> g, ml
     if not line or len(line) > 120 or line.endswith(":") or _SKIP.match(line):
         return None
     qty = None
@@ -167,7 +168,7 @@ def _steps(node: Any) -> str | None:
                 walk(n.get("text") or n.get("name") or "")
 
     walk(node)
-    return "\n".join(out)[:8000] or None
+    return convert_temps("\n".join(out))[:8000] or None  # ⚖️ °F -> °C
 
 
 def _is_local(host: str) -> bool:
