@@ -2,11 +2,13 @@ name: Release automatisch anlegen
 
 # Sobald die Version in manifest.json erhöht wird, legt GitHub selbst ein
 # Release an (z. B. v1.1.5). HACS zeigt dann diese Versionsnummer an.
+# Erst NACHDEM „Prüfen“ (HACS, hassfest, Tests) grün durchgelaufen ist –
+# so will es HACS für die Aufnahme in die offizielle Liste.
 on:
-  push:
+  workflow_run:
+    workflows: ["Prüfen"]
+    types: [completed]
     branches: [main]
-    paths:
-      - custom_components/einkaufsliste/manifest.json
   workflow_dispatch:
 
 permissions:
@@ -14,11 +16,15 @@ permissions:
 
 jobs:
   release:
+    if: github.event_name == 'workflow_dispatch' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push')
     runs-on: ubuntu-latest
+    env:
+      SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+          ref: ${{ env.SHA }}
 
       - name: Version auslesen
         id: version
@@ -32,5 +38,5 @@ jobs:
           if gh release view "$TAG" >/dev/null 2>&1; then
             echo "Release $TAG gibt es schon – nichts zu tun."
           else
-            gh release create "$TAG" --target "$GITHUB_SHA" --title "$TAG" --generate-notes
+            gh release create "$TAG" --target "$SHA" --title "$TAG" --generate-notes
           fi
