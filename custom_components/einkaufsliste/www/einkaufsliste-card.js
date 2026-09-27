@@ -2,7 +2,7 @@
  * Einkaufsliste Card – die Familien-Einkaufsliste für Home Assistant
  * Wird automatisch von der Integration "einkaufsliste" geladen.
  */
-const EL_VERSION = "2.19.0";
+const EL_VERSION = "2.19.1";
 
 // Doppelt-Finder: Wörter, die dasselbe meinen (alles klein, ohne Leer-/Sonderzeichen)
 const DUP_SYNONYMS = (() => {
@@ -3010,7 +3010,6 @@ class EinkaufslisteCard extends HTMLElement {
         || (!this._fixedStore && (this.$("inStore")?.value || "") !== this._defaultStore());
       clear.hidden = !any;
     }
-    if (this.$("inCat")) this.$("inCat").hidden = this._formMode !== "recipe";
     const tools = [
       ["tQty", "qtyBox", this.$("inQty")?.value.trim(), "mdi:numeric"],
       ["tNote", "inNote", this.$("inNote")?.value.trim() ? "✓" : "", "mdi:note-text-outline"],
@@ -3228,7 +3227,7 @@ class EinkaufslisteCard extends HTMLElement {
         <li><b>Mehrere auf einmal:</b> <b>Milch, 6 Eier, Brot</b> → ✔ → 3 Sachen auf der Liste.</li>
         <li>Die Knöpfe darunter: 🔢 Menge · 📝 Notiz (z. B. Sorte) · 👤 Für wen · 📷 Foto · 🧽 alles leeren.</li>
         <li>Darunter <b>„Welches Geschäft?“</b> – oder „Egal wo“. Meist ist es schon richtig ausgewählt (so wie zuletzt).</li>
-        <li>Die <b>Kategorie</b> sucht sich die Liste selbst aus.</li>
+        <li>Daneben die <b>Kategorie</b> – die sucht sich die Liste meist selbst aus. Passt sie nicht, einfach ändern.</li>
         <li>Einen <b>Namen</b> tippen (z. B. von dir) zeigt, was für diese Person auf der Liste steht.</li>
         <li>Vertippt? Die Liste fragt „Meintest du …?“ 😉</li></ul>`, true)}
       ${sec("✅", "Abhaken & wieder draufsetzen", `<ul>
