@@ -145,7 +145,7 @@ Was du gewählt hast, steht direkt am Symbol, zum Beispiel **🔢 2x · 👤 Oma
 - **✨ und rote Blase:** Artikel, die **andere** eingetragen haben, seit du zuletzt geschaut hast, bekommen ein ✨. Am Geschäfts-Reiter steht dann zum Beispiel **„+2“**. Die Blase bleibt stehen, bis du **genau diesen Reiter** antippst (nur „Alle“ anschauen reicht nicht), und sie verschwindet **nur bei dir**. Jeder hat seine eigene, wie bei WhatsApp. 🔴
 - **Farbstreifen:** Jede Kategorie hat ihre Farbe (links am Artikel). Die Farben änderst du im ⚙️ Zahnrad bei den Kategorien.
 - **Zeit:** Bei Artikeln von heute steht „gerade eben“, „vor 5 Min“ oder „vor 2 Std“.
-- **🛒 Laden-Modus:** Oben auf den **Einkaufswagen** tippen. Die Zeilen und Kreise werden groß, das Eingabefeld verschwindet, und oben steht „Laden-Modus“. Damit es übersichtlich bleibt, sind auch Kochmütze, Zahnrad, „seit wann“ und das 🧹 Aufräum-Datum weg – nur das Wichtigste bleibt. Nochmal tippen (oder **Beenden**) schaltet zurück. Jedes Handy merkt sich das für sich.
+- **🛒 Laden-Modus:** Oben auf den **Einkaufswagen** tippen. Die Zeilen und Kreise werden groß, das Eingabefeld verschwindet, und oben steht „Laden-Modus“. Damit es übersichtlich bleibt, sind auch der Titel, Kochmütze, Zahnrad, „seit wann“ und das 🧹 Aufräum-Datum weg – nur das Wichtigste bleibt. Und es steht immer die ganze Liste da, auch wenn oben noch etwas eingetippt war. Nochmal tippen (oder **Beenden**) schaltet zurück. Jedes Handy merkt sich das für sich.
 - **🔗 Doppelt-Finder:** Stehen zwei Artikel mit fast gleichem Namen beim selben Geschäft, zum Beispiel „Tomate“ und „Tomaten“, erscheint oben eine Frage. **Zusammenlegen** macht daraus einen Artikel, und Mengen wie 2x + 3x werden zu **5x** zusammengezählt. **Passt so** fragt bei diesem Paar nie wieder.
 - **▥ am Artikel:** Steht klein unter dem Namen ein **▥**, ist für dieses Produkt ein Barcode hinterlegt. Im Lange-drücken-Menü steht dann **„Barcode ✓“**.
 - **[−] [＋] mit Einheiten:** Auf die Menge tippen – das geht auch bei **250 g → 500 g → 750 g** oder **1 L → 2 L**.
@@ -159,12 +159,13 @@ Was du gewählt hast, steht direkt am Symbol, zum Beispiel **🔢 2x · 👤 Oma
 
 ## ⚡ Schnell eintragen
 
-Die Eingabe auf der Einkaufsliste ist bewusst schlank: **Name · 🔢 Menge · 📝 Notiz · 👤 Für wen · 📷 Foto · 🛒 Geschäft** (plus 🧽 Radiergummi zum Leeren). Der **▥ Barcode-Knopf** sitzt oben links neben dem Laden-Modus – so ist er auch im Laden-Modus da („Scannen & abhaken“). Alles andere läuft automatisch:
+Die Eingabe auf der Einkaufsliste ist bewusst schlank: **Name · 🔢 Menge · 📝 Notiz · 👤 Für wen · 📷 Foto · 🛒 Geschäft** (plus 🧽 Radiergummi zum Leeren). Der **▥ Barcode-Knopf** sitzt oben neben der grünen Lampe – so ist er auch im Laden-Modus da („Scannen & abhaken“), aber nicht direkt neben dem Laden-Knopf. Die Geschäft-Auswahl heißt **„Welches Geschäft?“** und geht über die ganze Breite. Alles andere läuft automatisch:
 
 - **Kategorie** kommt aus dem Gedächtnis oder dem Wörterbuch – ändern geht nachträglich per **langem Drücken → Kategorie**.
 - **Geschäft** kommt aus dem Gedächtnis (so wie zuletzt gekauft).
 - **Menge** direkt im Namen: „3 milch“ → Milch · 3x, „2 backpulver“ → 2 Pck. (gemerkte Einheit). Die Mengen-Knöpfe zeigen gleich die gemerkte Einheit.
-- Ein Tipp auf einen **Vorschlag** übernimmt Menge, Notiz und Für wen vom letzten Mal.
+- Ein Tipp auf einen **Vorschlag** übernimmt Menge, Notiz und Für wen vom letzten Mal. Es gibt **höchstens 4 Vorschläge**, jedes Produkt nur einmal.
+- Beim Tippen klappt unten **„Erledigt“** auf und zeigt die Treffer – gesucht wird nach Name, Notiz oder Person.
 - Barcode zuordnen, Kategorie, Infos: alles per **langem Drücken** auf den Artikel.
 - **📋 Mehrere auf einmal:** „milch, 6 eier, 1,5 kg kartoffeln“ → ✔ → **3 Artikel**. Jeder bekommt sein eigenes Geschäft (gewählter Reiter, sonst wie zuletzt), seine Kategorie und seine Menge. Das Komma in „1,5“ trennt natürlich nicht. Trennen geht mit Komma, Semikolon oder neuer Zeile. (Mit Foto bitte einzeln eintragen.)
 - **📝 Notizen** sind in der Liste dezent farbig hinterlegt, damit man sie im Laden nicht übersieht.

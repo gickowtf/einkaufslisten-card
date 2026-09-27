@@ -2,7 +2,7 @@
  * Einkaufsliste Card – die Familien-Einkaufsliste für Home Assistant
  * Wird automatisch von der Integration "einkaufsliste" geladen.
  */
-const EL_VERSION = "2.15.1";
+const EL_VERSION = "2.16.0";
 
 // Doppelt-Finder: Wörter, die dasselbe meinen (alles klein, ohne Leer-/Sonderzeichen)
 const DUP_SYNONYMS = (() => {
@@ -596,7 +596,7 @@ form.add .sugg { grid-column: 1 / -1; display:flex; flex-wrap:wrap; gap:6px; mar
 .photobtn { background:none; border:0; cursor:pointer; padding:0 2px; color:var(--primary-color,#03a9f4); line-height:0; --mdc-icon-size:17px; align-self:center; }
 .photorow { display:flex; flex-wrap:wrap; gap:6px; }
 .photorow .btn { padding:6px 10px; font-size:.85em; }
-form.add .row2 { grid-column: 1 / -1; display:grid; grid-template-columns:1fr 1fr; gap:6px; }
+form.add .row2 { grid-column: 1 / -1; display:grid; grid-auto-flow:column; grid-auto-columns:1fr; gap:6px; }
 form.add.fixed .sel { grid-template-columns:1fr; }
 input, select { font:inherit; font-size:.95em; color:var(--primary-text-color); background:var(--input-fill-color, var(--secondary-background-color, rgba(127,127,127,.08))); border:1px solid var(--divider-color, rgba(127,127,127,.3)); border-radius:10px; padding:9px 10px; min-width:0; width:100%; outline:none; }
 input:focus, select:focus { border-color:var(--primary-color,#03a9f4); }
@@ -638,7 +638,7 @@ input:focus, select:focus { border-color:var(--primary-color,#03a9f4); }
 .qbtn[disabled] { opacity:.3; }
 .qval { min-width:44px; text-align:center; font-weight:600; font-size:1.1em; }
 ha-card.shop form.add { display:none; }
-ha-card.shop #btnRecipes, ha-card.shop #btnSettings { display:none; }
+ha-card.shop #btnRecipes, ha-card.shop #btnSettings, ha-card.shop .title .t { display:none; }
 ha-card.shop .item { padding:11px 5px; font-size:1.2em; }
 ha-card.shop .item .name { font-weight:600; }
 ha-card.shop .item .check { padding:9px; --mdc-icon-size:38px; }
@@ -968,8 +968,7 @@ class EinkaufslisteCard extends HTMLElement {
       <style>${STYLE}</style>
       <ha-card>
         <div class="head">
-          <div class="title"><ha-icon id="titleIcon" icon="mdi:cart-variant" data-act="guide" title="📖 Anleitung – antippen"></ha-icon><span class="t" id="title"></span><span class="badge" id="count" hidden></span><span class="live" id="liveDot" title="Verbindung"></span></div>
-          <button class="iconbtn" id="btnScan" type="button" data-act="scan" title="Barcode scannen" hidden><ha-icon icon="mdi:barcode-scan"></ha-icon></button>
+          <div class="title"><ha-icon id="titleIcon" icon="mdi:cart-variant" data-act="guide" title="📖 Anleitung – antippen"></ha-icon><span class="t" id="title"></span><span class="badge" id="count" hidden></span><span class="live" id="liveDot" title="Verbindung"></span><button class="iconbtn" id="btnScan" type="button" data-act="scan" title="Barcode scannen" hidden><ha-icon icon="mdi:barcode-scan"></ha-icon></button></div>
           <button class="iconbtn" id="btnShop" data-act="shopmode" title="Laden-Modus"><ha-icon icon="mdi:cart-outline"></ha-icon></button>
           <button class="iconbtn" id="btnRecipes" data-act="view" data-view="recipes" title="Rezepte"><ha-icon icon="mdi:chef-hat"></ha-icon></button>
           <button class="iconbtn" id="btnSettings" data-act="view" data-view="settings" title="Geschäfte & Kategorien"><ha-icon icon="mdi:cog-outline"></ha-icon></button>
@@ -1265,7 +1264,7 @@ class EinkaufslisteCard extends HTMLElement {
     this.$("tFor").hidden = !(d.persons || []).length;
     if (this.$("tFor").hidden) this.$("forBox").hidden = true;
     if ((d.persons || []).some((p) => p.name === prevFor)) pf.value = prevFor;
-    st.innerHTML = this._selectOptions(d.stores, null, "🛒 Egal wo");
+    st.innerHTML = this._selectOptions(d.stores, null, "🛒 Welches Geschäft?");
     ct.innerHTML = this._selectOptions(d.categories, null, "📦 Ohne Kategorie");
     const tab = this._activeTab;
     if (this._lastTab !== tab) {
@@ -1281,6 +1280,7 @@ class EinkaufslisteCard extends HTMLElement {
   // Vorschläge suchen (für das Eingabefeld oben und für Rezept-Zutaten)
   _suggestList(q, { recipe = false } = {}) {
     if (!q || !this._data) return [];
+    recipe = recipe || this._formMode === "recipe";
     const score = (low) => (low.startsWith(q) || low.split(/\s+/).some((w) => w.startsWith(q)) ? 0 : low.includes(q) ? 1 : -1);
     const cands = [];
     const seenVariant = new Set();
@@ -1296,9 +1296,10 @@ class EinkaufslisteCard extends HTMLElement {
       forPerson = whoNames.find((n) => n.toLowerCase().startsWith(q))?.toLowerCase() || null;
       if (forPerson) for (const i of items) {
         if ((i.for_whom || "").toLowerCase() !== forPerson) continue;
-        const key = [i.name.toLowerCase(), i.quantity || "", i.note || "", i.for_whom || "", i.store_id || ""].join("|");
+        const key = i.name.toLowerCase();
         if (seenVariant.has(key)) continue;
         seenVariant.add(key);
+        names.add(key);
         cands.push({ sc: -1, name: i.name, item: i, fromRecipe: this._recipe(i.recipe_id)?.name });
       }
     }
@@ -1307,9 +1308,7 @@ class EinkaufslisteCard extends HTMLElement {
       const low = i.name.toLowerCase();
       const sc = score(low);
       if (sc < 0) continue;
-      const key = [low, i.quantity || "", i.note || "", i.for_whom || "", i.store_id || ""].join("|");
-      if (seenVariant.has(key)) continue;
-      seenVariant.add(key);
+      if (names.has(low) || seenVariant.has(low)) continue; // 1 Vorschlag pro Produkt (der vom letzten Mal)
       names.add(low);
       cands.push({ sc, name: i.name, item: i });
     }
@@ -1353,7 +1352,7 @@ class EinkaufslisteCard extends HTMLElement {
       cands.push(...fuzzy.slice(0, 2));
     }
     cands.sort((a, b) => a.sc - b.sc);
-    return cands.slice(0, forPerson ? 14 : 8);
+    return cands.slice(0, recipe ? 8 : 4); // Einkaufsliste: höchstens 4 Vorschläge – sonst wird's zu viel
   }
 
   _suggestChips(list, q, act, { recipe = false } = {}) {
@@ -1590,9 +1589,14 @@ class EinkaufslisteCard extends HTMLElement {
     this._grpMap = new Map();
     const rawOpen = items.filter((i) => !i.checked);
     const open = allView ? this._groupStores(rawOpen) : rawOpen;
-    const filter = (this.$("inName").value || "").trim().toLowerCase();
+    // 🔎 Was oben getippt wird, sucht unten in „Erledigt“ – nach Name, Notiz oder Person („marco“).
+    // Im Laden-Modus zählt das nicht (da soll immer die ganze Liste stehen).
+    const typed = this._shopMode ? "" : splitMany(this.$("inName").value).pop() || "";
+    const filter = (splitQty(typed).name || typed).trim().toLowerCase();
+    const hit = (i) => i.name.toLowerCase().includes(filter) || (i.note || "").toLowerCase().includes(filter)
+      || (filter.length >= 2 && (i.for_whom || "").toLowerCase().startsWith(filter));
     let done = items.filter((i) => i.checked);
-    if (filter) done = done.filter((i) => i.name.toLowerCase().includes(filter));
+    if (filter) done = done.filter(hit);
     if (allView) done = this._groupStores(done);
     const row = (i) => (this._editing === i.id ? this._editHtml(i) : this._itemHtml(i)
       + (this._wherePick?.id === i.id ? this._whereHtml(i) : "")
