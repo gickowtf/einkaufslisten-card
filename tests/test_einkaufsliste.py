@@ -1025,10 +1025,11 @@ async def test_multiple_photos_and_catalog(hass, setup, hass_ws_client):
     assert item["note"] == "Alter Gouda" and item["category_id"] == tk
     assert "käse|alter gouda" in m.photos and m.barcodes["123"]["note"] == "Alter Gouda"
     await client.send_json({"id": 8, "type": "einkaufsliste/product/remove", "key": "käse|alter gouda"})
-    assert (await client.receive_json())["success"]
+    res = await client.receive_json()
+    assert res["success"] and res["result"] == {"removed": 1, "recipes": []}, res
     await hass.async_block_till_done()
     assert "käse|alter gouda" not in m.photos and "123" not in m.barcodes
-    assert item in m.items  # Artikel bleibt auf der Liste
+    assert item not in m.items  # 🗑️ ganz löschen: auch von der Einkaufsliste
 
 
 def test_steps_from_schema():
@@ -1178,7 +1179,7 @@ async def test_check_and_repair(hass, setup, hass_ws_client):
     assert all(e["text"] and e["how"] for e in res["items"])
     ns = ids[f"nostore:{milk['id']}"]
     assert "Milch" in ns["text"] and ns["default"] == aldi  # Vorschlag: wie zuletzt
-    assert {o["value"] for o in ns["options"]} == {s["id"] for s in m.stores}
+    assert {o["value"] for o in ns["options"]} == {s["id"] for s in m.stores} | {"__delete__"}
     assert ids["nocat:mehl"]["default"] == m.find_category("Vorrat & Konserven")
 
     # Nur zwei Sachen reparieren, und zwar mit eigener Wahl
@@ -1329,3 +1330,46 @@ async def test_last_quantity_remembered(hass, setup):
     r = m.add_recipe("Pudding", [{"name": "Milch", "quantity": "500 ml"}])
     m.apply_recipe(r["id"])
     assert m.history_for("Milch")["qty"] == "1 L" and m.history_for("Milch")["unit"] == "L"
+
+
+
+async def test_delete_product_and_barcode(hass, setup, hass_ws_client):
+    """🗑️ Produkt ganz löschen (Liste + Fotos + Barcodes, Rezepte bleiben mit Hinweis); ▥ Barcode einzeln löschen."""
+    import base64
+
+    client = await hass_ws_client(hass)
+    m = mgr(hass)
+    a = m.add_item("Gewürze", note="Paprika", barcode="111")
+    a["checked"] = True
+    m.add_item("Gewürze", note="Paprika", for_whom="Oma")
+    other = m.add_item("Gewürze", note="Kümmel")
+    r = m.add_recipe("Gulasch", [{"name": "Gewürze", "note": "Paprika"}])
+    m.learn_barcode("222", "Gewürze", None, None, "Paprika")
+    await m.async_set_photo("gewürze|paprika", base64.b64encode(JPEG).decode())
+
+    # Barcode einzeln löschen – Produkt bleibt
+    await client.send_json({"id": 1, "type": "einkaufsliste/barcode/remove", "code": "222"})
+    assert (await client.receive_json())["success"]
+    assert "222" not in m.barcodes and "111" in m.barcodes and "gewürze|paprika" in m.photos
+
+    # Ganz löschen
+    res = await m.async_delete_product("gewürze|paprika")
+    assert res == {"removed": 2, "recipes": ["Gulasch"]}
+    assert [i["note"] for i in m.items if i["name"] == "Gewürze"] == ["Kümmel"] and other in m.items
+    assert "111" not in m.barcodes and "gewürze|paprika" not in m.photos
+    assert r["items"][0]["note"] == "Paprika"  # Rezept bleibt unverändert
+
+
+async def test_check_offers_delete(hass, setup):
+    """✅ Alles ok?: Produkt ohne Kategorie / Artikel ohne Geschäft lässt sich auch ganz löschen."""
+    m = mgr(hass)
+    await m.async_check(fix=True)
+    x = m.add_item("Quatschprodukt")
+    x["category_id"] = None
+    m.history_for("Quatschprodukt")["category_id"] = None
+    res = await m.async_check()
+    ids = {e["id"]: e for e in res["items"]}
+    assert any(o["value"] == "__delete__" for o in ids["nocat:quatschprodukt"]["options"])
+    assert any(o["value"] == "__delete__" for o in ids[f"nostore:{x['id']}"]["options"])
+    res = await m.async_check(fixes={"nocat:quatschprodukt": "__delete__"})
+    assert res["fixed"] == 1 and x not in m.items and m.history_for("Quatschprodukt") is None

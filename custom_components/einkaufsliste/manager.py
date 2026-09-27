@@ -568,6 +568,33 @@ class EinkaufslisteManager:
         self._changed()
         return next((p for p in self.products() if p["key"] == new_key), {"key": new_key})
 
+    def recipes_with(self, key: str) -> list[str]:
+        """In welchen Rezepten steht dieses Produkt (Name + Notiz) noch?"""
+        key = (key or "").lower()
+        return [r["name"] for r in self.recipes if any(product_key(ri["name"], ri.get("note")) == key for ri in r["items"])]
+
+    async def async_delete_product(self, key: str) -> dict[str, Any]:
+        """🗑️ Produkt ganz löschen: Fotos, Barcodes, Vorschlag UND alle Artikel auf der Liste (offen + erledigt).
+
+        Rezepte werden NICHT still geändert – zurück kommt, in welchen es noch steht.
+        """
+        key = (key or "").lower()
+        in_recipes = self.recipes_with(key)
+        gone = [i for i in self.items if not i.get("recipe_id") and product_key(i["name"], i.get("note")) == key]
+        for item in gone:
+            self.items.remove(item)
+            self._log("remove", item)
+        await self.async_forget_product(key)
+        self._changed()
+        return {"removed": len(gone), "recipes": in_recipes}
+
+    @callback
+    def remove_barcode(self, code: str) -> None:
+        """▥ Einen einzelnen Barcode vom Produkt lösen (das Produkt bleibt)."""
+        if self.barcodes.pop(str(code).strip(), None) is None:
+            raise ValueError("Diesen Barcode gibt es nicht (mehr).")
+        self._changed()
+
     async def async_forget_product(self, key: str) -> None:
         """Produkt vergessen: Fotos, Barcodes und Verlauf weg (Artikel auf der Liste bleiben)."""
         key = (key or "").lower()
@@ -1182,6 +1209,11 @@ class EinkaufslisteManager:
         store_opts = [{"value": s["id"], "label": s["name"]} for s in self.stores]
         cat_opts = [{"value": c["id"], "label": c["name"]} for c in self.categories]
         group_opts = [{"value": g["id"], "label": g["name"]} for g in self.recipe_groups]
+        DEL = "__delete__"  # 🗑️ gibt's gar nicht? -> Produkt ganz löschen
+
+        def del_opt(key: str) -> dict[str, str]:
+            where = self.recipes_with(key)
+            return {"value": DEL, "label": "🗑️ Produkt ganz löschen" + (f" (bleibt in Rezept: {', '.join(where)})" if where else "")}
 
         def add(pid: str, text: str, how: str, action: Any, options: list | None = None,
                 default: str | None = None, empty: str | None = None) -> None:
@@ -1266,21 +1298,32 @@ class EinkaufslisteManager:
             if not item.get("store_id") or item["store_id"] not in stores:
                 last = (self.history_for(item["name"]) or {}).get("store_id")
                 state = "offen" if not item["checked"] else "erledigt"
+                pkey = product_key(item["name"], item.get("note"))
+
+                def set_store(v, i=item, pkey=pkey):
+                    if v == DEL:
+                        return self.async_delete_product(pkey)
+                    i["store_id"] = v or None
+                    return None
                 add(f"nostore:{item['id']}",
                     f"🛒 „{label}“ ({state}) hat kein Geschäft" + (" – das alte gibt es nicht mehr" if item.get("store_id") else " („Egal wo“)"),
-                    "Geschäft setzen" + (" (Vorschlag: wie zuletzt)" if last in stores else ""),
-                    lambda v, i=item: i.__setitem__("store_id", v or None),
-                    store_opts, last if last in stores else None, "🤷 Egal wo lassen")
+                    "Geschäft setzen" + (" (Vorschlag: wie zuletzt)" if last in stores else "") + " – oder ganz löschen, falls es das nicht gibt",
+                    set_store, store_opts + ([] if item.get("recipe_id") else [del_opt(pkey)]),
+                    last if last in stores else None, "🤷 Egal wo lassen")
         # 📦 Produkte im Katalog ohne Kategorie – Vorschlag aus dem Wörterbuch
         for prod in self.products():
             if prod["category_id"] and prod["category_id"] in cats:
                 continue
             label = prod["name"] + (f" · {prod['note']}" if prod["note"] else "")
             guess = self.guess_category(prod["name"])
+
+            def set_cat(v, key=prod["key"]):
+                if v == DEL:
+                    return self.async_delete_product(key)
+                return v and self.update_product(key, category_id=v)
             add(f"nocat:{prod['key']}", f"📦 „{label}“ hat keine Kategorie",
-                "Kategorie setzen" + (" (Vorschlag aus dem Wörterbuch)" if guess else " – bitte selbst wählen"),
-                lambda v, key=prod["key"]: v and self.update_product(key, category_id=v),
-                cat_opts, guess, "📦 Ohne Kategorie lassen")
+                "Kategorie setzen" + (" (Vorschlag aus dem Wörterbuch)" if guess else " – bitte selbst wählen") + " – oder ganz löschen, falls es das nicht gibt",
+                set_cat, cat_opts + [del_opt(prod["key"])], guess, "📦 Ohne Kategorie lassen")
 
         # 🔧 Reparieren: nur was ausgewählt ist (bzw. bei fix=True alles mit Vorschlag)
         todo: dict[str, str] = dict(fixes or {})

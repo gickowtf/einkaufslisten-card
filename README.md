@@ -312,16 +312,18 @@ Ein Tipp aufs **⚙️** zeigt eine aufgeräumte Übersicht mit Kacheln: **Gesch
 
 In der Rezept-Übersicht (⚙️ → Rezepte) steht bei jedem Rezept, ob es eine **📖 Anleitung** und **🔥 Backofen-Einstellungen** hat.
 
-### 📦 Produkte (Katalog)
-Oben gibt es zwei Knöpfe: **Katalog** und **Artikel löschen** (Artikel endgültig löschen, mit Suche).
+### 📦 Produkte
+Oben gibt es zwei Knöpfe: **Alle Produkte** und **Einkaufsliste Produkte löschen** (Artikel endgültig von der Einkaufsliste löschen, mit Suche – das Produkt selbst bleibt).
 
 Alle Produkte, die die Liste kennt – mit Kategorie, Standard-Geschäft, Anzahl Fotos und Barcodes. Suchen, antippen, ändern: Umbenennen oder eine andere Notiz zieht **Artikel, Rezepte, Fotos, Barcodes und Vorschläge** mit.
 
-**Woher kommen Kategorie und Geschäft im Katalog?** Der Reihe nach: 1. aus dem Gedächtnis (so wurde es zuletzt gekauft), 2. von einem Artikel auf der Liste, 3. aus einem Rezept. So stehen auch Zutaten, die bisher nur im Rezept vorkommen, gleich richtig im Katalog.
+**Woher kommen Kategorie und Geschäft bei „Alle Produkte“?** Der Reihe nach: 1. aus dem Gedächtnis (so wurde es zuletzt gekauft), 2. von einem Artikel auf der Liste, 3. aus einem Rezept. So stehen auch Zutaten, die bisher nur im Rezept vorkommen, gleich richtig im Katalog.
 
-**Der Katalog hat Vorrang:** Änderst du hier die Kategorie, zieht sie überall mit. Änderst du das **Geschäft**, zieht es in **allen Rezepten** und bei **schon abgehakten** Artikeln mit. Artikel, die **noch offen** auf der Liste stehen, bleiben bei ihrem Geschäft – damit dir beim Einkaufen nichts unter der Nase wegspringt. Gibt es den Artikel beim neuen Geschäft schon, wird nichts doppelt angelegt.
+**„Alle Produkte“ hat Vorrang:** Änderst du hier die Kategorie, zieht sie überall mit. Änderst du das **Geschäft**, zieht es in **allen Rezepten** und bei **schon abgehakten** Artikeln mit. Artikel, die **noch offen** auf der Liste stehen, bleiben bei ihrem Geschäft – damit dir beim Einkaufen nichts unter der Nase wegspringt. Gibt es den Artikel beim neuen Geschäft schon, wird nichts doppelt angelegt.
 
-**Vergessen** löscht Fotos, Barcodes und Vorschläge (Artikel auf der Liste bleiben stehen).
+**▥ Barcode einzeln löschen:** Im Produkt steht jeder Barcode mit 🗑️ daneben – das Produkt bleibt. **Fotos einzeln löschen:** Produkt → **Fotos** → 🗑️.
+
+**🗑️ Ganz löschen** entfernt das Produkt komplett: Fotos, Barcodes, Vorschlag **und** alle Einträge auf der Einkaufsliste (offen und erledigt). Steht es noch in einem **Rezept**, sagt die Karte vorher, in welchem – im Rezept bleibt es stehen, bis du es dort änderst. Das geht auch direkt bei „✅ Alles ok?“: Bei „ohne Kategorie“ / „ohne Geschäft“ gibt es in der Auswahl **„🗑️ Produkt ganz löschen“** – praktisch für Tippfehler und Sachen, die es gar nicht gibt.
 
 ### 📋 Verlauf: wer hat wann was wie gemacht?
 - Alles steht drin, das Neueste oben, nach Tagen sortiert: **eingetragen**, **wieder drauf**, **abgehakt**, **geändert** (mit Details wie „Menge 2x → 4x“), **verschoben** („Aldi → Netto“) und **gelöscht**.

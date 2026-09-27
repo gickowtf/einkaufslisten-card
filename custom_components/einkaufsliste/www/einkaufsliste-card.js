@@ -2,7 +2,7 @@
  * Einkaufsliste Card – die Familien-Einkaufsliste für Home Assistant
  * Wird automatisch von der Integration "einkaufsliste" geladen.
  */
-const EL_VERSION = "2.18.1";
+const EL_VERSION = "2.19.0";
 
 // Doppelt-Finder: Wörter, die dasselbe meinen (alles klein, ohne Leer-/Sonderzeichen)
 const DUP_SYNONYMS = (() => {
@@ -720,6 +720,8 @@ ha-card.compact .group { margin-top:4px; }
 .servtag { font-weight:400; opacity:.75; }
 .rgrouprow select { width:auto; min-width:150px; }
 #titleIcon { cursor:pointer; }
+.bclist { display:flex; flex-wrap:wrap; gap:6px; }
+.bcchip { display:inline-flex; align-items:center; gap:2px; font-size:.85em; padding:0 0 0 8px; border:1px solid var(--divider-color, rgba(127,127,127,.35)); border-radius:8px; --mdc-icon-size:18px; }
 .chklist { display:flex; flex-direction:column; gap:6px; margin:8px 0; }
 .chkrow { display:flex; gap:10px; align-items:flex-start; padding:8px 10px; border:1px solid var(--divider-color, rgba(127,127,127,.3)); border-radius:10px; cursor:pointer; }
 .chkrow input.chk { margin-top:3px; width:18px; height:18px; flex:0 0 auto; }
@@ -1974,16 +1976,16 @@ class EinkaufslisteCard extends HTMLElement {
           <button class="primary" type="submit" title="Hinzufügen"><ha-icon icon="mdi:plus"></ha-icon></button>
         </form>
         <p class="hint">${persons.length ? "Diese Namen erscheinen als Schnellknöpfe bei 👤 „Für wen?“." : "Noch keine Personen – solange bleibt das Feld „Für wen?“ ausgeblendet."}</p>` },
-      { key: "products", icon: "mdi:package-variant-closed", title: "Produkte", info: "Katalog, Fotos, Barcodes, löschen", html: () => `
+      { key: "products", icon: "mdi:package-variant-closed", title: "Produkte", info: "alle Produkte, Fotos, Barcodes, löschen", html: () => `
         <div class="subtabs">
-          <button class="tab ${this._prodTab !== "delete" ? "active" : ""}" data-act="prod-tab" data-tab="catalog"><ha-icon icon="mdi:package-variant-closed"></ha-icon>Katalog</button>
-          <button class="tab ${this._prodTab === "delete" ? "active" : ""}" data-act="prod-tab" data-tab="delete" style="--c:var(--error-color,#db4437)"><ha-icon icon="mdi:delete-outline"></ha-icon>Artikel löschen</button>
+          <button class="tab ${this._prodTab !== "delete" ? "active" : ""}" data-act="prod-tab" data-tab="catalog"><ha-icon icon="mdi:package-variant-closed"></ha-icon>Alle Produkte</button>
+          <button class="tab ${this._prodTab === "delete" ? "active" : ""}" data-act="prod-tab" data-tab="delete" style="--c:var(--error-color,#db4437)"><ha-icon icon="mdi:delete-outline"></ha-icon>Einkaufsliste Produkte löschen</button>
         </div>
         ${this._prodTab === "delete" ? `
-        <p class="hint">Hier verschwinden Artikel endgültig, auch aus „Erledigt“ und samt Foto.</p>
+        <p class="hint">Hier verschwinden Artikel endgültig von der Einkaufsliste, auch aus „Erledigt“. Das Produkt selbst (Foto, Barcode, Vorschlag) bleibt – ganz löschen geht unter „Alle Produkte“.</p>
         <div class="srow"><ha-icon class="prev" icon="mdi:magnify"></ha-icon><input class="grow" id="delSearch" placeholder="Artikel suchen …" value="${esc(this._delFilter || "")}"></div>
         <div id="delList"></div>` : `
-        <p class="hint">Alle Produkte, die die Liste kennt. Antippen = ändern. Umbenennen zieht Fotos, Barcodes, Artikel und Rezepte mit.</p>
+        <p class="hint">Alle Produkte, die die Liste kennt. Antippen = ändern oder ganz löschen. Umbenennen zieht Fotos, Barcodes, Artikel und Rezepte mit.</p>
         <div class="srow"><ha-icon class="prev" icon="mdi:magnify"></ha-icon><input class="grow" id="prodSearch" placeholder="Produkt suchen …" value="${esc(this._prodFilter || "")}"></div>
         <div id="prodList"><p class="hint">Lade Produkte …</p></div>`}` },
       { key: "check", icon: "mdi:check-decagram-outline", title: "Alles ok?", info: "prüfen & reparieren", html: () => `
@@ -2129,7 +2131,6 @@ class EinkaufslisteCard extends HTMLElement {
         cat ? `<span>${esc(cat.name)}</span>` : "",
         p.barcodes.length ? `<span>▥ ${p.barcodes.length}</span>` : "",
         p.photos ? `<span>📷 ${p.photos}${p.photos >= 6 ? " (voll)" : ""}</span>` : "",
-        p.count ? `<span>${p.count}× eingetragen</span>` : "",
         p.open ? `<span>🛒 steht drauf</span>` : "",
       ].filter(Boolean).join("");
       if (this._prodEdit === p.key) {
@@ -2138,10 +2139,10 @@ class EinkaufslisteCard extends HTMLElement {
           <input id="peNote" value="${esc(p.note || "")}" placeholder="📝 Notiz / Sorte">
           <select id="peCat">${this._selectOptions(this._data.categories, p.category_id, "📦 Ohne Kategorie")}</select>
           <select id="peStore">${this._selectOptions(this._data.stores, p.store_id, "🛒 Kein Standard-Geschäft")}</select>
-          ${p.barcodes.length ? `<div class="hint">▥ Barcodes: ${p.barcodes.map(esc).join(", ")}</div>` : ""}
+          ${p.barcodes.length ? `<div class="bclist">${p.barcodes.map((code) => `<span class="bcchip">▥ ${esc(code)}<button type="button" class="iconbtn" data-act="bc-remove" data-code="${esc(code)}" title="Diesen Barcode löschen"><ha-icon icon="mdi:delete-outline"></ha-icon></button></span>`).join("")}</div>` : ""}
           <div class="btnrow">
             ${p.photos ? `<button class="btn" data-act="prod-photos"><ha-icon icon="mdi:image-multiple-outline"></ha-icon>Fotos</button>` : ""}
-            <button class="btn danger" data-act="prod-forget" title="Fotos, Barcodes und Verlauf vergessen"><ha-icon icon="mdi:delete-outline"></ha-icon>Vergessen</button>
+            <button class="btn danger" data-act="prod-forget" title="Produkt mit Fotos, Barcodes und Vorschlag löschen – auch von der Einkaufsliste"><ha-icon icon="mdi:delete-outline"></ha-icon>Ganz löschen</button>
             <span style="flex:1"></span>
             <button class="btn" data-act="prod-cancel">Abbrechen</button>
             <button class="btn primary" data-act="prod-save"><ha-icon icon="mdi:content-save-outline"></ha-icon>Speichern</button>
@@ -4150,9 +4151,21 @@ class EinkaufslisteCard extends HTMLElement {
       }
       case "prod-forget": {
         const key = el.closest(".prodedit").dataset.key;
-        if (!confirm("Dieses Produkt vergessen? Fotos, Barcodes und Vorschläge sind dann weg. Artikel auf der Liste bleiben stehen.")) break;
+        const prod = (this._products || []).find((x) => x.key === key);
+        const label = prod ? prod.name + (prod.note ? ` · ${prod.note}` : "") : key;
+        const where = (this._data.recipes || []).filter((r) => r.items.some((ri) => this._pk(ri.name, ri.note) === key)).map((r) => r.name);
+        const onList = this._data.items.filter((i) => !i.recipe_id && this._pk(i.name, i.note) === key).length;
+        if (!confirm(`„${label}“ ganz löschen?\n\nWeg sind dann: Fotos, Barcodes, Vorschlag${onList ? ` und ${onList}× auf der Einkaufsliste` : ""}.`
+          + (where.length ? `\n\n⚠️ Steht noch in: ${where.join(", ")}. Dort bleibt es stehen, bis du das Rezept änderst.` : ""))) break;
         this._ws({ type: "einkaufsliste/product/remove", key })
-          .then(() => { this._toast("🧹 Produkt vergessen"); this._prodEdit = null; this._loadProducts(); }).catch(() => {});
+          .then(() => { this._toast(`🗑️ „${label}“ gelöscht`); this._prodEdit = null; this._loadProducts(); }).catch(() => {});
+        break;
+      }
+      case "bc-remove": {
+        const code = el.dataset.code;
+        if (!confirm(`Barcode ${code} löschen? Das Produkt bleibt.`)) break;
+        this._ws({ type: "einkaufsliste/barcode/remove", code })
+          .then(() => { this._toast("▥ Barcode gelöscht"); this._loadProducts(); }).catch(() => {});
         break;
       }
       case "log-more":
