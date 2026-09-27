@@ -2,7 +2,7 @@
  * Einkaufsliste Card – die Familien-Einkaufsliste für Home Assistant
  * Wird automatisch von der Integration "einkaufsliste" geladen.
  */
-const EL_VERSION = "2.20.1";
+const EL_VERSION = "2.20.2";
 
 // Doppelt-Finder: Wörter, die dasselbe meinen (alles klein, ohne Leer-/Sonderzeichen)
 const DUP_SYNONYMS = (() => {
@@ -31,8 +31,8 @@ const LOG_ACT = {
   readd: { label: "♻️ wieder drauf", verb: "hat % wieder auf die Liste genommen" },
   check: { label: "✅ abgehakt", verb: "hat % abgehakt" },
   edit: { label: "✏️ geändert", verb: "hat % geändert" },
-  move: { label: "🏪✖ verschoben", verb: "hat % verschoben" },
-  out: { label: "🏪✖ war aus", verb: "hat % als „war aus“ markiert" },
+  move: { label: "⇄ verschoben", verb: "hat % verschoben" },
+  out: { label: "⇄ war aus", verb: "hat % als „war aus“ markiert" },
   remove: { label: "🗑️ gelöscht", verb: "hat % gelöscht" },
 };
 const LOG_VIA = { card: "✍️", scan: "▥", recipe: "🍳", merge: "🔗", cleanup: "🧹", service: "🤖" };
@@ -1498,7 +1498,7 @@ class EinkaufslisteCard extends HTMLElement {
           <div class="line">${isNew ? `<span class="newbadge" title="Neu seit deinem letzten Blick">✨</span>` : ""}<span class="name">${esc(item.name)}</span>${qty}${who}${this._hasPhoto(pk) ? `<button class="photobtn" data-act="photo-view" data-name="${esc(pk)}" title="Foto ansehen"><ha-icon icon="mdi:camera"></ha-icon>${this._data.photo_counts?.[pk] > 1 ? `<small class="pcount">${this._data.photo_counts[pk]}</small>` : ""}</button>` : ""}</div>
           ${meta.length ? `<div class="meta">${meta.join("")}</div>` : ""}
         </div>
-        ${!item.checked && this._data.stores.length > 1 ? `<div class="acts"><button class="iconbtn" data-act="move" title="War aus – nächstes Mal wieder hier oder in anderes Geschäft"><ha-icon icon="mdi:store-remove-outline"></ha-icon></button></div>` : ""}
+        ${!item.checked && this._data.stores.length > 1 ? `<div class="acts"><button class="iconbtn" data-act="move" title="War aus – in anderes Geschäft"><ha-icon icon="mdi:store-remove-outline"></ha-icon></button></div>` : ""}
       </div>`;
   }
 
@@ -1507,7 +1507,7 @@ class EinkaufslisteCard extends HTMLElement {
     return `
       <div class="menurow" data-id="${item.id}">
         ${b("menu-edit", "mdi:pencil-outline", "Bearbeiten")}
-        ${!item.checked && this._data.stores.length > 1 ? b("menu-move", "mdi:store-remove-outline", "War aus") : ""}
+        ${!item.checked && this._data.stores.length > 1 ? b("menu-move", "mdi:store-remove-outline", "Verschieben") : ""}
         ${b("menu-qty", "mdi:numeric", "Menge")}
         ${b("menu-cat", "mdi:shape-outline", "Kategorie")}
         ${b("menu-photo", "mdi:camera-plus-outline", this._hasPhoto(this._pk(item.name, item.note)) ? "Fotos" : "Foto")}
