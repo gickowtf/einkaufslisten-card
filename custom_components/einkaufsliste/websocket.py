@@ -447,11 +447,14 @@ def ws_products(hass, connection, msg):
         vol.Optional("note"): OPT_STR,
         vol.Optional("category_id"): OPT_STR,
         vol.Optional("store_id"): OPT_STR,
+        vol.Optional("unit"): OPT_STR,  # 📏 "" oder None = automatisch lernen
     }
 )
 @callback
 def ws_product_update(hass, connection, msg):
-    fields = _pick(msg, "name", "note", "category_id", "store_id")
+    fields = _pick(msg, "name", "note", "category_id", "store_id", "unit")
+    if "unit" in fields and fields["unit"] is None:
+        fields["unit"] = ""
     if "note" in fields and fields["note"] is None:
         fields["note"] = ""
     for k in ("category_id", "store_id"):

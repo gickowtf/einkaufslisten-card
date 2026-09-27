@@ -121,6 +121,8 @@ Was du gewählt hast, steht direkt am Symbol, zum Beispiel **🔢 2x · 👤 Oma
   - Bereiche: „2-3 el“, „2 bis 3 EL“ → **2-3 EL**
   - Einzahl/Mehrzahl passt sich an: **1 Dose / 2 Dosen**, **1 Zehe / 2 Zehen**, **1 Kopf / 2 Köpfe** (auch beim Umrechnen für mehr Personen und bei [−] [＋])
   - Bekannte Einheiten: g, kg, mg, ml, cl, dl, L, EL, TL, Msp., Pck., Prise, Dose, Becher, Bund, Flasche, Kiste, Glas, Rolle, Beutel, Tüte, Scheibe, Zehe, Tasse, Schluck, Schuss, Spritzer, Tropfen, Handvoll, Stange, Kopf, Würfel, Zweig, Blatt, Knolle, Kugel, Schale, Netz
+  - **📏 Einheiten-Auswahl:** In der Mengen-Box gibt es unter den Zahlen eine Reihe mit Einheiten (x · g · kg · ml · L · EL · TL · Pck. · Dose · Flasche · Glas · Becher · **mehr …**). Einheit antippen, dann die Zahl – die Zahlen passen sich an (bei g z. B. 100 g · 250 g · 500 g …).
+  - **Die Liste merkt sich die Einheit pro Produkt:** Einmal „Backpulver 1 Pck.“ eingetragen, reicht beim nächsten Mal „2 backpulver“ → **2 Pck.** Gemerkt wird nur beim direkten Eintragen, nicht aus Rezepten (die haben ihre eigenen Einheiten, z. B. 200 ml Milch). Im Katalog (⚙️ → Produkte) lässt sich die Einheit auch **fest einstellen** („📏 Immer Flasche“, 📌) – dann wird sie nicht mehr überschrieben. Die Einstellung gilt nur für neue Einträge; was schon auf der Liste oder im Rezept steht, bleibt, wie es ist.
   - Schon gespeicherte Mengen werden nach dem Update beim nächsten Start einmal mit aufgeräumt. Wörter wie „etwas“ oder „nach Geschmack“ bleiben, wie sie sind.
 - **🤓 Tippfehler-Hilfe:** Bei „Mlich“ kommt der Vorschlag **„Meintest du Milch?“**.
 - **📝 Notiz-Vorschläge:** Beim 📝 erscheinen eure häufigsten Notizen als Knöpfe (zum getippten Produkt zuerst).

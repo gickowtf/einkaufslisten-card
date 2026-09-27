@@ -2,7 +2,7 @@
  * Einkaufsliste Card – die Familien-Einkaufsliste für Home Assistant
  * Wird automatisch von der Integration "einkaufsliste" geladen.
  */
-const EL_VERSION = "2.11.0";
+const EL_VERSION = "2.12.0";
 
 // Doppelt-Finder: Wörter, die dasselbe meinen (alles klein, ohne Leer-/Sonderzeichen)
 const DUP_SYNONYMS = (() => {
@@ -121,10 +121,30 @@ function splitQty(text) {
       if (v == null || v > 50) continue;
     }
     const qty = qtyFmt(num, unit);
-    if (qty) return { name: rest, qty };
+    if (qty) return { name: rest, qty, num: num.trim(), bare: !unit };
   }
   return { name: t, qty: null };
 }
+// 📏 Einheit einer Menge („2 Dosen“ -> „Dose“, „3x“ -> „x“), null wenn unbekannt
+function unitOf(q) {
+  const m = String(q ?? "").trim().replace(/\s+/g, " ").match(QTY_RX);
+  if (!m) return null;
+  if (!m[2]) return "x";
+  const c = QTY_UNITS[m[2].toLowerCase().replace(/\.+$/, "")];
+  return c ? c[0] : null;
+}
+const isBareQty = (q) => new RegExp(`^\\s*${QTY_NUM}\\s*$`, "i").test(String(q ?? ""));
+// Andere Einheit an die Zahl: („2x“, „Pck.“) -> „2 Pck.“
+function applyUnit(q, unit) {
+  const m = String(q ?? "").trim().replace(/\s+/g, " ").match(QTY_RX);
+  return m && unit ? qtyFmt(m[1], unit) || q : q;
+}
+// Einheiten zur Auswahl in der Mengen-Box: erst die häufigen, hinter „mehr …“ der Rest
+const UNIT_MAIN = ["x", "g", "kg", "ml", "L", "EL", "TL", "Pck.", "Dose", "Flasche", "Glas", "Becher"];
+const UNIT_MORE = QTY_DEFS.map((d) => d[0]).filter((u) => !UNIT_MAIN.includes(u));
+// Schnell-Zahlen je Einheit (bei Gramm & Co. sind 1, 2, 3 unpraktisch)
+const QTY_PRESETS = { g: [100, 200, 250, 500, 750, 1000], ml: [100, 200, 250, 500, 750, 1000], mg: [100, 200, 250, 500],
+  cl: [10, 20, 33, 50, 70, 100], dl: [1, 2, 3, 5], kg: [0.5, 1, 1.5, 2, 2.5, 5], L: [0.5, 1, 1.5, 2, 3, 6] };
 
 // Wie viele Buchstaben unterscheiden sich? (für die Tippfehler-Hilfe)
 // 👥 Menge umrechnen: „200 g“ für 4 -> „300 g“ für 6. Stückzahlen werden aufgerundet (4,5 Eier -> 5x).
@@ -559,6 +579,9 @@ form.add .sugg { grid-column: 1 / -1; display:flex; flex-wrap:wrap; gap:6px; mar
 .chips { display:flex; flex-wrap:wrap; gap:6px; }
 .chip2 { border:1.5px solid var(--divider-color, rgba(127,127,127,.35)); background:transparent; border-radius:999px; padding:7px 14px; cursor:pointer; font-size:.95em; min-width:44px; }
 .chip2.sel { background:var(--primary-color,#03a9f4); border-color:var(--primary-color,#03a9f4); color:var(--text-primary-color,#fff); }
+.unitchips { margin-top:6px; padding-top:6px; border-top:1px dashed var(--divider-color, rgba(127,127,127,.35)); }
+.unitchips .chip2 { padding:4px 10px; min-width:34px; font-size:.85em; }
+.unitchips .ulabel { font-size:.8em; opacity:.7; align-self:center; margin-right:2px; }
 @keyframes pulse { 50% { opacity:.3; } }
 
 .photobtn .pcount { font-size:10px; font-weight:700; margin-left:1px; }
@@ -961,6 +984,7 @@ class EinkaufslisteCard extends HTMLElement {
             <div class="extras">
               <div id="qtyBox" class="chipbox" hidden>
                 <div class="chips" id="qtyChips"></div>
+                <div class="chips unitchips" id="unitChips"></div>
                 <input id="inQty" placeholder="🔢 Menge, z. B. 500 g" hidden>
               </div>
               <input id="inNote" placeholder="📝 Notiz, z. B. Bio" hidden>
@@ -1995,6 +2019,7 @@ class EinkaufslisteCard extends HTMLElement {
         cat ? `<span>${esc(cat.name)}</span>` : "",
         p.barcodes.length ? `<span>▥ ${p.barcodes.length}</span>` : "",
         p.photos ? `<span>📷 ${p.photos}${p.photos >= 6 ? " (voll)" : ""}</span>` : "",
+        p.unit ? `<span>📏 ${esc(p.unit)}${p.unit_fixed ? " 📌" : ""}</span>` : "",
         p.count ? `<span>${p.count}× eingetragen</span>` : "",
         p.open ? `<span>🛒 steht drauf</span>` : "",
       ].filter(Boolean).join("");
@@ -2004,6 +2029,10 @@ class EinkaufslisteCard extends HTMLElement {
           <input id="peNote" value="${esc(p.note || "")}" placeholder="📝 Notiz / Sorte">
           <select id="peCat">${this._selectOptions(this._data.categories, p.category_id, "📦 Ohne Kategorie")}</select>
           <select id="peStore">${this._selectOptions(this._data.stores, p.store_id, "🛒 Kein Standard-Geschäft")}</select>
+          <select id="peUnit" title="Einheit beim Eintragen auf die Liste" data-orig="${esc(p.unit_fixed ? p.unit : "")}">
+            <option value="">📏 Einheit: automatisch merken${p.unit && !p.unit_fixed ? ` (zuletzt ${esc(p.unit)})` : ""}</option>
+            ${QTY_DEFS.map((d) => `<option value="${esc(d[0])}" ${p.unit_fixed && p.unit === d[0] ? "selected" : ""}>📏 Immer ${esc(d[0])}</option>`).join("")}
+          </select>
           ${p.barcodes.length ? `<div class="hint">▥ Barcodes: ${p.barcodes.map(esc).join(", ")}</div>` : ""}
           <div class="btnrow">
             ${p.photos ? `<button class="btn" data-act="prod-photos"><ha-icon icon="mdi:image-multiple-outline"></ha-icon>Fotos</button>` : ""}
@@ -2471,6 +2500,7 @@ class EinkaufslisteCard extends HTMLElement {
     const val = (id) => this.$(id).value.trim() || null;
     let qty = val("inQty");
     if (!qty) { const sp = splitQty(raw); raw = sp.name; qty = sp.qty; } // „250g nudeln“ -> Nudeln · 250 g
+    if (qty && this._qtyUnit && (isBareQty(qty) || unitOf(qty) === "x")) qty = applyUnit(qty, this._qtyUnit);
     const name = raw.charAt(0).toUpperCase() + raw.slice(1);
     const ing = {
       name,
@@ -2763,18 +2793,38 @@ class EinkaufslisteCard extends HTMLElement {
     this._newPhoto = null;
     this._pendingBarcode = null;
     this._catManual = false;
+    this._qtyUnit = null;
+    this._unitMore = false;
     this._updateNewPhotoBtn();
     this._updateTools();
     this._renderList();
   }
 
+  // 📏 Welche Einheit gilt gerade? Selbst gewählt > aus der eingetippten Menge > gemerkt beim Produkt > x
+  _learnedUnit() {
+    if (this._formMode === "recipe") return null; // Rezepte haben ihre eigenen Einheiten
+    const low = this.$("inName")?.value.trim().toLowerCase();
+    const h = low && (this._data?.history || []).find((x) => x.name.toLowerCase() === low);
+    return h?.unit && QTY_DEFS.some((d) => d[0] === h.unit) ? h.unit : null;
+  }
+
+  _curUnit() {
+    return this._qtyUnit || unitOf(this.$("inQty").value) || this._learnedUnit() || "x";
+  }
+
   _renderQtyChips() {
-    const val = this.$("inQty").value.trim();
-    const quick = ["1x", "2x", "3x", "4x", "6x", "10x"];
+    const val = normQty(this.$("inQty").value) || "";
+    const unit = this._curUnit();
+    const quick = (QTY_PRESETS[unit] || [1, 2, 3, 4, 6, 10]).map((n) => qtyFmt(String(n).replace(".", ","), unit));
     const custom = val && !quick.includes(val);
     this.$("qtyChips").innerHTML =
-      quick.map((q) => `<button type="button" class="chip2 ${q === val ? "sel" : ""}" data-act="qty-chip" data-v="${q}">${q}</button>`).join("") +
+      quick.map((q) => `<button type="button" class="chip2 ${q === val ? "sel" : ""}" data-act="qty-chip" data-v="${esc(q)}">${esc(q)}</button>`).join("") +
       `<button type="button" class="chip2 ${custom ? "sel" : ""}" data-act="qty-custom" title="Andere Menge">✏️${custom ? " " + esc(val) : ""}</button>`;
+    const more = this._unitMore || UNIT_MORE.includes(unit);
+    const units = more ? [...UNIT_MAIN, ...UNIT_MORE] : UNIT_MAIN;
+    this.$("unitChips").innerHTML = `<span class="ulabel">📏 Einheit:</span>` +
+      units.map((u) => `<button type="button" class="chip2 ${u === unit ? "sel" : ""}" data-act="unit-chip" data-v="${esc(u)}">${esc(u)}</button>`).join("") +
+      (more ? "" : `<button type="button" class="chip2" data-act="unit-more" title="Weitere Einheiten">mehr …</button>`);
     this.$("inQty").hidden = !custom && this.$("inQty").hidden;
   }
 
@@ -3404,6 +3454,7 @@ class EinkaufslisteCard extends HTMLElement {
 
   // ---------------------------------------------------------------- Aktionen
   _onNameInput() {
+    if (!this.$("qtyBox").hidden) this._renderQtyChips(); // 📏 gemerkte Einheit vom Produkt zeigen
     const val = this.$("inName").value.trim().toLowerCase();
     const h = this._data?.history.find((x) => x.name.toLowerCase() === val);
     if (!h) {
@@ -3479,7 +3530,9 @@ class EinkaufslisteCard extends HTMLElement {
       if (v) msg[key] = v;
     }
     if (this._pendingBarcode) { msg.barcode = this._pendingBarcode; msg.via = "scan"; }
-    if (!msg.quantity) { const sp = splitQty(name); if (sp.qty) { msg.name = sp.name; msg.quantity = sp.qty; } }
+    if (!msg.quantity) { const sp = splitQty(name); if (sp.qty) { msg.name = sp.name; msg.quantity = sp.bare ? sp.num : sp.qty; } }
+    // 📏 Nur eine Zahl? Selbst gewählte Einheit dran – sonst nimmt Home Assistant die gemerkte Einheit (oder x)
+    if (msg.quantity && isBareQty(msg.quantity) && this._qtyUnit) msg.quantity = qtyFmt(msg.quantity, this._qtyUnit);
     // Steht das schon bei einem anderen Geschäft offen? Dann erst fragen: verschieben oder zusätzlich?
     const other = this._openElsewhere({ name: msg.name, note: msg.note, for_whom: msg.for_whom }, msg.store_id);
     if (other) {
@@ -3504,6 +3557,8 @@ class EinkaufslisteCard extends HTMLElement {
       for (const id of ["inName", "inQty", "inNote", "inFor", "inCat"]) this.$(id).value = "";
       this._catManual = false;
       this._pendingBarcode = null;
+      this._qtyUnit = null;
+      this._unitMore = false;
       for (const id of ["qtyBox", "inQty", "inNote", "forBox"]) this.$(id).hidden = true;
       this._updateTools();
       this._renderSuggest();
@@ -3675,6 +3730,18 @@ class EinkaufslisteCard extends HTMLElement {
         this._updateTools();
         break;
       }
+      case "unit-chip": { // 📏 Einheit wählen – die Zahl bleibt, die Box bleibt offen
+        this._qtyUnit = el.dataset.v;
+        const q = this.$("inQty");
+        if (q.value.trim()) q.value = applyUnit(q.value, this._qtyUnit);
+        this._renderQtyChips();
+        this._updateTools();
+        break;
+      }
+      case "unit-more":
+        this._unitMore = true;
+        this._renderQtyChips();
+        break;
       case "qty-custom": {
         const q = this.$("inQty");
         q.hidden = false;
@@ -3846,6 +3913,8 @@ class EinkaufslisteCard extends HTMLElement {
           name: this.$("peName").value.trim(), note: this.$("peNote").value.trim() || null,
           category_id: this.$("peCat").value || null, store_id: this.$("peStore").value || null,
         };
+        const pu = this.$("peUnit");
+        if (pu.value !== pu.dataset.orig) msg.unit = pu.value || null; // nur wenn wirklich geändert
         if (!msg.name) { this.$("peName").classList.add("shake"); break; }
         this._ws(msg).then(() => { this._toast("📦 Produkt gespeichert"); this._prodEdit = null; this._loadProducts(); }).catch(() => {});
         break;

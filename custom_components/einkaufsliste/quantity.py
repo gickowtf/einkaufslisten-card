@@ -136,10 +136,43 @@ def norm_qty(qty: str | None) -> str | None:
     return _fmt(m.group("num"), m.group("unit")) or qty
 
 
+UNIT_CHOICES = tuple(one for one, _, _ in UNIT_DEFS)  # zur Auswahl (Einzahl): x, g, kg, … Netz
+
+
+def unit_of(qty: str | None) -> str | None:
+    """Welche Einheit hat die Menge? „2 Dosen“ -> „Dose“, „3x“ -> „x“, „etwas“ -> None."""
+    m = _QTY.match(qty or "")
+    if not m:
+        return None
+    if not m.group("unit"):
+        return "x"
+    canon = _UNIT_MAP.get(m.group("unit").lower().rstrip("."))
+    return canon[0] if canon else None
+
+
+def is_bare(qty: str | None) -> bool:
+    """Nur eine Zahl ohne Einheit? („2“ ja, „2x“ / „2 L“ nein)"""
+    return bool(qty) and re.fullmatch(rf"\s*{NUM}\s*", str(qty), re.IGNORECASE) is not None
+
+
+def apply_unit(qty: str | None, unit: str | None) -> str | None:
+    """Andere Einheit an die Zahl: („2x“, „Pck.“) -> „2 Pck.“; („1 Dose“, „x“) -> „1x“."""
+    m = _QTY.match(qty or "")
+    if not m or not unit or unit.lower().rstrip(".") not in _UNIT_MAP:
+        return qty
+    return _fmt(m.group("num"), unit) or qty
+
+
 def split_qty(name: str | None) -> tuple[str | None, str | None]:
     """Menge aus dem Namen holen: „3 milch“, „milch 3x“, „500g mehl“ -> (Name, Menge)."""
+    rest, qty, _bare = split_qty_ex(name)
+    return rest, qty
+
+
+def split_qty_ex(name: str | None) -> tuple[str | None, str | None, bool]:
+    """Wie split_qty, sagt zusätzlich, ob nur eine Zahl ohne Einheit dastand („2 backpulver“)."""
     if not name:
-        return name, None
+        return name, None, False
     text = " ".join(str(name).split())
     for rx in (_START, _END):
         m = rx.match(text)
@@ -157,5 +190,5 @@ def split_qty(name: str | None) -> tuple[str | None, str | None]:
         qty = _fmt(m.group("num"), m.group("unit"))
         if qty is None:
             continue
-        return rest, qty
-    return text, None
+        return rest, qty, not m.group("unit")
+    return text, None, False

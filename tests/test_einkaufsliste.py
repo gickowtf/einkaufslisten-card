@@ -1240,3 +1240,52 @@ async def test_update_product_store_propagation_merges_duplicate(hass, setup):
     zucker_items = [i for i in m.items if i["name"] == "Zucker"]
     assert len(zucker_items) == 1
     assert zucker_items[0]["id"] == zwilling["id"]
+
+
+async def test_unit_learned_and_catalog(hass, setup, hass_ws_client):
+    """📏 Einheit pro Produkt: wird beim direkten Eintragen gemerkt, im Katalog fest einstellbar."""
+    from custom_components.einkaufsliste.quantity import apply_unit, is_bare, split_qty_ex, unit_of
+
+    assert unit_of("2 Dosen") == "Dose" and unit_of("3x") == "x" and unit_of("etwas") is None
+    assert is_bare("2") and is_bare("1,5") and not is_bare("2x") and not is_bare("2 L")
+    assert apply_unit("2x", "Pck.") == "2 Pck." and apply_unit("1 Dose", "x") == "1x" and apply_unit("2", "Dose") == "2 Dosen"
+    assert split_qty_ex("2 backpulver") == ("backpulver", "2x", True)
+    assert split_qty_ex("2x backpulver") == ("backpulver", "2x", False)
+
+    client = await hass_ws_client(hass)
+    m = mgr(hass)
+    netto = m.stores[0]["id"]
+    # Einmal mit Pck. eingetragen -> gemerkt; beim nächsten Mal reicht die Zahl
+    m.add_item("Backpulver", quantity="1 pck", store_id=netto)
+    assert m.history_for("Backpulver")["unit"] == "Pck."
+    assert m.add_item("2 backpulver", store_id=netto, for_whom="Oma")["quantity"] == "2 Pck."
+    assert m.add_item("Backpulver", quantity="3", store_id=netto, for_whom="Opa")["quantity"] == "3 Pck."
+    # „2x“ ausdrücklich getippt bleibt x (und wird als neue Einheit gemerkt)
+    assert m.add_item("Backpulver", quantity="2x", store_id=netto, for_whom="Tante")["quantity"] == "2x"
+    assert m.history_for("Backpulver")["unit"] == "x"
+    # Unbekanntes Produkt: nur Zahl -> x
+    assert m.add_item("Wasser", quantity="3")["quantity"] == "3x"
+
+    # Aus dem Rezept wird nichts gelernt (Rezepte haben eigene Einheiten)
+    r = m.add_recipe("Pudding", [{"name": "Milch", "quantity": "200 ml"}])
+    m.apply_recipe(r["id"])
+    assert (m.history_for("Milch") or {}).get("unit") is None
+    assert m.add_item("Milch", quantity="2")["quantity"] == "2x"
+
+    # Im Katalog fest einstellen -> wird nicht mehr überschrieben
+    await client.send_json({"id": 1, "type": "einkaufsliste/product/update", "key": "wasser", "unit": "Flasche"})
+    res = await client.receive_json()
+    assert res["success"], res
+    assert res["result"]["unit"] == "Flasche" and res["result"]["unit_fixed"] is True
+    m.add_item("Wasser", quantity="1 L", for_whom="Oma")
+    assert m.history_for("Wasser")["unit"] == "Flasche"
+    assert m.add_item("Wasser", quantity="2", for_whom="Opa")["quantity"] == "2 Flaschen"
+    # Katalog ohne Einheit speichern lässt die Einheit in Ruhe
+    m.update_product("wasser", note="Still")
+    assert m.history_for("Wasser")["unit"] == "Flasche"
+    # „automatisch“ -> wieder lernen
+    await client.send_json({"id": 2, "type": "einkaufsliste/product/update", "key": "wasser|still", "unit": None})
+    assert (await client.receive_json())["success"]
+    assert "unit" not in m.history_for("Wasser") and "unit_fixed" not in m.history_for("Wasser")
+    with pytest.raises(ValueError):
+        m.update_product("backpulver", unit="Eimer")

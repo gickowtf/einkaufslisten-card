@@ -20,7 +20,7 @@ from homeassistant.helpers.storage import Store
 from homeassistant.util import dt as dt_util
 
 from .categories import category_hints, guess_category
-from .quantity import norm_qty, split_qty
+from .quantity import UNIT_CHOICES, apply_unit, is_bare, norm_qty, split_qty, split_qty_ex, unit_of
 from .const import (
     CATEGORY_COLORS,
     CONF_CLEANUP_TIME,
@@ -435,6 +435,8 @@ class EinkaufslisteManager:
                     "store_id": hist.get("store_id"),
                     "count": hist.get("count", 0),
                     "last_used": hist.get("last_used"),
+                    "unit": hist.get("unit"),  # 📏 gemerkte Einheit beim direkten Eintragen
+                    "unit_fixed": bool(hist.get("unit_fixed")),
                     "barcodes": [],
                     "photos": 0,
                     "open": 0,
@@ -486,8 +488,12 @@ class EinkaufslisteManager:
         note: str | None = None,
         category_id: str | None = None,
         store_id: str | None = None,
+        unit: str | None = None,
     ) -> dict[str, Any]:
-        """Produkt im Katalog ändern – zieht Artikel, Rezepte, Fotos, Barcodes und Verlauf mit."""
+        """Produkt im Katalog ändern – zieht Artikel, Rezepte, Fotos, Barcodes und Verlauf mit.
+
+        unit: „Pck.“ usw. = fest eingestellte Einheit beim direkten Eintragen, "" = wieder selbst lernen.
+        """
         key = (key or "").lower()
         prod = next((p for p in self.products() if p["key"] == key), None)
         if prod is None:
@@ -499,6 +505,8 @@ class EinkaufslisteManager:
         new_key = product_key(new_name, new_note)
         cat = self._check_category(category_id) if category_id is not None else None
         store = self._check_store(store_id) if store_id is not None else None
+        if unit and unit not in UNIT_CHOICES:
+            raise ValueError("Diese Einheit gibt es nicht.")
         for thing in self.items + [ri for r in self.recipes for ri in r["items"]]:
             if product_key(thing["name"], thing.get("note")) == key:
                 thing["name"], thing["note"] = new_name, new_note
@@ -544,10 +552,19 @@ class EinkaufslisteManager:
                 target["category_id"] = cat
             if store_id is not None:
                 target["store_id"] = store
-        elif category_id is not None or store_id is not None:
+        elif category_id is not None or store_id is not None or unit:
             self.history[new_name.lower()] = {
-                "name": new_name, "count": 0, "store_id": store, "category_id": cat, "last_used": _now_iso(),
+                "name": new_name, "count": 0, "last_used": _now_iso(),
+                "store_id": store if store_id is not None else prod["store_id"],
+                "category_id": cat if category_id is not None else prod["category_id"],
             }
+        if unit is not None and new_name.lower() in self.history:
+            target = self.history[new_name.lower()]
+            if unit:  # 📏 im Katalog fest eingestellt – wird nicht mehr überschrieben
+                target.update(unit=unit, unit_fixed=True)
+            else:  # „automatisch“: wieder aus dem Eintragen lernen
+                target.pop("unit", None)
+                target.pop("unit_fixed", None)
         self._changed()
         return next((p for p in self.products() if p["key"] == new_key), {"key": new_key})
 
@@ -728,6 +745,12 @@ class EinkaufslisteManager:
             count=entry.get("count", 0) + 1,
             last_used=_now_iso(),
         )
+        # 📏 Einheit merken („Backpulver“ -> Pck.) – nur beim direkten Eintragen, nicht aus Rezepten,
+        # und nicht, wenn sie im Katalog fest eingestellt ist
+        if not item.get("recipe_id") and not entry.get("unit_fixed"):
+            unit = unit_of(item.get("quantity"))
+            if unit:
+                entry["unit"] = unit
         self.history[key] = entry
         if len(self.history) > HISTORY_LIMIT:
             oldest = sorted(self.history.items(), key=lambda kv: kv[1].get("last_used", ""))
@@ -777,7 +800,9 @@ class EinkaufslisteManager:
         auf die Liste (Haken raus), sonst werden nur die Angaben aktualisiert.
         """
         if not _clean(quantity):
-            name, quantity = split_qty(name)  # „3 milch“ -> Milch · 3x
+            name, quantity, bare = split_qty_ex(name)  # „3 milch“ -> Milch · 3x
+        else:
+            bare = is_bare(quantity)
         name = _nice(name)
         if not name:
             raise ValueError("Ohne Namen geht's nicht – was soll denn gekauft werden?")
@@ -789,6 +814,10 @@ class EinkaufslisteManager:
 
         # Rezept-Zutaten kommen zusätzlich auf die Liste (eigener Eintrag pro Rezept)
         recipe_id = recipe_id if self.recipe_by_id(recipe_id) else None
+        if bare and quantity and recipe_id is None:  # 📏 nur eine Zahl? Dann die gemerkte Einheit („2“ -> 2 Pck.)
+            unit = (self.history_for(name) or {}).get("unit")
+            if unit:
+                quantity = apply_unit(quantity, unit)
         existing = self._find_same(name, note, for_whom, store_id, recipe_id)
         if existing is not None:
             readded = existing["checked"]
