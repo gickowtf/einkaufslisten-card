@@ -2,7 +2,7 @@
  * Einkaufsliste Card – die Familien-Einkaufsliste für Home Assistant
  * Wird automatisch von der Integration "einkaufsliste" geladen.
  */
-const EL_VERSION = "2.12.0";
+const EL_VERSION = "2.13.0";
 
 // Doppelt-Finder: Wörter, die dasselbe meinen (alles klein, ohne Leer-/Sonderzeichen)
 const DUP_SYNONYMS = (() => {
@@ -579,6 +579,8 @@ form.add .sugg { grid-column: 1 / -1; display:flex; flex-wrap:wrap; gap:6px; mar
 .chips { display:flex; flex-wrap:wrap; gap:6px; }
 .chip2 { border:1.5px solid var(--divider-color, rgba(127,127,127,.35)); background:transparent; border-radius:999px; padding:7px 14px; cursor:pointer; font-size:.95em; min-width:44px; }
 .chip2.sel { background:var(--primary-color,#03a9f4); border-color:var(--primary-color,#03a9f4); color:var(--text-primary-color,#fff); }
+.lastq { border-style:dashed; }
+.lastq small { opacity:.7; font-size:.8em; }
 .unitchips { margin-top:6px; padding-top:6px; border-top:1px dashed var(--divider-color, rgba(127,127,127,.35)); }
 .unitchips .chip2 { padding:4px 10px; min-width:34px; font-size:.85em; }
 .unitchips .ulabel { font-size:.8em; opacity:.7; align-self:center; margin-right:2px; }
@@ -982,6 +984,7 @@ class EinkaufslisteCard extends HTMLElement {
               <button class="tool tclear" id="tClear" type="button" data-act="clear-form" title="Alles leeren" hidden><ha-icon icon="mdi:eraser"></ha-icon></button>
             </div>
             <div class="extras">
+              <div class="chips" id="lastQty" hidden></div>
               <div id="qtyBox" class="chipbox" hidden>
                 <div class="chips" id="qtyChips"></div>
                 <div class="chips unitchips" id="unitChips"></div>
@@ -2019,7 +2022,8 @@ class EinkaufslisteCard extends HTMLElement {
         cat ? `<span>${esc(cat.name)}</span>` : "",
         p.barcodes.length ? `<span>▥ ${p.barcodes.length}</span>` : "",
         p.photos ? `<span>📷 ${p.photos}${p.photos >= 6 ? " (voll)" : ""}</span>` : "",
-        p.unit ? `<span>📏 ${esc(p.unit)}${p.unit_fixed ? " 📌" : ""}</span>` : "",
+        p.unit ? `<span title="Einheit auf der Einkaufsliste (gemerkt)">📏 ${esc(p.unit)}</span>` : "",
+        this._recipeUnit(p.name) ? `<span title="Einheit in deinen Rezepten">🍳 ${esc(this._recipeUnit(p.name))}</span>` : "",
         p.count ? `<span>${p.count}× eingetragen</span>` : "",
         p.open ? `<span>🛒 steht drauf</span>` : "",
       ].filter(Boolean).join("");
@@ -2029,10 +2033,6 @@ class EinkaufslisteCard extends HTMLElement {
           <input id="peNote" value="${esc(p.note || "")}" placeholder="📝 Notiz / Sorte">
           <select id="peCat">${this._selectOptions(this._data.categories, p.category_id, "📦 Ohne Kategorie")}</select>
           <select id="peStore">${this._selectOptions(this._data.stores, p.store_id, "🛒 Kein Standard-Geschäft")}</select>
-          <select id="peUnit" title="Einheit beim Eintragen auf die Liste" data-orig="${esc(p.unit_fixed ? p.unit : "")}">
-            <option value="">📏 Einheit: automatisch merken${p.unit && !p.unit_fixed ? ` (zuletzt ${esc(p.unit)})` : ""}</option>
-            ${QTY_DEFS.map((d) => `<option value="${esc(d[0])}" ${p.unit_fixed && p.unit === d[0] ? "selected" : ""}>📏 Immer ${esc(d[0])}</option>`).join("")}
-          </select>
           ${p.barcodes.length ? `<div class="hint">▥ Barcodes: ${p.barcodes.map(esc).join(", ")}</div>` : ""}
           <div class="btnrow">
             ${p.photos ? `<button class="btn" data-act="prod-photos"><ha-icon icon="mdi:image-multiple-outline"></ha-icon>Fotos</button>` : ""}
@@ -2499,8 +2499,11 @@ class EinkaufslisteCard extends HTMLElement {
     let raw = this.$("inName").value.trim();
     const val = (id) => this.$(id).value.trim() || null;
     let qty = val("inQty");
-    if (!qty) { const sp = splitQty(raw); raw = sp.name; qty = sp.qty; } // „250g nudeln“ -> Nudeln · 250 g
-    if (qty && this._qtyUnit && (isBareQty(qty) || unitOf(qty) === "x")) qty = applyUnit(qty, this._qtyUnit);
+    let bare = isBareQty(qty);
+    if (!qty) { const sp = splitQty(raw); raw = sp.name; qty = sp.qty; bare = !!sp.bare; } // „250g nudeln“ -> Nudeln · 250 g
+    // 📏 Nur eine Zahl („200 milch“)? Selbst gewählte Einheit, sonst die aus deinen Rezepten (Milch -> ml)
+    const unit = this._qtyUnit && (bare || unitOf(qty) === "x") ? this._qtyUnit : bare ? this._recipeUnit(raw) : null;
+    if (qty && unit) qty = applyUnit(qty, unit);
     const name = raw.charAt(0).toUpperCase() + raw.slice(1);
     const ing = {
       name,
@@ -2801,11 +2804,58 @@ class EinkaufslisteCard extends HTMLElement {
   }
 
   // 📏 Welche Einheit gilt gerade? Selbst gewählt > aus der eingetippten Menge > gemerkt beim Produkt > x
+  // Name ohne Zahl davor/dahinter („200 milch“ -> „milch“)
+  _typedName() {
+    return (splitQty(this.$("inName")?.value || "").name || "").trim().toLowerCase();
+  }
+
+  // 🍳 Häufigste Einheit/Menge dieses Produkts in deinen Rezepten
+  _recipeStats(name) {
+    const low = String(name || "").trim().toLowerCase();
+    const units = new Map(), qtys = new Map();
+    if (low) for (const r of this._data?.recipes || []) for (const ri of r.items || []) {
+      if (ri.name.toLowerCase() !== low || !ri.quantity) continue;
+      qtys.set(ri.quantity, (qtys.get(ri.quantity) || 0) + 1);
+      const u = unitOf(ri.quantity);
+      if (u) units.set(u, (units.get(u) || 0) + 1);
+    }
+    const top = (m) => [...m].sort((a, b) => b[1] - a[1])[0]?.[0] || null;
+    return { unit: top(units), qty: top(qtys) };
+  }
+
+  _recipeUnit(name) {
+    return this._recipeStats(name).unit;
+  }
+
+  // 📏 Gemerkte Einheit: im Rezept-Editor aus deinen Rezepten, auf der Liste vom direkten Eintragen
   _learnedUnit() {
-    if (this._formMode === "recipe") return null; // Rezepte haben ihre eigenen Einheiten
-    const low = this.$("inName")?.value.trim().toLowerCase();
-    const h = low && (this._data?.history || []).find((x) => x.name.toLowerCase() === low);
+    const low = this._typedName();
+    if (!low) return null;
+    if (this._formMode === "recipe") return this._recipeUnit(low);
+    const h = (this._data?.history || []).find((x) => x.name.toLowerCase() === low);
     return h?.unit && QTY_DEFS.some((d) => d[0] === h.unit) ? h.unit : null;
+  }
+
+  // 🔁 „wie zuletzt“: ganze Menge als Knopf (Rezept: häufigste aus deinen Rezepten, Liste: zuletzt selbst eingetragen)
+  _lastQty() {
+    const low = this._typedName();
+    if (!low) return null;
+    if (this._formMode === "recipe") return this._recipeStats(low).qty;
+    const mine = (this._data?.items || [])
+      .filter((i) => !i.recipe_id && i.quantity && i.name.toLowerCase() === low)
+      .sort((a, b) => String(b.added_at || "").localeCompare(String(a.added_at || "")));
+    if (mine[0]) return mine[0].quantity;
+    return (this._data?.history || []).find((x) => x.name.toLowerCase() === low)?.qty || null;
+  }
+
+  _renderLastQty() {
+    const box = this.$("lastQty");
+    if (!box) return;
+    const q = this._lastQty();
+    const typed = this.$("inQty").value.trim() || splitQty(this.$("inName").value).qty;
+    if (!q || typed) { box.hidden = true; box.innerHTML = ""; return; }
+    box.innerHTML = `<button type="button" class="chip2 lastq" data-act="last-qty" data-v="${esc(q)}">🔁 ${esc(q)} <small>${this._formMode === "recipe" ? "wie sonst" : "wie zuletzt"}</small></button>`;
+    box.hidden = false;
   }
 
   _curUnit() {
@@ -2836,6 +2886,7 @@ class EinkaufslisteCard extends HTMLElement {
   }
 
   _updateTools() {
+    this._renderLastQty();
     this._renderNoteChips();
     const clear = this.$("tClear");
     if (clear) {
@@ -3738,6 +3789,13 @@ class EinkaufslisteCard extends HTMLElement {
         this._updateTools();
         break;
       }
+      case "last-qty": {
+        this.$("inQty").value = el.dataset.v;
+        this._qtyUnit = null;
+        this._renderQtyChips();
+        this._updateTools();
+        break;
+      }
       case "unit-more":
         this._unitMore = true;
         this._renderQtyChips();
@@ -3913,8 +3971,6 @@ class EinkaufslisteCard extends HTMLElement {
           name: this.$("peName").value.trim(), note: this.$("peNote").value.trim() || null,
           category_id: this.$("peCat").value || null, store_id: this.$("peStore").value || null,
         };
-        const pu = this.$("peUnit");
-        if (pu.value !== pu.dataset.orig) msg.unit = pu.value || null; // nur wenn wirklich geändert
         if (!msg.name) { this.$("peName").classList.add("shake"); break; }
         this._ws(msg).then(() => { this._toast("📦 Produkt gespeichert"); this._prodEdit = null; this._loadProducts(); }).catch(() => {});
         break;

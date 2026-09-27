@@ -1289,3 +1289,13 @@ async def test_unit_learned_and_catalog(hass, setup, hass_ws_client):
     assert "unit" not in m.history_for("Wasser") and "unit_fixed" not in m.history_for("Wasser")
     with pytest.raises(ValueError):
         m.update_product("backpulver", unit="Eimer")
+
+
+async def test_last_quantity_remembered(hass, setup):
+    """🔁 Letzte selbst eingetragene Menge wird gemerkt (nicht die aus Rezepten)."""
+    m = mgr(hass)
+    m.add_item("Milch", quantity="1 L")
+    assert m.history_for("Milch")["qty"] == "1 L"
+    r = m.add_recipe("Pudding", [{"name": "Milch", "quantity": "500 ml"}])
+    m.apply_recipe(r["id"])
+    assert m.history_for("Milch")["qty"] == "1 L" and m.history_for("Milch")["unit"] == "L"

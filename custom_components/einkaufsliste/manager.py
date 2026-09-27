@@ -751,6 +751,8 @@ class EinkaufslisteManager:
             unit = unit_of(item.get("quantity"))
             if unit:
                 entry["unit"] = unit
+        if not item.get("recipe_id") and item.get("quantity"):
+            entry["qty"] = item["quantity"]  # 🔁 für „wie zuletzt“
         self.history[key] = entry
         if len(self.history) > HISTORY_LIMIT:
             oldest = sorted(self.history.items(), key=lambda kv: kv[1].get("last_used", ""))
