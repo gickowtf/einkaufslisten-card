@@ -2,7 +2,7 @@
  * Einkaufsliste Card – die Familien-Einkaufsliste für Home Assistant
  * Wird automatisch von der Integration "einkaufsliste" geladen.
  */
-const EL_VERSION = "2.10.2";
+const EL_VERSION = "2.11.0";
 
 // Doppelt-Finder: Wörter, die dasselbe meinen (alles klein, ohne Leer-/Sonderzeichen)
 const DUP_SYNONYMS = (() => {
@@ -45,51 +45,100 @@ const startOfDay = (d) => { const x = new Date(d); x.setHours(0, 0, 0, 0); retur
 const dayDiff = (a, b) => Math.round((startOfDay(a) - startOfDay(b)) / DAY);
 const fmtDay = (d) => `${WD_SHORT[pyWd(d)]} ${String(d.getDate()).padStart(2, "0")}.${String(d.getMonth() + 1).padStart(2, "0")}.`;
 const stripMdi = (icon) => String(icon || "").replace(/^mdi:/, "");
-// 🔢 „3 milch“ / „milch 3x“ / „250g nudeln“ -> Name + Menge (wie in Home Assistant)
-// gleiche Liste wie quantity.py im Server (Schreibweise -> ordentliche Einheit)
-const QTY_UNITS = {};
-for (const [canon, vs] of Object.entries({
-  x: ["x", "×", "mal", "stk", "stück", "st", "stck"], g: ["g", "gr", "gramm"], kg: ["kg", "kilo", "kilogramm"],
-  mg: ["mg"], ml: ["ml", "milliliter"], cl: ["cl"], dl: ["dl"], L: ["l", "ltr", "liter"],
-  EL: ["el", "essl", "esslöffel"], TL: ["tl", "teel", "teelöffel"],
-  "Pck.": ["pck", "pkt", "päckchen", "packung", "packungen", "pack"], Prise: ["prise", "prisen"],
-  Dose: ["dose"], Dosen: ["dosen"], Becher: ["becher"], Bund: ["bund"], Flasche: ["flasche"], Flaschen: ["flaschen"],
-  Kiste: ["kiste"], Kisten: ["kisten"], Glas: ["glas"], "Gläser": ["gläser"], Rolle: ["rolle"], Rollen: ["rollen"],
-  Beutel: ["beutel"], "Tüte": ["tüte"], "Tüten": ["tüten"], Scheiben: ["scheiben"], Zehen: ["zehe", "zehen"],
-})) for (const v of vs) QTY_UNITS[v] = canon;
+// 🔢 Mengen einheitlich schreiben – GENAU dieselben Regeln wie quantity.py im Server.
+// „3el“ -> „3 EL“, „1“ -> „1x“, „1/2 tl“ -> „0,5 TL“, „2 bis 3 el“ -> „2-3 EL“, „2 tasse“ -> „2 Tassen“
+// [Einzahl, Mehrzahl, Schreibweisen] – Einzahl bei genau 1, sonst Mehrzahl
+const QTY_DEFS = [
+  ["x", "x", ["x", "×", "mal", "stk", "stück", "st", "stck"]], ["g", "g", ["g", "gr", "gramm"]],
+  ["kg", "kg", ["kg", "kilo", "kilogramm"]], ["mg", "mg", ["mg", "milligramm"]], ["ml", "ml", ["ml", "milliliter"]],
+  ["cl", "cl", ["cl"]], ["dl", "dl", ["dl"]], ["L", "L", ["l", "ltr", "liter"]],
+  ["EL", "EL", ["el", "essl", "esslöffel"]], ["TL", "TL", ["tl", "teel", "teelöffel"]],
+  ["Msp.", "Msp.", ["msp", "messerspitze", "messerspitzen"]],
+  ["Pck.", "Pck.", ["pck", "pkt", "päckchen", "packung", "packungen", "pack"]], ["Prise", "Prisen", ["prise", "prisen"]],
+  ["Dose", "Dosen", ["dose", "dosen"]], ["Becher", "Becher", ["becher"]], ["Bund", "Bund", ["bund"]],
+  ["Flasche", "Flaschen", ["flasche", "flaschen"]], ["Kiste", "Kisten", ["kiste", "kisten"]],
+  ["Glas", "Gläser", ["glas", "gläser"]], ["Rolle", "Rollen", ["rolle", "rollen"]], ["Beutel", "Beutel", ["beutel"]],
+  ["Tüte", "Tüten", ["tüte", "tüten"]], ["Scheibe", "Scheiben", ["scheibe", "scheiben"]], ["Zehe", "Zehen", ["zehe", "zehen"]],
+  ["Tasse", "Tassen", ["tasse", "tassen"]], ["Schluck", "Schluck", ["schluck", "schlucke"]], ["Schuss", "Schuss", ["schuss"]],
+  ["Spritzer", "Spritzer", ["spritzer"]], ["Tropfen", "Tropfen", ["tropfen"]], ["Handvoll", "Handvoll", ["handvoll"]],
+  ["Stange", "Stangen", ["stange", "stangen"]], ["Kopf", "Köpfe", ["kopf", "köpfe"]], ["Würfel", "Würfel", ["würfel"]],
+  ["Zweig", "Zweige", ["zweig", "zweige"]], ["Blatt", "Blatt", ["blatt", "blätter"]], ["Knolle", "Knollen", ["knolle", "knollen"]],
+  ["Kugel", "Kugeln", ["kugel", "kugeln"]], ["Schale", "Schalen", ["schale", "schalen"]], ["Netz", "Netze", ["netz", "netze"]],
+];
+const QTY_UNITS = {}; // Schreibweise -> [Einzahl, Mehrzahl]
+for (const [one, many, vs] of QTY_DEFS) for (const v of vs) QTY_UNITS[v] = [one, many];
 const QTY_UNIT_RX = Object.keys(QTY_UNITS).sort((a, b) => b.length - a.length).map((u) => u.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|");
-// „3el“ -> „3 EL“, „500gr“ -> „500 g“, „3“ -> „3x“ (wie norm_qty im Server). Unbekanntes bleibt, wie es ist.
-function normQty(q) {
+const QTY_FRAC = { "½": 0.5, "¼": 0.25, "¾": 0.75, "⅓": 1 / 3, "⅔": 2 / 3, "⅛": 0.125 };
+const QTY_N1 = "(?:\\d+\\s*[½¼¾⅓⅔⅛]|\\d+\\s+\\d+\\s*/\\s*\\d+|\\d+(?:[.,]\\d+)?(?:\\s*/\\s*\\d+)?|[½¼¾⅓⅔⅛])";
+const QTY_NUM = `${QTY_N1}(?:\\s*(?:-|–|—|bis)\\s*${QTY_N1})?`;
+const QTY_RANGE_RX = new RegExp(`^(${QTY_N1})(?:\\s*(?:-|–|—|bis)\\s*(${QTY_N1}))?$`, "i");
+const QTY_RX = new RegExp(`^\\s*(${QTY_NUM})\\s*(?:(${QTY_UNIT_RX})\\.?)?\\s*$`, "i");
+const QTY_START_RX = new RegExp(`^\\s*(${QTY_NUM})\\s*(?:(${QTY_UNIT_RX})\\.?(?=\\s)|(?=\\s))\\s*(.+)$`, "i");
+const QTY_END_RX = new RegExp(`^(.+?)\\s+(${QTY_NUM})\\s*(${QTY_UNIT_RX})?\\.?\\s*$`, "i");
+function qtyValue(text) { // „1½“ -> 1.5, „1 1/2“ -> 1.5, „1/2“ -> 0.5, „1,5“ -> 1.5
+  const t = String(text).trim();
+  let m;
+  if ((m = t.match(/^(\d*)\s*([½¼¾⅓⅔⅛])$/))) return Number(m[1] || 0) + QTY_FRAC[m[2]];
+  if ((m = t.match(/^(\d+)\s+(\d+)\s*\/\s*(\d+)$/))) return Number(m[3]) ? Number(m[1]) + Number(m[2]) / Number(m[3]) : null;
+  if ((m = t.match(/^(\d+)\s*\/\s*(\d+)$/))) return Number(m[2]) ? Number(m[1]) / Number(m[2]) : null;
+  if ((m = t.match(/^([1-9]\d*)\.(\d{3})$/))) return Number(m[1] + m[2]); // „1.000“ = tausend
+  const v = Number(t.replace(",", "."));
+  return Number.isFinite(v) && /^\d+(?:[.,]\d+)?$/.test(t) ? v : null;
+}
+const qtyRound = (v) => Math.floor(v * 100 + 0.5) / 100;
+const qtyNumText = (v) => { v = qtyRound(v); return Number.isInteger(v) ? String(v) : String(v).replace(".", ","); };
+function qtyFmt(num, unit) { // Zahl (oder Bereich) + Einheit ordentlich, null wenn nicht lesbar
+  const m = String(num).trim().match(QTY_RANGE_RX);
+  if (!m) return null;
+  const a = qtyValue(m[1]);
+  let b = m[2] ? qtyValue(m[2]) : null;
+  if (a == null || (m[2] && b == null)) return null;
+  let text = qtyNumText(a);
+  if (b != null && qtyNumText(b) !== text) text += "-" + qtyNumText(b);
+  else b = null;
+  const canon = unit ? QTY_UNITS[unit.toLowerCase().replace(/\.+$/, "")] : null;
+  if (!canon || canon[0] === "x") return `${text}x`;
+  return `${text} ${qtyRound(b ?? a) === 1 ? canon[0] : canon[1]}`;
+}
+function normQty(q) { // Unbekanntes bleibt, wie es ist
   const t = String(q ?? "").trim().replace(/\s+/g, " ");
   if (!t) return null;
-  const m = t.match(new RegExp(`^(\\d+(?:[.,]\\d+)?(?:\\s*/\\s*\\d+)?)\\s*(?:(${QTY_UNIT_RX})\\.?)?$`, "i"));
-  if (!m) return t;
-  const n = m[1].replace(/\s+/g, ""), c = m[2] ? QTY_UNITS[m[2].toLowerCase()] : "x";
-  return !c || c === "x" ? `${n}x` : `${n} ${c}`;
+  const m = t.match(QTY_RX);
+  return m ? qtyFmt(m[1], m[2]) || t : t;
 }
+// „3 milch“ / „milch 3x“ / „250g nudeln“ -> Name + Menge
 function splitQty(text) {
   const t = String(text || "").trim().replace(/\s+/g, " ");
-  const units = Object.keys(QTY_UNITS).sort((a, b) => b.length - a.length).map((u) => u.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|");
-  const fmt = (n, u) => { const c = u ? QTY_UNITS[u.toLowerCase()] : "x"; return !c || c === "x" ? `${n}x` : `${n} ${c}`; };
-  let m = t.match(new RegExp(`^(\\d+(?:[.,]\\d+)?)\\s*(?:(${units})\\.?(?=\\s)|(?=\\s))\\s*(.+)$`, "i"));
-  if (m && /[a-zäöüß]/i.test(m[3])) return { name: m[3], qty: fmt(m[1], m[2]) };
-  m = t.match(new RegExp(`^(.+?)\\s+(\\d+(?:[.,]\\d+)?)\\s*(${units})?\\.?$`, "i"));
-  if (m && /[a-zäöüß]/i.test(m[1]) && (m[3] || Number(m[2].replace(",", ".")) <= 50)) return { name: m[1], qty: fmt(m[2], m[3]) };
+  for (const end of [false, true]) {
+    const m = t.match(end ? QTY_END_RX : QTY_START_RX);
+    if (!m) continue;
+    const rest = (end ? m[1] : m[3]).replace(/^[\s,-]+|[\s,-]+$/g, "");
+    const num = end ? m[2] : m[1], unit = end ? m[3] : m[2];
+    if (!/[a-zäöüß]/i.test(rest)) continue;
+    if (end && !unit) { // „Cola 2“ ja, aber nicht „Xbox 360“
+      const first = num.trim().match(QTY_RANGE_RX);
+      const v = first ? qtyValue(first[1]) : null;
+      if (v == null || v > 50) continue;
+    }
+    const qty = qtyFmt(num, unit);
+    if (qty) return { name: rest, qty };
+  }
   return { name: t, qty: null };
 }
 
 // Wie viele Buchstaben unterscheiden sich? (für die Tippfehler-Hilfe)
 // 👥 Menge umrechnen: „200 g“ für 4 -> „300 g“ für 6. Stückzahlen werden aufgerundet (4,5 Eier -> 5x).
-const WHOLE_UNITS = new Set(["x", "", "stk", "stück", "dose", "dosen", "pck.", "becher", "bund", "zehen", "flasche", "flaschen",
-  "glas", "gläser", "rolle", "rollen", "beutel", "tüte", "tüten", "scheiben", "kiste", "kisten", "prise"]);
-const PLURAL = { Dose: "Dosen", Flasche: "Flaschen", Glas: "Gläser", Rolle: "Rollen", "Tüte": "Tüten", Kiste: "Kisten", Prise: "Prisen" };
+const WHOLE_UNITS = new Set(["x", "Pck.", "Prise", "Dose", "Becher", "Bund", "Flasche", "Kiste", "Glas", "Rolle", "Beutel", "Tüte",
+  "Scheibe", "Zehe", "Schluck", "Schuss", "Spritzer", "Tropfen", "Handvoll", "Stange", "Kopf", "Würfel", "Zweig", "Blatt",
+  "Knolle", "Kugel", "Schale", "Netz"]);
 function scaleQty(qty, factor) {
   if (!qty || !factor || Math.abs(factor - 1) < 1e-9) return qty || null;
   const m = String(qty).trim().match(/^(\d+(?:[.,]\d+)?(?:\s*\/\s*\d+)?)(?:\s*-\s*(\d+(?:[.,]\d+)?))?\s*(.*)$/);
   if (!m) return qty;
   const num = (t) => { const [a, b] = t.replace(",", ".").split("/").map((x) => parseFloat(x)); return b ? a / b : a; };
-  let unit = m[3].trim();
-  const whole = WHOLE_UNITS.has(unit.toLowerCase());
+  const unit = m[3].trim();
+  const canon = unit ? QTY_UNITS[unit.toLowerCase().replace(/\.+$/, "")] : ["x", "x"];
+  const whole = !unit || (canon && WHOLE_UNITS.has(canon[0]));
   const round = (v) => {
     if (whole) return Math.max(1, Math.ceil(v - 1e-9));
     if (v >= 100) return Math.round(v / 10) * 10;
@@ -99,9 +148,8 @@ function scaleQty(qty, factor) {
   const fmt = (v) => String(v).replace(".", ",");
   const a = round(num(m[1]) * factor);
   const b = m[2] ? round(num(m[2]) * factor) : null;
-  if ((b ?? a) > 1 && PLURAL[unit]) unit = PLURAL[unit];
   const n = fmt(a) + (b != null && b !== a ? "-" + fmt(b) : "");
-  return unit === "x" || unit === "" ? `${n}x` : `${n} ${unit}`;
+  return normQty(unit ? `${n} ${unit}` : `${n}x`); // Einzahl/Mehrzahl passt sich an (1 Dose -> 2 Dosen)
 }
 
 // 👥 Personen oder 🍰 Bleche: richtige Wörter für die Anzeige
@@ -1397,7 +1445,7 @@ class EinkaufslisteCard extends HTMLElement {
 
   _fmtQty(n, unit) {
     const num = Number.isInteger(n) ? String(n) : String(Math.round(n * 100) / 100).replace(".", ",");
-    return unit === "x" ? `${num}x` : `${num} ${unit}`;
+    return normQty(unit === "x" ? `${num}x` : `${num} ${unit}`); // 1 Dose -> 2 Dosen
   }
 
   _qtyStepFor(item) {

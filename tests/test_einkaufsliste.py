@@ -859,7 +859,7 @@ Zubereitung:""")
     assert [(i["name"], i["quantity"], i["note"]) for i in items] == [
         ("Mehl", "200 g", "Type 405"),
         ("Eier", "3x", None),
-        ("Milch", "1/2 l", None),
+        ("Milch", "0,5 L", None),
         ("Salz", "1 Prise", None),
         ("Zwiebel", None, "Fein gehackt"),
         ("Zucker", "2 EL", None),
@@ -940,6 +940,61 @@ async def test_quantity_in_name_and_units(hass, setup):
     assert r["items"][0]["name"] == "Butter" and r["items"][0]["quantity"] == "250 g"
     assert r["items"][1]["basic"] is True and r["steps"] == "Teig rühren\nBacken"
     assert m.as_dict()["version"]
+
+
+def test_quantity_rules():
+    """🔢 Alles gleich geschrieben: Einheiten, Kommazahlen statt Brüche, Bereiche, Einzahl/Mehrzahl."""
+    from custom_components.einkaufsliste.quantity import norm_qty, split_qty
+
+    cases = {
+        "3el": "3 EL", "3 el": "3 EL", "3 El.": "3 EL", "1": "1x", "3 stk": "3x", "500gr": "500 g",
+        "1/2 tl": "0,5 TL", "½ TL": "0,5 TL", "1½ L": "1,5 L", "1 1/2 l": "1,5 L", "¼ l": "0,25 L",
+        "1/3 tasse": "0,33 Tassen", "2/3 L": "0,67 L", "1.5 l": "1,5 L", "1.000 g": "1000 g",
+        "2-3 el": "2-3 EL", "2 - 3 EL": "2-3 EL", "2 bis 3 el": "2-3 EL", "2–3": "2-3x", "1½-2 l": "1,5-2 L",
+        "1 zehen": "1 Zehe", "2 zehe": "2 Zehen", "2 tasse": "2 Tassen", "1 Tassen": "1 Tasse",
+        "2 kopf": "2 Köpfe", "2 blätter": "2 Blatt", "2 schluck": "2 Schluck", "1 messerspitze": "1 Msp.",
+        "2 dose": "2 Dosen", "1 dosen": "1 Dose", "2 zweig": "2 Zweige", "1 würfel": "1 Würfel",
+        "etwas": "etwas", "nach Geschmack": "nach Geschmack",
+    }
+    assert {q: norm_qty(q) for q in cases} == cases
+    assert split_qty("1 kopf salat") == ("salat", "1 Kopf")
+    assert split_qty("3 blatt gelatine") == ("gelatine", "3 Blatt")
+    assert split_qty("½ tl salz") == ("salz", "0,5 TL")
+    assert split_qty("Xbox 360") == ("Xbox 360", None)
+
+
+async def test_old_quantities_tidied_on_load(hass, hass_storage):
+    """Schon gespeicherte Mengen werden beim Start einmal aufgeräumt und dauerhaft gespeichert."""
+    await hass.config.async_set_time_zone(TZ)
+    now = dt_util.utcnow().isoformat()
+    hass_storage["einkaufsliste.data"] = {
+        "version": 1,
+        "key": "einkaufsliste.data",
+        "data": {
+            "stores": [], "categories": [], "history": {}, "last_cleanup": now, "persons": [], "recipe_groups": [],
+            "items": [{"id": "a", "name": "Milch", "store_id": None, "category_id": None, "quantity": "1",
+                       "note": None, "checked": False, "added_by": None, "added_at": now,
+                       "checked_by": None, "checked_at": None}],
+            "recipes": [{"id": "r", "name": "Kuchen", "icon": None, "items": [
+                {"name": "Zucker", "quantity": "3el", "note": None, "for_whom": None, "store_id": None, "category_id": None},
+                {"name": "Salz", "quantity": "1/2 tl", "note": None, "for_whom": None, "store_id": None, "category_id": None},
+            ]}],
+        },
+    }
+    assert await async_setup_component(hass, "http", {})
+    hass.config.components.update({"frontend", "lovelace"})
+    entry = MockConfigEntry(domain=DOMAIN, options={"cleanup_weekday": 6, "cleanup_time": "03:00:00", "min_age_days": 7})
+    entry.add_to_hass(hass)
+    with patch("custom_components.einkaufsliste.frontend.add_extra_js_url"):
+        assert await hass.config_entries.async_setup(entry.entry_id)
+    m = mgr(hass)
+    assert m.items[0]["quantity"] == "1x"
+    assert [i["quantity"] for i in m.recipes[0]["items"]] == ["0,5 TL", "3 EL"]  # Salz, Zucker (A–Z)
+    async_fire_time_changed(hass, dt_util.utcnow() + timedelta(minutes=5))
+    await hass.async_block_till_done()
+    saved = hass_storage["einkaufsliste.data"]["data"]
+    assert saved["items"][0]["quantity"] == "1x"
+    assert sorted(i["quantity"] for i in saved["recipes"][0]["items"]) == ["0,5 TL", "3 EL"]
 
 
 async def test_multiple_photos_and_catalog(hass, setup, hass_ws_client):

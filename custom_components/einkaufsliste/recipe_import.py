@@ -18,6 +18,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.aiohttp_client import async_get_clientsession
 
 from .const import VERSION
+from .quantity import NUM, UNIT_WORDS, norm_qty
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -25,18 +26,10 @@ USER_AGENT = f"HomeAssistant-Einkaufsliste/{VERSION} (github.com/misterm2310/ein
 MAX_PAGE = 3 * 1024 * 1024
 MAX_IMAGE = 3 * 1024 * 1024
 
-# Mengen-Einheiten, die vor dem Produktnamen stehen dürfen („200 g Mehl“, „1 Prise Salz“)
-UNITS = (
-    "g", "gr", "gramm", "kg", "mg", "ml", "cl", "dl", "l", "liter",
-    "el", "tl", "essl", "teel", "essl.", "teel.", "esslöffel", "teelöffel",
-    "msp", "prise", "prisen", "stk", "stück", "st", "pck", "päckchen", "pkt", "packung", "packungen",
-    "dose", "dosen", "becher", "bund", "zehe", "zehen", "tasse", "tassen", "scheibe", "scheiben",
-    "glas", "gläser", "flasche", "flaschen", "beutel", "würfel", "kugel", "kugeln", "handvoll",
-    "schuss", "spritzer", "tropfen", "blatt", "blätter", "zweig", "zweige", "stange", "stangen",
-    "kopf", "köpfe", "knolle", "knollen", "rolle", "rollen", "netz", "schale", "schalen",
-)
-_FRACTIONS = {"½": "1/2", "¼": "1/4", "¾": "3/4", "⅓": "1/3", "⅔": "2/3", "⅛": "1/8"}
-_NUM = r"(?:\d+(?:[.,]\d+)?(?:\s*/\s*\d+)?|\d*\s*[½¼¾⅓⅔⅛])(?:\s*-\s*\d+(?:[.,]\d+)?)?"
+# Mengen-Einheiten, die vor dem Produktnamen stehen dürfen („200 g Mehl“, „1 Prise Salz“) –
+# dieselbe Liste wie beim Eintragen (quantity.py), damit alles gleich geschrieben wird
+UNITS = tuple(u for u in UNIT_WORDS if u not in ("x", "×", "mal"))
+_NUM = NUM
 _UNIT = "|".join(sorted((re.escape(u) for u in UNITS), key=len, reverse=True))
 _LINE = re.compile(rf"^(?P<qty>{_NUM})\s*(?P<unit>(?:{_UNIT})\.?(?=\s|$))?\s*(?P<rest>.*)$", re.IGNORECASE)
 _BULLET = re.compile(r"^\s*(?:[-–•*·▪►✓✔☐□]+|\d+[.)](?=\s))\s*")
@@ -54,17 +47,14 @@ def _nice(text: str) -> str:
 def parse_line(line: str) -> dict[str, Any] | None:
     """Eine Zutaten-Zeile zerlegen: „200 g Mehl (Type 405)“ -> Menge 200 g, Name Mehl, Notiz Type 405."""
     line = html.unescape(line)
-    for k, v in _FRACTIONS.items():
-        line = line.replace(k, f" {v}")
     line = _BULLET.sub("", line).strip()
     if not line or len(line) > 120 or line.endswith(":") or _SKIP.match(line):
         return None
     qty = None
     m = _LINE.match(line)
     if m and m.group("rest"):
-        num = re.sub(r"\s+", "", m.group("qty"))
         unit = (m.group("unit") or "").rstrip(".")
-        qty = f"{num} {unit}".strip() if unit else f"{num}x"
+        qty = norm_qty(f"{m.group('qty')} {unit}".strip())
         line = m.group("rest")
     note_parts: list[str] = []
     for part in re.findall(r"\(([^)]*)\)", line):

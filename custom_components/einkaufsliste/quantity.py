@@ -1,58 +1,126 @@
-"""🔢 Mengen: „3 milch“ -> Milch · 3x, „1l“/„1 Liter“ -> „1 L“, „500gr“ -> „500 g“."""
+"""🔢 Mengen einheitlich schreiben.
+
+„3 milch“ -> Milch · 3x, „3el“ -> „3 EL“, „500gr“ -> „500 g“, „1/2 tl“ -> „0,5 TL“,
+„2 bis 3 el“ -> „2-3 EL“, „2 tasse“ -> „2 Tassen“, „1 zehen“ -> „1 Zehe“.
+
+Die Karte (einkaufsliste-card.js) hat genau dieselben Regeln (normQty) –
+wer hier etwas ändert, ändert es dort bitte auch.
+"""
 
 from __future__ import annotations
 
+import math
 import re
 
-# Schreibweise -> ordentliche Einheit
-_UNIT_MAP: dict[str, str] = {}
-for canon, variants in {
-    "x": ("x", "×", "mal", "stk", "stück", "st", "stck"),
-    "g": ("g", "gr", "gramm"),
-    "kg": ("kg", "kilo", "kilogramm"),
-    "mg": ("mg",),
-    "ml": ("ml", "milliliter"),
-    "cl": ("cl",),
-    "dl": ("dl",),
-    "L": ("l", "ltr", "liter"),
-    "EL": ("el", "essl", "esslöffel"),
-    "TL": ("tl", "teel", "teelöffel"),
-    "Pck.": ("pck", "pkt", "päckchen", "packung", "packungen", "pack"),
-    "Prise": ("prise", "prisen"),
-    "Dose": ("dose",),
-    "Dosen": ("dosen",),
-    "Becher": ("becher",),
-    "Bund": ("bund",),
-    "Flasche": ("flasche",),
-    "Flaschen": ("flaschen",),
-    "Kiste": ("kiste",),
-    "Kisten": ("kisten",),
-    "Glas": ("glas",),
-    "Gläser": ("gläser",),
-    "Rolle": ("rolle",),
-    "Rollen": ("rollen",),
-    "Beutel": ("beutel",),
-    "Tüte": ("tüte",),
-    "Tüten": ("tüten",),
-    "Scheiben": ("scheiben",),
-    "Zehen": ("zehe", "zehen"),
-}.items():
-    for v in variants:
-        _UNIT_MAP[v] = canon
+# (Einzahl, Mehrzahl, Schreibweisen) – Einzahl bei genau 1, sonst Mehrzahl
+UNIT_DEFS: tuple[tuple[str, str, tuple[str, ...]], ...] = (
+    ("x", "x", ("x", "×", "mal", "stk", "stück", "st", "stck")),
+    ("g", "g", ("g", "gr", "gramm")),
+    ("kg", "kg", ("kg", "kilo", "kilogramm")),
+    ("mg", "mg", ("mg", "milligramm")),
+    ("ml", "ml", ("ml", "milliliter")),
+    ("cl", "cl", ("cl",)),
+    ("dl", "dl", ("dl",)),
+    ("L", "L", ("l", "ltr", "liter")),
+    ("EL", "EL", ("el", "essl", "esslöffel")),
+    ("TL", "TL", ("tl", "teel", "teelöffel")),
+    ("Msp.", "Msp.", ("msp", "messerspitze", "messerspitzen")),
+    ("Pck.", "Pck.", ("pck", "pkt", "päckchen", "packung", "packungen", "pack")),
+    ("Prise", "Prisen", ("prise", "prisen")),
+    ("Dose", "Dosen", ("dose", "dosen")),
+    ("Becher", "Becher", ("becher",)),
+    ("Bund", "Bund", ("bund",)),
+    ("Flasche", "Flaschen", ("flasche", "flaschen")),
+    ("Kiste", "Kisten", ("kiste", "kisten")),
+    ("Glas", "Gläser", ("glas", "gläser")),
+    ("Rolle", "Rollen", ("rolle", "rollen")),
+    ("Beutel", "Beutel", ("beutel",)),
+    ("Tüte", "Tüten", ("tüte", "tüten")),
+    ("Scheibe", "Scheiben", ("scheibe", "scheiben")),
+    ("Zehe", "Zehen", ("zehe", "zehen")),
+    ("Tasse", "Tassen", ("tasse", "tassen")),
+    ("Schluck", "Schluck", ("schluck", "schlucke")),
+    ("Schuss", "Schuss", ("schuss",)),
+    ("Spritzer", "Spritzer", ("spritzer",)),
+    ("Tropfen", "Tropfen", ("tropfen",)),
+    ("Handvoll", "Handvoll", ("handvoll",)),
+    ("Stange", "Stangen", ("stange", "stangen")),
+    ("Kopf", "Köpfe", ("kopf", "köpfe")),
+    ("Würfel", "Würfel", ("würfel",)),
+    ("Zweig", "Zweige", ("zweig", "zweige")),
+    ("Blatt", "Blatt", ("blatt", "blätter")),
+    ("Knolle", "Knollen", ("knolle", "knollen")),
+    ("Kugel", "Kugeln", ("kugel", "kugeln")),
+    ("Schale", "Schalen", ("schale", "schalen")),
+    ("Netz", "Netze", ("netz", "netze")),
+)
 
-_NUM = r"\d+(?:[.,]\d+)?(?:\s*/\s*\d+)?"
+_UNIT_MAP: dict[str, tuple[str, str]] = {}
+for _one, _many, _variants in UNIT_DEFS:
+    for _v in _variants:
+        _UNIT_MAP[_v] = (_one, _many)
+
+UNIT_WORDS = tuple(_UNIT_MAP)  # alle erlaubten Schreibweisen (klein)
+
+_FRAC = {"½": 0.5, "¼": 0.25, "¾": 0.75, "⅓": 1 / 3, "⅔": 2 / 3, "⅛": 0.125}
+_FR = "[½¼¾⅓⅔⅛]"
+# eine Zahl: „1½“, „1 1/2“, „1,5“, „1.5“, „1/2“, „½“
+NUM1 = rf"(?:\d+\s*{_FR}|\d+\s+\d+\s*/\s*\d+|\d+(?:[.,]\d+)?(?:\s*/\s*\d+)?|{_FR})"
+# eine Zahl oder ein Bereich: „2-3“, „2 – 3“, „2 bis 3“
+NUM = rf"{NUM1}(?:\s*(?:-|–|—|bis)\s*{NUM1})?"
+_RANGE = re.compile(rf"^(?P<a>{NUM1})(?:\s*(?:-|–|—|bis)\s*(?P<b>{NUM1}))?$", re.IGNORECASE)
+
 _UNITS = "|".join(sorted((re.escape(u) for u in _UNIT_MAP), key=len, reverse=True))
-_QTY = re.compile(rf"^\s*(?P<num>{_NUM})\s*(?P<unit>(?:{_UNITS})\.?)?\s*$", re.IGNORECASE)
-_START = re.compile(rf"^\s*(?P<num>{_NUM})\s*(?:(?P<unit>(?:{_UNITS}))\.?(?=\s)|(?=\s))\s*(?P<rest>.+)$", re.IGNORECASE)
-_END = re.compile(rf"^(?P<rest>.+?)\s+(?P<num>{_NUM})\s*(?P<unit>(?:{_UNITS}))?\.?\s*$", re.IGNORECASE)
+_QTY = re.compile(rf"^\s*(?P<num>{NUM})\s*(?P<unit>(?:{_UNITS})\.?)?\s*$", re.IGNORECASE)
+_START = re.compile(rf"^\s*(?P<num>{NUM})\s*(?:(?P<unit>(?:{_UNITS}))\.?(?=\s)|(?=\s))\s*(?P<rest>.+)$", re.IGNORECASE)
+_END = re.compile(rf"^(?P<rest>.+?)\s+(?P<num>{NUM})\s*(?P<unit>(?:{_UNITS}))?\.?\s*$", re.IGNORECASE)
 
 
-def _fmt(num: str, unit: str | None) -> str:
-    num = re.sub(r"\s+", "", num)
-    canon = _UNIT_MAP.get((unit or "").lower().rstrip("."), None) if unit else None
-    if canon is None or canon == "x":
-        return f"{num}x"
-    return f"{num} {canon}"
+def _value(text: str) -> float | None:
+    """Eine Zahl lesen: „1½“ -> 1.5, „1 1/2“ -> 1.5, „1/2“ -> 0.5, „1,5“ -> 1.5."""
+    t = text.strip()
+    if m := re.fullmatch(rf"(\d*)\s*({_FR})", t):
+        return int(m.group(1) or 0) + _FRAC[m.group(2)]
+    if m := re.fullmatch(r"(\d+)\s+(\d+)\s*/\s*(\d+)", t):
+        return int(m.group(1)) + int(m.group(2)) / int(m.group(3)) if int(m.group(3)) else None
+    if m := re.fullmatch(r"(\d+)\s*/\s*(\d+)", t):
+        return int(m.group(1)) / int(m.group(2)) if int(m.group(2)) else None
+    if m := re.fullmatch(r"([1-9]\d*)\.(\d{3})", t):  # „1.000“ = tausend
+        return float(m.group(1) + m.group(2))
+    try:
+        return float(t.replace(",", "."))
+    except ValueError:
+        return None
+
+
+def _num_text(v: float) -> str:
+    """1.0 -> „1“, 0.5 -> „0,5“, 1/3 -> „0,33“ (höchstens 2 Nachkommastellen)."""
+    v = math.floor(v * 100 + 0.5) / 100
+    if v == int(v):
+        return str(int(v))
+    return str(v).replace(".", ",")
+
+
+def _fmt(num: str, unit: str | None) -> str | None:
+    """Zahl (oder Bereich) + Einheit ordentlich schreiben. None, wenn die Zahl nicht lesbar ist."""
+    m = _RANGE.match(num.strip())
+    if not m:
+        return None
+    a = _value(m.group("a"))
+    b = _value(m.group("b")) if m.group("b") else None
+    if a is None or (m.group("b") and b is None):
+        return None
+    text = _num_text(a)
+    if b is not None and _num_text(b) != text:
+        text += "-" + _num_text(b)
+    else:
+        b = None
+    canon = _UNIT_MAP.get((unit or "").lower().rstrip(".")) if unit else None
+    if canon is None or canon[0] == "x":
+        return f"{text}x"
+    one, many = canon
+    last = math.floor((b if b is not None else a) * 100 + 0.5) / 100
+    return f"{text} {one if last == 1 else many}"
 
 
 def norm_qty(qty: str | None) -> str | None:
@@ -65,7 +133,7 @@ def norm_qty(qty: str | None) -> str | None:
     m = _QTY.match(qty)
     if not m:
         return qty
-    return _fmt(m.group("num"), m.group("unit"))
+    return _fmt(m.group("num"), m.group("unit")) or qty
 
 
 def split_qty(name: str | None) -> tuple[str | None, str | None]:
@@ -82,10 +150,12 @@ def split_qty(name: str | None) -> tuple[str | None, str | None]:
             continue
         # „Cola 2“ ja, aber nicht „Xbox 360“: am Ende nur kleine Zahlen ohne Einheit
         if rx is _END and not m.group("unit"):
-            try:
-                if float(m.group("num").replace(",", ".").split("/")[0]) > 50:
-                    continue
-            except ValueError:
+            first = _RANGE.match(m.group("num").strip())
+            val = _value(first.group("a")) if first else None
+            if val is None or val > 50:
                 continue
-        return rest, _fmt(m.group("num"), m.group("unit"))
+        qty = _fmt(m.group("num"), m.group("unit"))
+        if qty is None:
+            continue
+        return rest, qty
     return text, None

@@ -281,11 +281,14 @@ class EinkaufslisteManager:
         self.recipes = data.get("recipes", [])
         self.history = data.get("history", {})
         self.last_cleanup = data.get("last_cleanup")
+        tidied = False  # 🔢 alte Mengen einheitlich schreiben („1“ -> „1x“, „1/2 tl“ -> „0,5 TL“)
         for item in self.items:  # ältere Daten auffüllen
             item.setdefault("for_whom", None)
             item.setdefault("recipe_id", None)
             item["note"] = _note(item.get("note"))
-            item["quantity"] = norm_qty(item.get("quantity"))
+            new_qty = norm_qty(item.get("quantity"))
+            tidied |= new_qty != item.get("quantity")
+            item["quantity"] = new_qty
         for recipe in self.recipes:
             recipe.setdefault("steps", None)
             recipe.setdefault("heat", [])
@@ -294,7 +297,9 @@ class EinkaufslisteManager:
             recipe.setdefault("group", None)
             for entry in recipe.get("items", []):
                 entry["note"] = _note(entry.get("note"))
-                entry["quantity"] = norm_qty(entry.get("quantity"))
+                new_qty = norm_qty(entry.get("quantity"))
+                tidied |= new_qty != entry.get("quantity")
+                entry["quantity"] = new_qty
                 entry.setdefault("basic", False)
             recipe["items"] = sorted(recipe.get("items", []), key=_abc)  # 🔤 Zutaten A–Z
         self.photos = data.get("photos", {})
@@ -328,6 +333,8 @@ class EinkaufslisteManager:
                 grp.setdefault("color", CATEGORY_COLORS[k % len(CATEGORY_COLORS)])
         else:  # erstes Update mit Rezept-Gruppen: fertige Liste zum Start
             self.recipe_groups = _default_recipe_groups()
+            self._schedule_save()
+        if tidied:  # aufgeräumte Mengen gleich dauerhaft speichern
             self._schedule_save()
 
     def _to_storage(self) -> dict[str, Any]:

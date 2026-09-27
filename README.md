@@ -115,7 +115,13 @@ Was du gewählt hast, steht direkt am Symbol, zum Beispiel **🔢 2x · 👤 Oma
 
 **Noch schneller eintragen:**
 - **🔢 Menge gleich mittippen:** „3 milch“, „milch 3x“ oder „500g mehl“ – daraus wird **Milch · 3x** bzw. **Mehl · 500 g**.
-- **📏 Einheiten werden aufgeräumt:** „1l“, „1 Liter“ → **1 L**, „500gr“ → **500 g**, „3 stk“ → **3x**.
+- **📏 Mengen werden überall gleich geschrieben** – auf der Liste, im Rezept (schon beim Eintippen) und beim Rezept-Import:
+  - Einheiten: „1l“, „1 Liter“ → **1 L**, „500gr“ → **500 g**, „3el“ → **3 EL**, „1“ oder „3 stk“ → **1x** / **3x**, „1 messerspitze“ → **1 Msp.**
+  - Brüche werden Kommazahlen: „1/2 tl“ oder „½ TL“ → **0,5 TL**, „1½ L“ → **1,5 L**, „1/3 Tasse“ → **0,33 Tassen**
+  - Bereiche: „2-3 el“, „2 bis 3 EL“ → **2-3 EL**
+  - Einzahl/Mehrzahl passt sich an: **1 Dose / 2 Dosen**, **1 Zehe / 2 Zehen**, **1 Kopf / 2 Köpfe** (auch beim Umrechnen für mehr Personen und bei [−] [＋])
+  - Bekannte Einheiten: g, kg, mg, ml, cl, dl, L, EL, TL, Msp., Pck., Prise, Dose, Becher, Bund, Flasche, Kiste, Glas, Rolle, Beutel, Tüte, Scheibe, Zehe, Tasse, Schluck, Schuss, Spritzer, Tropfen, Handvoll, Stange, Kopf, Würfel, Zweig, Blatt, Knolle, Kugel, Schale, Netz
+  - Schon gespeicherte Mengen werden nach dem Update beim nächsten Start einmal mit aufgeräumt. Wörter wie „etwas“ oder „nach Geschmack“ bleiben, wie sie sind.
 - **🤓 Tippfehler-Hilfe:** Bei „Mlich“ kommt der Vorschlag **„Meintest du Milch?“**.
 - **📝 Notiz-Vorschläge:** Beim 📝 erscheinen eure häufigsten Notizen als Knöpfe (zum getippten Produkt zuerst).
 
