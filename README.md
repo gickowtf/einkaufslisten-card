@@ -146,7 +146,7 @@ Was du gewählt hast, steht direkt am Symbol, zum Beispiel **🔢 2x · 👤 Oma
 
 ## 📖 Anleitung in der Karte
 
-Ein Tipp auf den **Einkaufswagen oben links** (neben dem Titel) öffnet eine kurze Anleitung für alle in der Familie: Eintragen, Abhaken, Geschäfte, Laden-Modus, Fotos, Rezepte und was die Zeichen oben bedeuten. Die einzelnen Teile klappen per Tipp auf. (Ist der Titel per `show_title: false` ausgeblendet, ist auch der Einkaufswagen weg.)
+Ein Tipp auf den **Einkaufswagen oben links** (neben dem Titel) öffnet eine kurze Anleitung für alle in der Familie: Eintragen, Abhaken, Geschäfte, Laden-Modus, Fotos, Rezepte und was die Zeichen oben bedeuten. Die Einstellungen (⚙️) kommen darin bewusst nicht vor – die Anleitung ist für alle, die einfach nur einkaufen. Die einzelnen Teile klappen per Tipp auf. (Ist der Titel per `show_title: false` ausgeblendet, ist auch der Einkaufswagen weg.)
 
 ## 🍽️ Rezepte
 
@@ -287,7 +287,13 @@ In der Rezept-Übersicht (⚙️ → Rezepte) steht bei jedem Rezept, ob es eine
 ### 📦 Produkte (Katalog)
 Oben gibt es zwei Knöpfe: **Katalog** und **Artikel löschen** (Artikel endgültig löschen, mit Suche).
 
-Alle Produkte, die die Liste kennt – mit Kategorie, Standard-Geschäft, Anzahl Fotos und Barcodes. Suchen, antippen, ändern: Umbenennen oder eine andere Notiz zieht **Artikel, Rezepte, Fotos, Barcodes und Vorschläge** mit. **Vergessen** löscht Fotos, Barcodes und Vorschläge (Artikel auf der Liste bleiben stehen).
+Alle Produkte, die die Liste kennt – mit Kategorie, Standard-Geschäft, Anzahl Fotos und Barcodes. Suchen, antippen, ändern: Umbenennen oder eine andere Notiz zieht **Artikel, Rezepte, Fotos, Barcodes und Vorschläge** mit.
+
+**Woher kommen Kategorie und Geschäft im Katalog?** Der Reihe nach: 1. aus dem Gedächtnis (so wurde es zuletzt gekauft), 2. von einem Artikel auf der Liste, 3. aus einem Rezept. So stehen auch Zutaten, die bisher nur im Rezept vorkommen, gleich richtig im Katalog.
+
+**Der Katalog hat Vorrang:** Änderst du hier die Kategorie, zieht sie überall mit. Änderst du das **Geschäft**, zieht es in **allen Rezepten** und bei **schon abgehakten** Artikeln mit. Artikel, die **noch offen** auf der Liste stehen, bleiben bei ihrem Geschäft – damit dir beim Einkaufen nichts unter der Nase wegspringt. Gibt es den Artikel beim neuen Geschäft schon, wird nichts doppelt angelegt.
+
+**Vergessen** löscht Fotos, Barcodes und Vorschläge (Artikel auf der Liste bleiben stehen).
 
 ### 📋 Verlauf: wer hat wann was wie gemacht?
 - Alles steht drin, das Neueste oben, nach Tagen sortiert: **eingetragen**, **wieder drauf**, **abgehakt**, **geändert** (mit Details wie „Menge 2x → 4x“), **verschoben** („Aldi → Netto“) und **gelöscht**.

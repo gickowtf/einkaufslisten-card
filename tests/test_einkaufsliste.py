@@ -1122,3 +1122,66 @@ async def test_check_and_repair(hass, setup, hass_ws_client):
     assert "brot" not in m.photos and "rezept#gibtsnicht" not in m.photos
     await client.send_json({"id": 4, "type": "einkaufsliste/check"})
     assert (await client.receive_json())["result"]["count"] == 0
+
+
+def _prod(m, name, note=None):
+    key = f"{name}|{note}".lower() if note else name.lower()
+    return next(p for p in m.products() if p["key"] == key)
+
+
+async def test_products_fallback_priority(hass, setup):
+    """Katalog: Kategorie/Geschäft kommen aus Gedächtnis > Liste > Rezept, in dieser Reihenfolge."""
+    m = mgr(hass)
+    netto, aldi, lidl = m.stores[0]["id"], m.stores[1]["id"], m.stores[2]["id"]
+    backwaren = m.find_category("Backwaren")
+    tk = m.find_category("TK-Ware")
+
+    # Nur im Rezept bekannt -> Katalog übernimmt das aus dem Rezept.
+    m.add_recipe("Kuchen", [{"name": "Mehl", "store_id": lidl, "category_id": backwaren}])
+    p = _prod(m, "Mehl")
+    assert p["store_id"] == lidl and p["category_id"] == backwaren
+
+    # Ein Artikel auf der Liste hat Vorrang vor dem Rezept.
+    item = m.add_item("Mehl", store_id=aldi)
+    item["category_id"] = None  # kein Kategorie am Artikel -> Rezept darf hier noch einspringen
+    p = _prod(m, "Mehl")
+    assert p["store_id"] == aldi  # vom Artikel, nicht vom Rezept
+    assert p["category_id"] == backwaren  # kein Artikel-Wert da -> Rezept als Fallback
+
+    # Das Gedächtnis (Verlauf) hat die höchste Priorität von allen.
+    m.history["mehl"] = {"name": "Mehl", "count": 3, "store_id": netto, "category_id": tk, "last_used": "x"}
+    p = _prod(m, "Mehl")
+    assert p["store_id"] == netto and p["category_id"] == tk
+
+
+async def test_update_product_store_propagation(hass, setup):
+    """Katalog hat Vorrang: Geschäft-Änderung zieht Rezepte und abgehakte Artikel mit, offene bleiben stehen."""
+    m = mgr(hass)
+    netto, aldi = m.stores[0]["id"], m.stores[1]["id"]
+    r = m.add_recipe("Kuchen", [{"name": "Zucker", "store_id": netto}])
+
+    offen = m.add_item("Zucker", store_id=netto)
+    abgehakt = m.add_item("Zucker", store_id=netto, for_whom="Marco")
+    abgehakt["checked"] = True
+
+    m.update_product("zucker", store_id=aldi)
+
+    assert r["items"][0]["store_id"] == aldi  # Rezept zieht immer mit
+    assert offen["store_id"] == netto  # offen bleibt stehen, damit nichts "springt"
+    assert abgehakt["store_id"] == aldi  # abgehakt zieht mit, ist ja schon gekauft
+
+
+async def test_update_product_store_propagation_merges_duplicate(hass, setup):
+    """Zieht ein abgehakter Artikel beim Geschäftswechsel in einen bereits vorhandenen Zwilling, gibt's kein Duplikat."""
+    m = mgr(hass)
+    netto, aldi = m.stores[0]["id"], m.stores[1]["id"]
+
+    abgehakt = m.add_item("Zucker", store_id=netto)
+    abgehakt["checked"] = True
+    zwilling = m.add_item("Zucker", store_id=aldi)
+
+    m.update_product("zucker", store_id=aldi)
+
+    zucker_items = [i for i in m.items if i["name"] == "Zucker"]
+    assert len(zucker_items) == 1
+    assert zucker_items[0]["id"] == zwilling["id"]

@@ -2,7 +2,7 @@
  * Einkaufsliste Card – die Familien-Einkaufsliste für Home Assistant
  * Wird automatisch von der Integration "einkaufsliste" geladen.
  */
-const EL_VERSION = "2.10.0";
+const EL_VERSION = "2.10.1";
 
 // Doppelt-Finder: Wörter, die dasselbe meinen (alles klein, ohne Leer-/Sonderzeichen)
 const DUP_SYNONYMS = (() => {
@@ -2964,7 +2964,7 @@ class EinkaufslisteCard extends HTMLElement {
         <li>Bist du laut Standort im Geschäft, hakt <b>▥ Scannen</b> das Produkt gleich ab (falls es auf der Liste steht).</li></ul>`)}
       ${sec("📷", "Fotos & Barcodes", `<ul>
         <li>Das <b>📷</b> am Artikel zeigt das Foto. Wischen = blättern, <b>„Foto dazu“</b> für weitere (bis 6).</li>
-        <li>Ein neues Foto <b>ersetzt nie</b> ein altes, es kommt immer dazu. Löschen geht nur in den ⚙️ Einstellungen.</li>
+        <li>Ein neues Foto <b>ersetzt nie</b> ein altes, es kommt immer dazu.</li>
         <li><b>▥ Barcode</b> scannen (in der HA-App): Das Produkt wird erkannt und eingetragen.</li></ul>`)}
       ${sec("👨‍🍳", "Rezepte", `<ul>
         <li>Die <b>Kochmütze</b> oben öffnet die Rezepte. Das Suchfeld findet auch Zutaten (z. B. „Zucchini“).</li>
@@ -2977,8 +2977,7 @@ class EinkaufslisteCard extends HTMLElement {
       ${sec("🟢", "Was bedeuten die Zeichen oben?", `<ul>
         <li><b>🟢 Grüner Punkt</b> = verbunden, alles ist live auf allen Handys. <b>🔴 Rot</b> = gerade keine Verbindung.</li>
         <li>Die <b>Zahl</b> neben dem Namen = so viele Sachen sind noch offen.</li>
-        <li>Ein <b>blauer Balken</b> oben = es gibt ein Update, das muss jemand mit Admin-Zugang in Home Assistant fertig machen.</li>
-        <li>⚙️ (falls du es siehst) = Einstellungen: Geschäfte, Kategorien, Rezepte, Personen …</li></ul>`)}
+        <li>Ein <b>blauer Balken</b> oben = es gibt ein Update, das muss jemand mit Admin-Zugang in Home Assistant fertig machen.</li></ul>`)}
     </div>`;
     const bClose = ovButton("Schließen", true);
     Object.assign(bClose.style, { marginTop: "14px" });

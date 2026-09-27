@@ -444,9 +444,15 @@ class EinkaufslisteManager:
                 e["open"] += 1
             if item.get("category_id") and not e["category_id"]:
                 e["category_id"] = item["category_id"]
+            if item.get("store_id") and not e["store_id"]:
+                e["store_id"] = item["store_id"]
         for recipe in self.recipes:
             for ri in recipe["items"]:
-                entry(ri["name"], ri.get("note"))
+                e = entry(ri["name"], ri.get("note"))
+                if ri.get("category_id") and not e["category_id"]:
+                    e["category_id"] = ri["category_id"]
+                if ri.get("store_id") and not e["store_id"]:
+                    e["store_id"] = ri["store_id"]
         for code, bc in self.barcodes.items():
             if bc.get("name"):
                 entry(bc["name"], bc.get("note"))["barcodes"].append(code)
@@ -491,6 +497,25 @@ class EinkaufslisteManager:
                 thing["name"], thing["note"] = new_name, new_note
                 if category_id is not None:
                     thing["category_id"] = cat
+        if store_id is not None:
+            # Geschäft im Katalog hat Vorrang: Rezepte ziehen immer mit,
+            # bereits abgehakte Artikel auf der Liste auch – aber offene
+            # Artikel bleiben stehen, damit beim Einkaufen nichts "springt".
+            for recipe in self.recipes:
+                for ri in recipe["items"]:
+                    if product_key(ri["name"], ri.get("note")) == new_key:
+                        ri["store_id"] = store
+            for item in list(self.items):
+                if product_key(item["name"], item.get("note")) != new_key or not item["checked"]:
+                    continue
+                twin = self._find_same(
+                    item["name"], item.get("note"), item.get("for_whom"), store,
+                    item.get("recipe_id"), skip_id=item["id"],
+                )
+                if twin is not None:
+                    self.items.remove(item)
+                else:
+                    item["store_id"] = store
         for bc in self.barcodes.values():
             if product_key(bc.get("name"), bc.get("note")) == key:
                 bc.update(name=new_name, note=new_note)
