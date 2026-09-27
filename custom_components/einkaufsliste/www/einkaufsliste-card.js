@@ -2,7 +2,7 @@
  * Einkaufsliste Card – die Familien-Einkaufsliste für Home Assistant
  * Wird automatisch von der Integration "einkaufsliste" geladen.
  */
-const EL_VERSION = "2.17.0";
+const EL_VERSION = "2.17.1";
 
 // Doppelt-Finder: Wörter, die dasselbe meinen (alles klein, ohne Leer-/Sonderzeichen)
 const DUP_SYNONYMS = (() => {
@@ -626,8 +626,8 @@ input:focus, select:focus { border-color:var(--primary-color,#03a9f4); }
 .chip { --c:#888; display:inline-flex; align-items:center; gap:4px; }
 .chip::before { content:""; width:7px; height:7px; border-radius:50%; background:var(--c); }
 /* 🏪 Unter dem Artikel: Geschäft-Name in seiner Farbe statt Punkt davor (spart Platz).
-   Etwas mit der Schriftfarbe gemischt, damit auch Gelb gut lesbar bleibt. */
-.meta .chip, .pmeta .chip { color:color-mix(in srgb, var(--c) 60%, var(--primary-text-color, #212121)); font-weight:600; gap:0; }
+   Genau die Farbe, die beim Geschäft eingestellt ist. */
+.meta .chip, .pmeta .chip { color:var(--c); font-weight:600; gap:0; }
 .meta .chip::before, .pmeta .chip::before { display:none; }
 .item { border-left:4px solid var(--cc, transparent); padding-left:0; }
 .item[style*="--rc"] { box-shadow: inset -4px 0 0 var(--rc); }
