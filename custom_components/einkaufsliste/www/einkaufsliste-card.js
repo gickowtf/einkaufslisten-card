@@ -2,7 +2,7 @@
  * Einkaufsliste Card – die Familien-Einkaufsliste für Home Assistant
  * Wird automatisch von der Integration "einkaufsliste" geladen.
  */
-const EL_VERSION = "2.18.0";
+const EL_VERSION = "2.18.1";
 
 // Doppelt-Finder: Wörter, die dasselbe meinen (alles klein, ohne Leer-/Sonderzeichen)
 const DUP_SYNONYMS = (() => {
@@ -2129,8 +2129,6 @@ class EinkaufslisteCard extends HTMLElement {
         cat ? `<span>${esc(cat.name)}</span>` : "",
         p.barcodes.length ? `<span>▥ ${p.barcodes.length}</span>` : "",
         p.photos ? `<span>📷 ${p.photos}${p.photos >= 6 ? " (voll)" : ""}</span>` : "",
-        p.unit ? `<span title="Einheit auf der Einkaufsliste (gemerkt)">📏 ${esc(p.unit)}</span>` : "",
-        this._recipeUnit(p.name) ? `<span title="Einheit in deinen Rezepten">🍳 ${esc(this._recipeUnit(p.name))}</span>` : "",
         p.count ? `<span>${p.count}× eingetragen</span>` : "",
         p.open ? `<span>🛒 steht drauf</span>` : "",
       ].filter(Boolean).join("");

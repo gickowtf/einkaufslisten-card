@@ -127,7 +127,6 @@ Was du gewählt hast, steht direkt am Symbol, zum Beispiel **🔢 2x · 👤 Oma
     - *Rezept-Editor:* Die Einheit kommt aus deinen Rezepten. Steht Milch dort meist mit ml, wird „200 milch“ → **200 ml**, und die Mengen-Box steht gleich auf ml.
     - *Rezept → Einkaufsliste:* Menge und Einheit kommen aus dem Rezept (200 ml bleibt 200 ml).
   - **🔁 „wie sonst“ (im Rezept-Editor):** Beim Tippen einer bekannten Zutat erscheint ein Knopf mit der häufigsten Menge aus deinen Rezepten (z. B. **500 ml**). Antippen, fertig. Auf der Einkaufsliste übernimmt der Vorschlag beim Tippen die Menge vom letzten Mal.
-  - Im Katalog (⚙️ → Produkte) siehst du beide: 📏 Einheit auf der Liste, 🍳 Einheit in den Rezepten.
   - Schon gespeicherte Mengen werden nach dem Update beim nächsten Start einmal mit aufgeräumt. Wörter wie „etwas“ oder „nach Geschmack“ bleiben, wie sie sind.
 - **🤓 Tippfehler-Hilfe:** Bei „Mlich“ kommt der Vorschlag **„Meintest du Milch?“**.
 - **📝 Notiz-Vorschläge:** Beim 📝 erscheinen eure häufigsten Notizen als Knöpfe (zum getippten Produkt zuerst).
