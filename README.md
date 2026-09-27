@@ -159,7 +159,7 @@ Was du gewählt hast, steht direkt am Symbol, zum Beispiel **🔢 2x · 👤 Oma
 
 ## ⚡ Schnell eintragen
 
-Die Eingabe auf der Einkaufsliste ist bewusst schlank: **Name · 🔢 Menge · 📝 Notiz · 👤 Für wen · 📷 Foto · 🛒 Geschäft** (plus 🧽 Radiergummi zum Leeren). Der **▥ Barcode-Knopf** sitzt oben neben der grünen Lampe – so ist er auch im Laden-Modus da („Scannen & abhaken“), aber nicht direkt neben dem Laden-Knopf. Die Geschäft-Auswahl heißt **„Welches Geschäft?“**, hat unten **„Egal wo“** und geht über die ganze Breite. Unter dem Artikel steht der **Geschäft-Name in der Farbe des Geschäfts** (ohne Punkt davor – spart Platz). Alles andere läuft automatisch:
+Die Eingabe auf der Einkaufsliste ist bewusst schlank: **Name · 🔢 Menge · 📝 Notiz · 👤 Für wen · 📷 Foto · 🛒 Geschäft** (plus 🧽 Radiergummi zum Leeren). Der **▥ Barcode-Knopf** sitzt oben neben der grünen Lampe – so ist er auch im Laden-Modus da („Scannen & abhaken“), aber nicht direkt neben dem Laden-Knopf. Die Geschäft-Auswahl heißt **„Welches Geschäft?“**, hat unten **„Egal wo“** und geht über die ganze Breite. Unter dem Artikel steht der **Geschäft-Name mit zartem Hintergrund in der Farbe des Geschäfts** – wie bei den Notizen (ohne Punkt davor, spart Platz). Alles andere läuft automatisch:
 
 - **Kategorie** kommt aus dem Gedächtnis oder dem Wörterbuch – ändern geht nachträglich per **langem Drücken → Kategorie**.
 - **Geschäft** kommt aus dem Gedächtnis (so wie zuletzt gekauft).

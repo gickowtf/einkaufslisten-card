@@ -2,7 +2,7 @@
  * Einkaufsliste Card – die Familien-Einkaufsliste für Home Assistant
  * Wird automatisch von der Integration "einkaufsliste" geladen.
  */
-const EL_VERSION = "2.17.1";
+const EL_VERSION = "2.17.2";
 
 // Doppelt-Finder: Wörter, die dasselbe meinen (alles klein, ohne Leer-/Sonderzeichen)
 const DUP_SYNONYMS = (() => {
@@ -625,9 +625,11 @@ input:focus, select:focus { border-color:var(--primary-color,#03a9f4); }
 .item .meta { font-size:.75em; color:var(--secondary-text-color); display:flex; flex-wrap:wrap; gap:2px 8px; margin-top:1px; }
 .chip { --c:#888; display:inline-flex; align-items:center; gap:4px; }
 .chip::before { content:""; width:7px; height:7px; border-radius:50%; background:var(--c); }
-/* 🏪 Unter dem Artikel: Geschäft-Name in seiner Farbe statt Punkt davor (spart Platz).
-   Genau die Farbe, die beim Geschäft eingestellt ist. */
-.meta .chip, .pmeta .chip { color:var(--c); font-weight:600; gap:0; }
+/* 🏪 Unter dem Artikel: Geschäft-Name mit zartem Hintergrund in der Geschäft-Farbe (wie die Notiz),
+   statt Punkt davor – spart Platz und ist nicht aufdringlich. */
+.meta .chip, .pmeta .chip { color:var(--primary-text-color); font-weight:500; gap:0; border-radius:6px; padding:0 6px;
+  background:color-mix(in srgb, var(--c) 20%, transparent); }
+.item.done .meta .chip { background:color-mix(in srgb, var(--c) 10%, transparent); font-weight:400; }
 .meta .chip::before, .pmeta .chip::before { display:none; }
 .item { border-left:4px solid var(--cc, transparent); padding-left:0; }
 .item[style*="--rc"] { box-shadow: inset -4px 0 0 var(--rc); }
