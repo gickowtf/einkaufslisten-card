@@ -1373,3 +1373,23 @@ async def test_check_offers_delete(hass, setup):
     assert any(o["value"] == "__delete__" for o in ids[f"nostore:{x['id']}"]["options"])
     res = await m.async_check(fixes={"nocat:quatschprodukt": "__delete__"})
     assert res["fixed"] == 1 and x not in m.items and m.history_for("Quatschprodukt") is None
+
+
+async def test_out_of_stock_restarts_cleanup(hass, setup, hass_ws_client, freezer):
+    """⇄ „Nächstes Mal wieder hier“: bleibt offen, „war aus“-Datum, Aufräum-Frist startet neu, Abhaken löscht den Hinweis."""
+    client = await hass_ws_client(hass)
+    m = mgr(hass)
+    freezer.move_to(datetime(2026, 9, 15, 18, 0, tzinfo=tz()))  # Dienstag eingetragen
+    milch = m.add_item("Milch")
+    freezer.move_to(datetime(2026, 9, 26, 11, 0, tzinfo=tz()))  # Samstag: war aus
+    await client.send_json({"id": 1, "type": "einkaufsliste/item/out", "item_id": milch["id"]})
+    assert (await client.receive_json())["success"]
+    assert milch["out_at"] and not milch["checked"]
+    assert m.log[-1]["a"] == "out"
+    # Ohne „war aus“ wäre sie am So 27.09. dran (12 Tage alt) – jetzt erst 7 Tage ab Samstag
+    m.cleanup(reference=datetime(2026, 9, 27, 3, 0, tzinfo=tz()), scheduled=True)
+    assert not milch["checked"]
+    m.cleanup(reference=datetime(2026, 10, 4, 3, 0, tzinfo=tz()), scheduled=True)
+    assert milch["checked"] and milch["out_at"] is None
+    with pytest.raises(ValueError):
+        m.mark_out(milch["id"])  # abgehakt -> geht nicht

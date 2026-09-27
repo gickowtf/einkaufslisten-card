@@ -2,7 +2,7 @@
  * Einkaufsliste Card – die Familien-Einkaufsliste für Home Assistant
  * Wird automatisch von der Integration "einkaufsliste" geladen.
  */
-const EL_VERSION = "2.19.1";
+const EL_VERSION = "2.20.0";
 
 // Doppelt-Finder: Wörter, die dasselbe meinen (alles klein, ohne Leer-/Sonderzeichen)
 const DUP_SYNONYMS = (() => {
@@ -32,6 +32,7 @@ const LOG_ACT = {
   check: { label: "✅ abgehakt", verb: "hat % abgehakt" },
   edit: { label: "✏️ geändert", verb: "hat % geändert" },
   move: { label: "⇄ verschoben", verb: "hat % verschoben" },
+  out: { label: "⇄ war aus", verb: "hat % als „war aus“ markiert" },
   remove: { label: "🗑️ gelöscht", verb: "hat % gelöscht" },
 };
 const LOG_VIA = { card: "✍️", scan: "▥", recipe: "🍳", merge: "🔗", cleanup: "🧹", service: "🤖" };
@@ -597,6 +598,8 @@ form.add .sugg { grid-column: 1 / -1; display:flex; flex-wrap:wrap; gap:6px; mar
 .photorow { display:flex; flex-wrap:wrap; gap:6px; }
 .photorow .btn { padding:6px 10px; font-size:.85em; }
 form.add .row2 { grid-column: 1 / -1; display:grid; grid-auto-flow:column; grid-auto-columns:1fr; gap:6px; }
+/* Geschäft + Kategorie nebeneinander: etwas kompakter, damit „Welches Geschäft?“ ganz draufpasst */
+form.add .row2 select { font-size:.88em; padding:9px 4px 9px 7px; letter-spacing:-.1px; }
 form.add.fixed .sel { grid-template-columns:1fr; }
 input, select { font:inherit; font-size:.95em; color:var(--primary-text-color); background:var(--input-fill-color, var(--secondary-background-color, rgba(127,127,127,.08))); border:1px solid var(--divider-color, rgba(127,127,127,.3)); border-radius:10px; padding:9px 10px; min-width:0; width:100%; outline:none; }
 input:focus, select:focus { border-color:var(--primary-color,#03a9f4); }
@@ -720,6 +723,8 @@ ha-card.compact .group { margin-top:4px; }
 .servtag { font-weight:400; opacity:.75; }
 .rgrouprow select { width:auto; min-width:150px; }
 #titleIcon { cursor:pointer; }
+.item .meta .iout { color:var(--primary-text-color); font-weight:500; background:color-mix(in srgb, var(--error-color, #db4437) 14%, transparent); border-radius:6px; padding:0 6px; }
+.moverow .outbtn { --c:var(--primary-color,#03a9f4); display:inline-flex; align-items:center; gap:4px; --mdc-icon-size:16px; }
 .bclist { display:flex; flex-wrap:wrap; gap:6px; }
 .bcchip { display:inline-flex; align-items:center; gap:2px; font-size:.85em; padding:0 0 0 8px; border:1px solid var(--divider-color, rgba(127,127,127,.35)); border-radius:8px; --mdc-icon-size:18px; }
 .chklist { display:flex; flex-direction:column; gap:6px; margin:8px 0; }
@@ -1156,7 +1161,7 @@ class EinkaufslisteCard extends HTMLElement {
     const s = this._data?.settings;
     if (!s || item.checked) return null;
     let d = new Date(s.next_cleanup);
-    const added = new Date(item.added_at);
+    const added = new Date(Math.max(new Date(item.added_at || 0), new Date(item.out_at || 0))); // „war aus“ startet die Frist neu
     for (let i = 0; i < 60 && dayDiff(d, added) < s.min_age_days; i++) d = new Date(d.getTime() + 7 * DAY);
     return d;
   }
@@ -1459,6 +1464,8 @@ class EinkaufslisteCard extends HTMLElement {
     } else if (this._activeTab === "all" && store) meta.push(`<span class="chip" style="--c:${esc(store.color)}">${esc(store.name)}</span>`);
     // Reihenfolge unter dem Namen: Geschäft · Notiz · Barcode · wer eingetragen · wer abgehakt · (Rezept, Zeit)
     if (item.note) meta.push(`<span class="inote">📝 ${esc(item.note)}</span>`);
+    if (!item.checked && item.out_at && Date.now() - new Date(item.out_at) < 3 * DAY)
+      meta.push(`<span class="iout" title="Beim letzten Einkauf nicht bekommen">⇄ war aus (${WD_SHORT[pyWd(new Date(item.out_at))]})</span>`);
     const pk = this._pk(item.name, item.note);
     const codes = this._barcodesOf(pk);
     if (codes.length && !this._shopMode) meta.push(`<span class="bc" title="Barcode hinterlegt: ${esc(codes.join(", "))}">▥</span>`);
@@ -1602,7 +1609,8 @@ class EinkaufslisteCard extends HTMLElement {
     const targets = this._data.stores.filter((s) => s.id !== item.store_id);
     return `
       <div class="moverow" data-id="${item.id}">
-        <span class="movetxt">${here ? `Bei ${esc(here.name)} nicht da? Ab zu:` : "Wo gibt's das?"}</span>
+        <span class="movetxt">${here ? `Bei ${esc(here.name)} nicht da?` : "Wo gibt's das?"}</span>
+        ${here ? `<button class="tab outbtn" data-act="move-out" title="Bleibt offen hier – alle sehen „war aus“"><ha-icon icon="mdi:refresh"></ha-icon>Nächstes Mal wieder hier</button><span class="movetxt">oder ab zu:</span>` : ""}
         ${targets.map((s) => `<button class="tab" style="--c:${esc(s.color)}" data-act="move-to" data-store="${s.id}"><span class="dot"></span>${esc(s.name)}</button>`).join("")}
         <button class="iconbtn" data-act="move-cancel" title="Abbrechen"><ha-icon icon="mdi:close"></ha-icon></button>
       </div>`;
@@ -1982,7 +1990,7 @@ class EinkaufslisteCard extends HTMLElement {
           <button class="tab ${this._prodTab === "delete" ? "active" : ""}" data-act="prod-tab" data-tab="delete" style="--c:var(--error-color,#db4437)"><ha-icon icon="mdi:delete-outline"></ha-icon>Einkaufsliste Produkte löschen</button>
         </div>
         ${this._prodTab === "delete" ? `
-        <p class="hint">Hier verschwinden Artikel endgültig von der Einkaufsliste, auch aus „Erledigt“. Das Produkt selbst (Foto, Barcode, Vorschlag) bleibt – ganz löschen geht unter „Alle Produkte“.</p>
+        <p class="hint">Hier verschwinden Artikel endgültig von der Einkaufsliste, auch aus „Erledigt“. Barcode und Vorschlag bleiben; das Foto kommt mit weg, wenn das Produkt sonst nirgends mehr steht. Ganz löschen geht unter „Alle Produkte“.</p>
         <div class="srow"><ha-icon class="prev" icon="mdi:magnify"></ha-icon><input class="grow" id="delSearch" placeholder="Artikel suchen …" value="${esc(this._delFilter || "")}"></div>
         <div id="delList"></div>` : `
         <p class="hint">Alle Produkte, die die Liste kennt. Antippen = ändern oder ganz löschen. Umbenennen zieht Fotos, Barcodes, Artikel und Rezepte mit.</p>
@@ -3239,7 +3247,7 @@ class EinkaufslisteCard extends HTMLElement {
         <li>Oben die Reiter: <b>Alle</b>, Aldi, Netto … Die Zahl zeigt, wie viel dort offen ist.</li>
         <li>Die <b>rote Blase</b> heißt: Da ist was Neues dazugekommen, seit du zuletzt geschaut hast.</li>
         <li><b>✨</b> am Artikel = neu (verschwindet nach 24 Stunden).</li>
-        <li><b>⇄</b> am Artikel = in ein anderes Geschäft schieben, z. B. wenn es aus war.</li></ul>`)}
+        <li><b>⇄</b> am Artikel = war aus: <b>„Nächstes Mal wieder hier“</b> (bleibt offen, alle sehen „war aus“) oder gleich in ein anderes Geschäft schieben.</li></ul>`)}
       ${sec("👆", "Ändern & lange drücken", `<ul>
         <li>Artikel <b>lange drücken</b> = Menü: Bearbeiten, Verschieben, Menge, Kategorie, Foto, Barcode.</li>
         <li>Menge direkt ändern: auf die Menge tippen, dann <span class="elg-k">−</span> und <span class="elg-k">＋</span>.</li>
@@ -4058,6 +4066,14 @@ class EinkaufslisteCard extends HTMLElement {
         this._moving = this._moving === id ? null : id;
         this._renderList();
         break;
+      case "move-out": { // ⇄ war aus, bleibt hier offen
+        const itemId = el.closest(".moverow").dataset.id;
+        this._moving = null;
+        this._ws({ type: "einkaufsliste/item/out", item_id: itemId })
+          .then(() => this._toast("👍 Bleibt auf der Liste – alle sehen „war aus“")).catch(() => {});
+        this._renderList();
+        break;
+      }
       case "move-cancel":
         this._moving = null;
         this._renderList();

@@ -4,7 +4,13 @@
 
 **Die Familien-Einkaufsliste direkt im Dashboard.** Du bekommst mehrere Geschäfte, Kategorien, Rezepte und Live-Sync auf allen Handys. Hinter jedem Artikel steht, wer ihn eingetragen hat. Was gekauft ist, wird abgehakt und bleibt als „schon mal gekauft“ in der Liste. So ist es beim nächsten Mal mit einem Tipp wieder drauf.
 
-![Vorschau](docs/screenshot.png)
+![Vorschau – Einkaufsliste hell und dunkel](docs/screenshot.png)
+
+<details><summary>🛒 Laden-Modus ansehen</summary>
+
+![Laden-Modus](docs/screenshot-laden.png)
+
+</details>
 
 ---
 
@@ -26,7 +32,7 @@
 | 📸 **Fotos** | Ein Foto zum Artikel („genau diese Marke!“), auswählbar direkt beim Eintragen. |
 | 🔍 **Barcode** | In der Home-Assistant-App scannen: zu Hause zum **Eintragen** (auch mehrere hintereinander), im Laden zum **Abhaken**. |
 | 📖 **Kategorie raten** | Tippst du „Joghurt“, springt die Kategorie von selbst auf Kühlregal, bei „Pizza“ auf TK-Ware. Dafür gibt es ein eingebautes Wörterbuch mit rund 250 Produkten. Wählst du selbst etwas aus, hat das Vorrang. |
-| 🔁 **„War aus!“** | Gab's bei Aldi nicht? Tipp am Artikel auf **⇄** und dann auf **Netto**. Bei Aldi wird er abgehakt, bei Netto steht er offen. Beide Geschäfte behalten ihn unten bei „Erledigt“. |
+| 🔁 **„War aus!“** | Gab's bei Aldi nicht? Tipp am Artikel auf **⇄**. Dann entweder **„Nächstes Mal wieder hier“** – der Artikel bleibt bei Aldi offen, alle sehen **„⇄ war aus (Sa)“** (3 Tage lang), und die Aufräum-Frist zählt ab heute neu – oder gleich ein anderes Geschäft, z. B. **Netto**: bei Aldi abgehakt, bei Netto offen. |
 | 📍 **Nächstes Geschäft** | Bist du bei einem Geschäft, springt die Liste automatisch auf dessen Reiter. Jeder sieht dabei sein eigenes Geschäft. |
 | 🛒 **Laden-Modus** | Ein Tipp auf den Wagen oben: große Zeilen, dicke Kreise, das Eingabefeld ist weg. Nur noch abhaken, auch mit einer Hand am Einkaufswagen. |
 | 🔗 **Doppelt-Finder** | Stehen „Tomate“ und „Tomaten“ (oder „Klopapier“ und „Toilettenpapier“) gleichzeitig drauf, fragt die Liste: **Zusammenlegen?** |
@@ -49,7 +55,7 @@ Jeder Artikel bleibt also **mindestens eine Woche** offen. Unter jedem Artikel z
 
 > 💡 Nimmst du einen Artikel wieder auf die Liste, fängt die Woche von vorne an.
 > 💡 Hat Home Assistant zur Aufräumzeit geschlafen (Neustart, Update), wird das Aufräumen beim nächsten Start nachgeholt.
-> 🗑️ Richtig löschen kannst du einen Artikel nur von Hand: **⚙️ Zahnrad → Produkte → Artikel löschen**. Dort gibt es auch ein Suchfeld.
+> 🗑️ Richtig löschen kannst du einen Artikel nur von Hand: **⚙️ Zahnrad → Produkte → Einkaufsliste Produkte löschen**. Dort gibt es auch ein Suchfeld.
 
 Tag, Uhrzeit und Mindestalter stellst du hier ein:
 **Einstellungen → Geräte & Dienste → Einkaufsliste → Konfigurieren**
@@ -136,10 +142,12 @@ Was du gewählt hast, steht direkt am Symbol, zum Beispiel **🔢 2x · 👤 Oma
 ## 👆 Bedienung in der Liste
 
 - **⭕ Kreis antippen:** abhaken
-- **⇄ antippen:** „War aus!“, also in ein anderes Geschäft verschieben. Beim alten Geschäft wird der Artikel **abgehakt** (er bleibt dort unten bei „Erledigt“), beim neuen steht er **offen**.
+- **⇄ antippen:** „War aus!“ – zwei Möglichkeiten:
+  - **Nächstes Mal wieder hier:** Der Artikel bleibt offen beim selben Geschäft und bekommt **„⇄ war aus (Sa)“** – so wissen zu Hause alle Bescheid. Der Hinweis verschwindet nach 3 Tagen oder beim Abhaken. Die 7-Tage-Frist fürs automatische Aufräumen **fängt ab diesem Tag neu an**.
+  - **Anderes Geschäft:** Beim alten Geschäft wird der Artikel **abgehakt** (er bleibt dort unten bei „Erledigt“), beim neuen steht er **offen**.
 - **🔗 „Alle“ fasst zusammen:** Gibt es ein Produkt bei mehreren Geschäften, steht es bei **„Alle“ nur einmal**, mit den Geschäften darunter. Oben stehen nur die Geschäfte, wo es noch zu kaufen ist. Unten bei „Erledigt“ tippst du auf den Kreis und wählst **„Wieder drauf bei: Aldi / Netto“**. In den einzelnen Geschäfts-Reitern bleibt alles, wie es ist.
 - **🛒 Schon woanders offen?** Trägst du „Brot“ bei Aldi ein, obwohl es bei Netto noch offen ist, fragt die Liste: **„Nach Aldi verschieben“** oder **„Zusätzlich bei Aldi“**. Nur wenn du „Zusätzlich“ wählst, ist es bei beiden offen. Dann fragt „Alle“ beim Abhaken: **„Wo gekauft?“**
-- **Artikel lange drücken** (am PC: Rechtsklick): Es öffnet sich ein Menü (klappt nach 8 Sekunden ohne Tipp von selbst wieder zu) mit ✏️ **Bearbeiten** · ⇄ **Verschieben** („War aus!“) · 🔢 **Menge** · 📷 **Foto** · ▥ **Barcode**
+- **Artikel lange drücken** (am PC: Rechtsklick): Es öffnet sich ein Menü (klappt nach 8 Sekunden ohne Tipp von selbst wieder zu) mit ✏️ **Bearbeiten** · ⇄ **Verschieben** („War aus!“) · 🔢 **Menge** · 📦 **Kategorie** · 📷 **Foto** · ▥ **Barcode**
 - **Auf die Menge tippen** (zum Beispiel „2x“): Es erscheint **[−] 2x [＋]** zum schnellen Ändern
 - **✨ und rote Blase:** Artikel, die **andere** eingetragen haben, seit du zuletzt geschaut hast, bekommen ein ✨. Am Geschäfts-Reiter steht dann zum Beispiel **„+2“**. Die Blase bleibt stehen, bis du **genau diesen Reiter** antippst (nur „Alle“ anschauen reicht nicht), und sie verschwindet **nur bei dir**. Jeder hat seine eigene, wie bei WhatsApp. 🔴
 - **Farbstreifen:** Jede Kategorie hat ihre Farbe (links am Artikel). Die Farben änderst du im ⚙️ Zahnrad bei den Kategorien.
@@ -249,7 +257,7 @@ Damit keiner mehr die falschen Nudeln mitbringt. 😄
 - Auch **Rezept-Zutaten** können ein Foto haben: Das geht im Rezept über den 📷-Knopf neben der Zutat.
 - Fotos werden noch auf dem Handy **automatisch verkleinert**, auf ungefähr 100 KB.
 - Gespeichert wird alles **nur bei dir** unter `/config/einkaufsliste_fotos` und mit deinen Backups gesichert.
-- Löschst du einen Artikel ganz (⚙️ → Produkte → Artikel löschen), ist auch das Foto weg. Außer eine Rezept-Zutat braucht es noch.
+- Löschst du einen Artikel ganz (⚙️ → Produkte → Einkaufsliste Produkte löschen), ist auch das Foto weg. Außer eine Rezept-Zutat braucht es noch.
 
 ---
 
@@ -317,7 +325,7 @@ Oben gibt es zwei Knöpfe: **Alle Produkte** und **Einkaufsliste Produkte lösch
 
 Alle Produkte, die die Liste kennt – mit Kategorie, Standard-Geschäft, Anzahl Fotos und Barcodes. Suchen, antippen, ändern: Umbenennen oder eine andere Notiz zieht **Artikel, Rezepte, Fotos, Barcodes und Vorschläge** mit.
 
-**Woher kommen Kategorie und Geschäft bei „Alle Produkte“?** Der Reihe nach: 1. aus dem Gedächtnis (so wurde es zuletzt gekauft), 2. von einem Artikel auf der Liste, 3. aus einem Rezept. So stehen auch Zutaten, die bisher nur im Rezept vorkommen, gleich richtig im Katalog.
+**Woher kommen Kategorie und Geschäft bei „Alle Produkte“?** Der Reihe nach: 1. aus dem Gedächtnis (so wurde es zuletzt gekauft), 2. von einem Artikel auf der Liste, 3. aus einem Rezept. So stehen auch Zutaten, die bisher nur im Rezept vorkommen, gleich richtig bei „Alle Produkte“.
 
 **„Alle Produkte“ hat Vorrang:** Änderst du hier die Kategorie, zieht sie überall mit. Änderst du das **Geschäft**, zieht es in **allen Rezepten** und bei **schon abgehakten** Artikeln mit. Artikel, die **noch offen** auf der Liste stehen, bleiben bei ihrem Geschäft – damit dir beim Einkaufen nichts unter der Nase wegspringt. Gibt es den Artikel beim neuen Geschäft schon, wird nichts doppelt angelegt.
 

@@ -48,6 +48,7 @@ def async_register(hass: HomeAssistant) -> None:
         ws_product_update,
         ws_product_remove,
         ws_barcode_remove,
+        ws_item_out,
         ws_seen,
         ws_group_add,
         ws_group_update,
@@ -471,6 +472,14 @@ def ws_product_update(hass, connection, msg):
 async def ws_product_remove(hass, connection, msg):
     # 🗑️ ganz löschen: Fotos, Barcodes, Vorschlag und von der Einkaufsliste (Rezepte bleiben)
     await _run_async(hass, connection, msg, lambda m: m.async_delete_product(msg["key"]))
+
+
+@websocket_api.websocket_command(
+    {vol.Required("type"): "einkaufsliste/item/out", vol.Required("item_id"): str}
+)
+@callback
+def ws_item_out(hass, connection, msg):
+    _run(hass, connection, msg, lambda m: m.mark_out(msg["item_id"]))
 
 
 @websocket_api.websocket_command(

@@ -589,6 +589,18 @@ class EinkaufslisteManager:
         return {"removed": len(gone), "recipes": in_recipes}
 
     @callback
+    def mark_out(self, item_id: str) -> dict[str, Any]:
+        """⇄ „Nächstes Mal wieder hier“: Artikel bleibt offen, bekommt „war aus (Tag)“,
+        und die Frist fürs automatische Aufräumen zählt ab heute neu."""
+        item = self.get_item(item_id)
+        if item["checked"]:
+            raise ValueError("Der Artikel ist schon abgehakt.")
+        item["out_at"] = _now_iso()
+        self._log("out", item, "war aus")
+        self._changed()
+        return item
+
+    @callback
     def remove_barcode(self, code: str) -> None:
         """▥ Einen einzelnen Barcode vom Produkt lösen (das Produkt bleibt)."""
         if self.barcodes.pop(str(code).strip(), None) is None:
@@ -991,7 +1003,7 @@ class EinkaufslisteManager:
             self._changed()
             return {**item, "checked": True, "checked_at": _now_iso(), "checked_by": by, "removed": True}
         if checked:
-            item.update(checked=True, checked_at=_now_iso(), checked_by=by)
+            item.update(checked=True, checked_at=_now_iso(), checked_by=by, out_at=None)
         else:
             # Wieder drauf: neues Datum, und wer ihn reinnimmt, steht dahinter
             item.update(
@@ -1426,9 +1438,10 @@ class EinkaufslisteManager:
             keep.append(item)
             if item["checked"]:
                 continue
-            added = _local_date(item.get("added_at")) or ref_date
+            # „war aus“ startet die Frist neu: gezählt wird ab dem späteren Datum
+            added = max(filter(None, (_local_date(item.get("added_at")), _local_date(item.get("out_at")))), default=ref_date)
             if force or (ref_date - added).days >= min_age:
-                item.update(checked=True, checked_at=now, checked_by=None)
+                item.update(checked=True, checked_at=now, checked_by=None, out_at=None)
                 with self._via("cleanup"):
                     self._log("check", item, who="")
                 done.append(item)
