@@ -2,7 +2,7 @@
  * Einkaufsliste Card – die Familien-Einkaufsliste für Home Assistant
  * Wird automatisch von der Integration "einkaufsliste" geladen.
  */
-const EL_VERSION = "2.13.0";
+const EL_VERSION = "2.14.0";
 
 // Doppelt-Finder: Wörter, die dasselbe meinen (alles klein, ohne Leer-/Sonderzeichen)
 const DUP_SYNONYMS = (() => {
@@ -632,6 +632,7 @@ input:focus, select:focus { border-color:var(--primary-color,#03a9f4); }
 .qbtn[disabled] { opacity:.3; }
 .qval { min-width:44px; text-align:center; font-weight:600; font-size:1.1em; }
 ha-card.shop form.add { display:none; }
+ha-card.shop #btnRecipes, ha-card.shop #btnSettings { display:none; }
 ha-card.shop .item { padding:11px 5px; font-size:1.2em; }
 ha-card.shop .item .name { font-weight:600; }
 ha-card.shop .item .check { padding:9px; --mdc-icon-size:38px; }
@@ -1423,7 +1424,7 @@ class EinkaufslisteCard extends HTMLElement {
     if (c.show_dates && item.checked) meta.push(`<span title="Abgehakt von">✓ ${item.checked_by ? esc(this._who(item.checked_by)) : "automatisch"}</span>`);
     const rgrp = recipe && this._rgroup(recipe.group);
     if (recipe) meta.push(rgrp?.color ? `<span class="chip" style="--c:${esc(rgrp.color)}">🍽️ ${esc(recipe.name)}</span>` : `<span>🍽️ ${esc(recipe.name)}</span>`);
-    if (c.show_dates) {
+    if (c.show_dates && !this._shopMode) { // 🛒 im Laden-Modus nur das Wichtigste
       if (item.checked) {
         // (wer abgehakt hat, steht schon oben)
       } else {
@@ -1456,6 +1457,7 @@ class EinkaufslisteCard extends HTMLElement {
         ${b("menu-edit", "mdi:pencil-outline", "Bearbeiten")}
         ${!item.checked && this._data.stores.length > 1 ? b("menu-move", "mdi:swap-horizontal", "Verschieben") : ""}
         ${b("menu-qty", "mdi:numeric", "Menge")}
+        ${b("menu-cat", "mdi:shape-outline", "Kategorie")}
         ${b("menu-photo", "mdi:camera-plus-outline", this._hasPhoto(this._pk(item.name, item.note)) ? "Fotos" : "Foto")}
         ${this._hasAppScanner() ? b("barcode-assign", "mdi:barcode-scan", this._barcodesOf(this._pk(item.name, item.note)).length ? "Barcode ✓" : "Barcode") : ""}
         ${this._barcodesOf(this._pk(item.name, item.note)).length ? b("menu-info", "mdi:information-outline", "Infos") : ""}
@@ -1491,6 +1493,16 @@ class EinkaufslisteCard extends HTMLElement {
         <span class="qval">${esc(this._fmtQty(p.n, p.unit))}</span>
         <button class="qbtn" data-act="qty-plus">＋</button>
         <button class="iconbtn" data-act="qty-done" title="Fertig"><ha-icon icon="mdi:check"></ha-icon></button>
+      </div>`;
+  }
+
+  // 📦 Kategorie ändern (per langem Drücken → Kategorie)
+  _catPickHtml(item) {
+    return `
+      <div class="moverow catrow" data-id="${item.id}">
+        <span class="movetxt">Kategorie:</span>
+        ${this._data.categories.map((c) => `<button class="tab ${c.id === item.category_id ? "active" : ""}" style="--c:${esc(c.color || "#888")}" data-act="cat-to" data-cat="${c.id}"><span class="dot"></span>${esc(c.name)}</button>`).join("")}
+        <button class="iconbtn" data-act="cat-cancel" title="Abbrechen"><ha-icon icon="mdi:close"></ha-icon></button>
       </div>`;
   }
 
@@ -1567,7 +1579,8 @@ class EinkaufslisteCard extends HTMLElement {
       + (this._wherePick?.id === i.id ? this._whereHtml(i) : "")
       + (this._menuId === i.id ? this._menuHtml(i) : "")
       + (this._qtyEdit === i.id ? this._qtyHtml(i) : "")
-      + (this._moving === i.id ? this._moveHtml(i) : ""));
+      + (this._moving === i.id ? this._moveHtml(i) : "")
+      + (this._catPick === i.id ? this._catPickHtml(i) : ""));
     const byName = (a, b) => a.name.localeCompare(b.name, "de");
     const html = [];
     if (this._shopMode) {
@@ -2851,7 +2864,7 @@ class EinkaufslisteCard extends HTMLElement {
   _renderLastQty() {
     const box = this.$("lastQty");
     if (!box) return;
-    const q = this._lastQty();
+    const q = this._formMode === "recipe" ? this._lastQty() : null; // auf der Liste reicht der Vorschlag beim Tippen
     const typed = this.$("inQty").value.trim() || splitQty(this.$("inName").value).qty;
     if (!q || typed) { box.hidden = true; box.innerHTML = ""; return; }
     box.innerHTML = `<button type="button" class="chip2 lastq" data-act="last-qty" data-v="${esc(q)}">🔁 ${esc(q)} <small>${this._formMode === "recipe" ? "wie sonst" : "wie zuletzt"}</small></button>`;
@@ -2870,6 +2883,9 @@ class EinkaufslisteCard extends HTMLElement {
     this.$("qtyChips").innerHTML =
       quick.map((q) => `<button type="button" class="chip2 ${q === val ? "sel" : ""}" data-act="qty-chip" data-v="${esc(q)}">${esc(q)}</button>`).join("") +
       `<button type="button" class="chip2 ${custom ? "sel" : ""}" data-act="qty-custom" title="Andere Menge">✏️${custom ? " " + esc(val) : ""}</button>`;
+    const uc = this.$("unitChips");
+    uc.hidden = this._formMode !== "recipe"; // 📏 Einheiten-Reihe nur im Rezept-Editor
+    if (uc.hidden) { uc.innerHTML = ""; this.$("inQty").hidden = !custom && this.$("inQty").hidden; return; }
     const more = this._unitMore || UNIT_MORE.includes(unit);
     const units = more ? [...UNIT_MAIN, ...UNIT_MORE] : UNIT_MAIN;
     this.$("unitChips").innerHTML = `<span class="ulabel">📏 Einheit:</span>` +
@@ -2892,8 +2908,9 @@ class EinkaufslisteCard extends HTMLElement {
     if (clear) {
       const any = ["inName", "inQty", "inNote", "inFor"].some((id) => this.$(id)?.value.trim())
         || this._newPhoto || this._pendingBarcode || this._catManual;
-      clear.hidden = !any;
+      clear.hidden = !any || this._formMode !== "recipe";
     }
+    if (this.$("inCat")) this.$("inCat").hidden = this._formMode !== "recipe";
     const tools = [
       ["tQty", "qtyBox", this.$("inQty")?.value.trim(), "mdi:numeric"],
       ["tNote", "inNote", this.$("inNote")?.value.trim() ? "✓" : "", "mdi:note-text-outline"],
@@ -3837,6 +3854,23 @@ class EinkaufslisteCard extends HTMLElement {
         this._moving = el.dataset.id;
         this._renderList();
         break;
+      case "menu-cat":
+        this._menuId = null;
+        this._catPick = el.dataset.id;
+        this._renderList();
+        break;
+      case "cat-cancel":
+        this._catPick = null;
+        this._renderList();
+        break;
+      case "cat-to": {
+        const itemId = el.closest(".catrow").dataset.id;
+        this._catPick = null;
+        this._ws({ type: "einkaufsliste/item/update", item_id: itemId, category_id: el.dataset.cat })
+          .then(() => this._toast("📦 Kategorie geändert")).catch(() => {});
+        this._renderList();
+        break;
+      }
       case "menu-qty":
         this._menuId = null;
         this._qtyEdit = el.dataset.id;

@@ -121,12 +121,12 @@ Was du gewählt hast, steht direkt am Symbol, zum Beispiel **🔢 2x · 👤 Oma
   - Bereiche: „2-3 el“, „2 bis 3 EL“ → **2-3 EL**
   - Einzahl/Mehrzahl passt sich an: **1 Dose / 2 Dosen**, **1 Zehe / 2 Zehen**, **1 Kopf / 2 Köpfe** (auch beim Umrechnen für mehr Personen und bei [−] [＋])
   - Bekannte Einheiten: g, kg, mg, ml, cl, dl, L, EL, TL, Msp., Pck., Prise, Dose, Becher, Bund, Flasche, Kiste, Glas, Rolle, Beutel, Tüte, Scheibe, Zehe, Tasse, Schluck, Schuss, Spritzer, Tropfen, Handvoll, Stange, Kopf, Würfel, Zweig, Blatt, Knolle, Kugel, Schale, Netz
-  - **📏 Einheiten-Auswahl:** In der Mengen-Box gibt es unter den Zahlen eine Reihe mit Einheiten (x · g · kg · ml · L · EL · TL · Pck. · Dose · Flasche · Glas · Becher · **mehr …**). Einheit antippen, dann die Zahl – die Zahlen passen sich an (bei g z. B. 100 g · 250 g · 500 g …).
+  - **📏 Einheiten-Auswahl (im Rezept-Editor):** In der Mengen-Box gibt es unter den Zahlen eine Reihe mit Einheiten (x · g · kg · ml · L · EL · TL · Pck. · Dose · Flasche · Glas · Becher · **mehr …**). Einheit antippen, dann die Zahl – die Zahlen passen sich an (bei g z. B. 100 g · 250 g · 500 g …).
   - **Einheiten merken sich von selbst – getrennt für Liste und Rezept** (nichts einzustellen):
     - *Einkaufsliste:* Einmal „Backpulver 1 Pck.“ eingetragen, reicht beim nächsten Mal „2 backpulver“ → **2 Pck.**
     - *Rezept-Editor:* Die Einheit kommt aus deinen Rezepten. Steht Milch dort meist mit ml, wird „200 milch“ → **200 ml**, und die Mengen-Box steht gleich auf ml.
     - *Rezept → Einkaufsliste:* Menge und Einheit kommen aus dem Rezept (200 ml bleibt 200 ml).
-  - **🔁 „wie zuletzt“:** Beim Tippen eines bekannten Produkts erscheint ein Knopf mit der ganzen Menge – auf der Liste die zuletzt eingetragene (z. B. **1x**), im Rezept-Editor die häufigste aus deinen Rezepten („wie sonst“, z. B. **500 ml**). Antippen, fertig.
+  - **🔁 „wie sonst“ (im Rezept-Editor):** Beim Tippen einer bekannten Zutat erscheint ein Knopf mit der häufigsten Menge aus deinen Rezepten (z. B. **500 ml**). Antippen, fertig. Auf der Einkaufsliste übernimmt der Vorschlag beim Tippen die Menge vom letzten Mal.
   - Im Katalog (⚙️ → Produkte) siehst du beide: 📏 Einheit auf der Liste, 🍳 Einheit in den Rezepten.
   - Schon gespeicherte Mengen werden nach dem Update beim nächsten Start einmal mit aufgeräumt. Wörter wie „etwas“ oder „nach Geschmack“ bleiben, wie sie sind.
 - **🤓 Tippfehler-Hilfe:** Bei „Mlich“ kommt der Vorschlag **„Meintest du Milch?“**.
@@ -145,7 +145,7 @@ Was du gewählt hast, steht direkt am Symbol, zum Beispiel **🔢 2x · 👤 Oma
 - **✨ und rote Blase:** Artikel, die **andere** eingetragen haben, seit du zuletzt geschaut hast, bekommen ein ✨. Am Geschäfts-Reiter steht dann zum Beispiel **„+2“**. Die Blase bleibt stehen, bis du **genau diesen Reiter** antippst (nur „Alle“ anschauen reicht nicht), und sie verschwindet **nur bei dir**. Jeder hat seine eigene, wie bei WhatsApp. 🔴
 - **Farbstreifen:** Jede Kategorie hat ihre Farbe (links am Artikel). Die Farben änderst du im ⚙️ Zahnrad bei den Kategorien.
 - **Zeit:** Bei Artikeln von heute steht „gerade eben“, „vor 5 Min“ oder „vor 2 Std“.
-- **🛒 Laden-Modus:** Oben auf den **Einkaufswagen** tippen. Die Zeilen und Kreise werden groß, das Eingabefeld verschwindet, und oben steht „Laden-Modus“. Nochmal tippen (oder **Beenden**) schaltet zurück. Jedes Handy merkt sich das für sich.
+- **🛒 Laden-Modus:** Oben auf den **Einkaufswagen** tippen. Die Zeilen und Kreise werden groß, das Eingabefeld verschwindet, und oben steht „Laden-Modus“. Damit es übersichtlich bleibt, sind auch Kochmütze, Zahnrad, „seit wann“ und das 🧹 Aufräum-Datum weg – nur das Wichtigste bleibt. Nochmal tippen (oder **Beenden**) schaltet zurück. Jedes Handy merkt sich das für sich.
 - **🔗 Doppelt-Finder:** Stehen zwei Artikel mit fast gleichem Namen beim selben Geschäft, zum Beispiel „Tomate“ und „Tomaten“, erscheint oben eine Frage. **Zusammenlegen** macht daraus einen Artikel, und Mengen wie 2x + 3x werden zu **5x** zusammengezählt. **Passt so** fragt bei diesem Paar nie wieder.
 - **▥ am Artikel:** Steht klein unter dem Namen ein **▥**, ist für dieses Produkt ein Barcode hinterlegt. Im Lange-drücken-Menü steht dann **„Barcode ✓“**.
 - **[−] [＋] mit Einheiten:** Auf die Menge tippen – das geht auch bei **250 g → 500 g → 750 g** oder **1 L → 2 L**.
@@ -156,6 +156,16 @@ Was du gewählt hast, steht direkt am Symbol, zum Beispiel **🔢 2x · 👤 Oma
 - **📱 Kompakt-Modus:** Im Karten-Editor einschalten. Dann gibt's kleinere Zeilen ohne Zusatz-Infos, und mehr passt auf den Bildschirm.
 
 ---
+
+## ⚡ Schnell eintragen
+
+Die Eingabe auf der Einkaufsliste ist bewusst schlank: **Name · 🔢 Menge · 📝 Notiz · 👤 Für wen · 📷 Foto · 🛒 Geschäft**. Alles andere läuft automatisch:
+
+- **Kategorie** kommt aus dem Gedächtnis oder dem Wörterbuch – ändern geht nachträglich per **langem Drücken → Kategorie**.
+- **Geschäft** kommt aus dem Gedächtnis (so wie zuletzt gekauft).
+- **Menge** direkt im Namen: „3 milch“ → Milch · 3x, „2 backpulver“ → 2 Pck. (gemerkte Einheit). Die Mengen-Knöpfe zeigen gleich die gemerkte Einheit.
+- Ein Tipp auf einen **Vorschlag** übernimmt Menge, Notiz und Für wen vom letzten Mal.
+- Barcode zuordnen, Kategorie, Infos: alles per **langem Drücken** auf den Artikel.
 
 ## 📖 Anleitung in der Karte
 
