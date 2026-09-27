@@ -2,7 +2,7 @@
  * Einkaufsliste Card – die Familien-Einkaufsliste für Home Assistant
  * Wird automatisch von der Integration "einkaufsliste" geladen.
  */
-const EL_VERSION = "2.14.0";
+const EL_VERSION = "2.15.0";
 
 // Doppelt-Finder: Wörter, die dasselbe meinen (alles klein, ohne Leer-/Sonderzeichen)
 const DUP_SYNONYMS = (() => {
@@ -125,6 +125,8 @@ function splitQty(text) {
   }
   return { name: t, qty: null };
 }
+// 📋 „milch, 6 eier; brot“ -> ["milch", "6 eier", "brot"] – das Komma in „1,5 l“ trennt nicht
+const splitMany = (text) => String(text || "").split(/;|\n|(?<!\d),|,(?!\d)/).map((t) => t.trim()).filter(Boolean);
 // 📏 Einheit einer Menge („2 Dosen“ -> „Dose“, „3x“ -> „x“), null wenn unbekannt
 function unitOf(q) {
   const m = String(q ?? "").trim().replace(/\s+/g, " ").match(QTY_RX);
@@ -566,8 +568,12 @@ form.add .extras:not(:has(> :not([hidden]))) { display:none; }
 .tool.busy ha-icon { animation: pulse 1s infinite; }
 .tool.hasval { color:var(--primary-color,#03a9f4); }
 .tool.tclear { margin-left:auto; color:var(--error-color,#db4437); }
-.tool.instore { color:var(--success-color,#43a047); background:color-mix(in srgb, var(--success-color,#43a047) 14%, transparent); }
-.tool.instore::after { content:"✓"; position:absolute; right:3px; bottom:2px; font-size:10px; font-weight:700; line-height:1; }
+#btnScan { position:relative; }
+/* 📝 Notiz am Artikel: dezent hervorgehoben – etwas kräftiger, zarter Farbhauch */
+.item .meta .inote { color:var(--primary-text-color); font-weight:500; background:color-mix(in srgb, #f9a825 16%, transparent); border-radius:6px; padding:0 6px; }
+.item.done .meta .inote { background:none; font-weight:400; color:inherit; }
+#btnScan.instore, .tool.instore { color:var(--success-color,#43a047); background:color-mix(in srgb, var(--success-color,#43a047) 14%, transparent); }
+#btnScan.instore::after, .tool.instore::after { content:"✓"; position:absolute; right:3px; bottom:2px; font-size:10px; font-weight:700; line-height:1; }
 .item.unknown .name { color:var(--warning-color,#ff9800); animation: pulse 1.6s infinite; }
 .tool .tval { font-size:.8em; font-weight:600; margin-left:3px; line-height:1; max-width:70px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .chipbox { display:flex; flex-direction:column; gap:6px; }
@@ -963,6 +969,7 @@ class EinkaufslisteCard extends HTMLElement {
       <ha-card>
         <div class="head">
           <div class="title"><ha-icon id="titleIcon" icon="mdi:cart-variant" data-act="guide" title="📖 Anleitung – antippen"></ha-icon><span class="t" id="title"></span><span class="badge" id="count" hidden></span><span class="live" id="liveDot" title="Verbindung"></span></div>
+          <button class="iconbtn" id="btnScan" type="button" data-act="scan" title="Barcode scannen" hidden><ha-icon icon="mdi:barcode-scan"></ha-icon></button>
           <button class="iconbtn" id="btnShop" data-act="shopmode" title="Laden-Modus"><ha-icon icon="mdi:cart-outline"></ha-icon></button>
           <button class="iconbtn" id="btnRecipes" data-act="view" data-view="recipes" title="Rezepte"><ha-icon icon="mdi:chef-hat"></ha-icon></button>
           <button class="iconbtn" id="btnSettings" data-act="view" data-view="settings" title="Geschäfte & Kategorien"><ha-icon icon="mdi:cog-outline"></ha-icon></button>
@@ -980,7 +987,6 @@ class EinkaufslisteCard extends HTMLElement {
               <button class="tool" id="tNote" type="button" data-act="tool" data-field="inNote" title="Notiz"><ha-icon icon="mdi:note-text-outline"></ha-icon></button>
               <button class="tool" id="tFor" type="button" data-act="tool" data-field="forBox" title="Für wen?"><ha-icon icon="mdi:account-outline"></ha-icon></button>
               <button class="tool" id="btnNewPhoto" type="button" data-act="new-photo" title="Foto zum Artikel"><ha-icon icon="mdi:camera-plus-outline"></ha-icon></button>
-              <button class="tool" id="btnScan" type="button" data-act="scan" title="Barcode scannen" hidden><ha-icon icon="mdi:barcode-scan"></ha-icon></button>
               <button class="tool" id="tBasic" type="button" data-act="basic-toggle" title="🧂 Grundvorrat – haben wir immer (z. B. Salz, Öl)" hidden><ha-icon icon="mdi:shaker-outline"></ha-icon></button>
               <button class="tool tclear" id="tClear" type="button" data-act="clear-form" title="Alles leeren" hidden><ha-icon icon="mdi:eraser"></ha-icon></button>
             </div>
@@ -1416,7 +1422,7 @@ class EinkaufslisteCard extends HTMLElement {
       for (const g of grp) { const st = this._store(g.store_id); if (st) meta.push(`<span class="chip" style="--c:${esc(st.color)}">${esc(st.name)}</span>`); }
     } else if (this._activeTab === "all" && store) meta.push(`<span class="chip" style="--c:${esc(store.color)}">${esc(store.name)}</span>`);
     // Reihenfolge unter dem Namen: Geschäft · Notiz · Barcode · wer eingetragen · wer abgehakt · (Rezept, Zeit)
-    if (item.note) meta.push(`<span>📝 ${esc(item.note)}</span>`);
+    if (item.note) meta.push(`<span class="inote">📝 ${esc(item.note)}</span>`);
     const pk = this._pk(item.name, item.note);
     const codes = this._barcodesOf(pk);
     if (codes.length) meta.push(`<span class="bc" title="Barcode hinterlegt: ${esc(codes.join(", "))}">▥</span>`);
@@ -2908,7 +2914,7 @@ class EinkaufslisteCard extends HTMLElement {
     if (clear) {
       const any = ["inName", "inQty", "inNote", "inFor"].some((id) => this.$(id)?.value.trim())
         || this._newPhoto || this._pendingBarcode || this._catManual;
-      clear.hidden = !any || this._formMode !== "recipe";
+      clear.hidden = !any;
     }
     if (this.$("inCat")) this.$("inCat").hidden = this._formMode !== "recipe";
     const tools = [
@@ -3587,6 +3593,9 @@ class EinkaufslisteCard extends HTMLElement {
       return;
     }
     if (this._formMode === "recipe") { this._addRecipeIngredient(); return; }
+    // 📋 Mehrere auf einmal: „milch, 6 eier, brot“ -> 3 Artikel (Komma in „1,5 l“ trennt nicht)
+    const parts = splitMany(name);
+    if (parts.length > 1) { await this._addMany(parts); return; }
     const msg = {
       type: "einkaufsliste/item/add",
       name,
@@ -3609,6 +3618,35 @@ class EinkaufslisteCard extends HTMLElement {
       return;
     }
     await this._doAdd(msg);
+  }
+
+  // Jeder Artikel bekommt sein eigenes Geschäft (Reiter > Gedächtnis > Auswahl), seine Kategorie und Menge
+  async _addMany(parts) {
+    if (this._newPhoto) { this._toast("📷 Mit Foto bitte einzeln eintragen – das Foto gehört ja zu einem Produkt."); return; }
+    const tab = this._activeTab;
+    const tabStore = this._fixedStore || (tab !== "all" && tab !== "none" && this._store(tab) ? tab : null);
+    const chosen = this.$("inStore").value || null;
+    const forWhom = this.$("inFor").value || null;
+    let added = 0;
+    for (const raw of parts) {
+      const sp = splitQty(raw);
+      const name = (sp.qty ? sp.name : raw).trim();
+      if (!name) continue;
+      const low = name.toLowerCase();
+      const h = (this._data.history || []).find((x) => x.name.toLowerCase() === low);
+      const cat = (h?.category_id && this._cat(h.category_id) ? h.category_id : null) || guessCategory(low, this._data.category_hints);
+      const msg = {
+        type: "einkaufsliste/item/add", name,
+        store_id: tabStore || (h?.store_id && this._store(h.store_id) ? h.store_id : null) || chosen,
+        category_id: cat && this._cat(cat) ? cat : null,
+      };
+      if (sp.qty) msg.quantity = sp.bare ? sp.num : sp.qty; // nur Zahl -> Home Assistant nimmt die gemerkte Einheit
+      if (forWhom) msg.for_whom = forWhom;
+      try { await this._ws(msg); added++; } catch (_) { /* Meldung kam schon */ }
+    }
+    if (added) this._toast(`✅ ${added} Artikel eingetragen`);
+    this._clearForm();
+    this.$("inName").focus();
   }
 
   async _doAdd(msg) {

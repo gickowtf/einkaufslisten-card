@@ -159,13 +159,15 @@ Was du gewählt hast, steht direkt am Symbol, zum Beispiel **🔢 2x · 👤 Oma
 
 ## ⚡ Schnell eintragen
 
-Die Eingabe auf der Einkaufsliste ist bewusst schlank: **Name · 🔢 Menge · 📝 Notiz · 👤 Für wen · 📷 Foto · 🛒 Geschäft**. Alles andere läuft automatisch:
+Die Eingabe auf der Einkaufsliste ist bewusst schlank: **Name · 🔢 Menge · 📝 Notiz · 👤 Für wen · 📷 Foto · 🛒 Geschäft** (plus 🧽 Radiergummi zum Leeren). Der **▥ Barcode-Knopf** sitzt oben links neben dem Laden-Modus – so ist er auch im Laden-Modus da („Scannen & abhaken“). Alles andere läuft automatisch:
 
 - **Kategorie** kommt aus dem Gedächtnis oder dem Wörterbuch – ändern geht nachträglich per **langem Drücken → Kategorie**.
 - **Geschäft** kommt aus dem Gedächtnis (so wie zuletzt gekauft).
 - **Menge** direkt im Namen: „3 milch“ → Milch · 3x, „2 backpulver“ → 2 Pck. (gemerkte Einheit). Die Mengen-Knöpfe zeigen gleich die gemerkte Einheit.
 - Ein Tipp auf einen **Vorschlag** übernimmt Menge, Notiz und Für wen vom letzten Mal.
 - Barcode zuordnen, Kategorie, Infos: alles per **langem Drücken** auf den Artikel.
+- **📋 Mehrere auf einmal:** „milch, 6 eier, 1,5 kg kartoffeln“ → ✔ → **3 Artikel**. Jeder bekommt sein eigenes Geschäft (gewählter Reiter, sonst wie zuletzt), seine Kategorie und seine Menge. Das Komma in „1,5“ trennt natürlich nicht. Trennen geht mit Komma, Semikolon oder neuer Zeile. (Mit Foto bitte einzeln eintragen.)
+- **📝 Notizen** sind in der Liste dezent farbig hinterlegt, damit man sie im Laden nicht übersieht.
 
 ## 📖 Anleitung in der Karte
 
