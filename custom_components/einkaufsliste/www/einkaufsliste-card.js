@@ -2,7 +2,7 @@
  * Einkaufsliste Card – die Familien-Einkaufsliste für Home Assistant
  * Wird automatisch von der Integration "einkaufsliste" geladen.
  */
-const EL_VERSION = "2.17.2";
+const EL_VERSION = "2.17.3";
 
 // Doppelt-Finder: Wörter, die dasselbe meinen (alles klein, ohne Leer-/Sonderzeichen)
 const DUP_SYNONYMS = (() => {
@@ -570,7 +570,7 @@ form.add .extras:not(:has(> :not([hidden]))) { display:none; }
 .tool.tclear { margin-left:auto; color:var(--error-color,#db4437); }
 #btnScan { position:relative; }
 /* 📝 Notiz am Artikel: dezent hervorgehoben – etwas kräftiger, zarter Farbhauch */
-.item .meta .inote { color:var(--primary-text-color); font-weight:500; background:color-mix(in srgb, #f9a825 16%, transparent); border-radius:6px; padding:0 6px; }
+.item .meta .inote, .pickrow .inote { color:var(--primary-text-color); font-weight:500; background:color-mix(in srgb, #f9a825 16%, transparent); border-radius:6px; padding:0 6px; }
 .item.done .meta .inote { background:none; font-weight:400; color:inherit; }
 #btnScan.instore, .tool.instore { color:var(--success-color,#43a047); background:color-mix(in srgb, var(--success-color,#43a047) 14%, transparent); }
 #btnScan.instore::after, .tool.instore::after { content:"✓"; position:absolute; right:3px; bottom:2px; font-size:10px; font-weight:700; line-height:1; }
@@ -2260,12 +2260,13 @@ class EinkaufslisteCard extends HTMLElement {
     const rows = r.items.map((it, n) => {
       const on = sel.has(n);
       const qty = scaleQty(it.quantity, f);
-      const info = [qty, it.note, it.for_whom ? "für " + it.for_whom : ""].filter(Boolean).map(esc).join(" · ");
+      const info = [qty ? (qty !== (it.quantity || null) ? `<b class="pscaled">${esc(qty)}</b>` : esc(qty)) : "",
+        it.note ? `<span class="inote">📝 ${esc(it.note)}</span>` : "", it.for_whom ? esc("für " + it.for_whom) : ""].filter(Boolean).join(" · ");
       const ask = on && stores.length && this._pickNeedsStore(it);
       const chosen = this._pickStores[String(n)];
       return `<div class="pickrow ${on ? "on" : ""} ${it.basic ? "basic" : ""}" data-act="pick-toggle" data-n="${n}">
         <ha-icon icon="${on ? "mdi:checkbox-marked" : "mdi:checkbox-blank-outline"}"></ha-icon>
-        <span class="pname">${esc(it.name)}${info ? `<small>${qty !== (it.quantity || null) ? info.replace(esc(qty), `<b class="pscaled">${esc(qty)}</b>`) : info}</small>` : ""}</span>
+        <span class="pname">${esc(it.name)}${info ? `<small>${info}</small>` : ""}</span>
         ${open.has(it.name.toLowerCase()) ? `<span class="phint">steht schon drauf</span>` : it.basic ? `<span class="pbasic">🧂 haben wir immer</span>` : ""}
       </div>${ask ? `<div class="pstore ${chosen === undefined ? "need" : ""}">
         <span>🛒 Noch nie gekauft – wo kaufen?</span>
@@ -2538,7 +2539,7 @@ class EinkaufslisteCard extends HTMLElement {
       const pk = this._pk(it.name, it.note);
       const meta = [
         `<span class="chip" style="--c:${esc(st?.color || "#888")}">${esc(st?.name || "Wie zuletzt")}</span>`,
-        it.note ? `<span>📝 ${esc(it.note)}</span>` : "",
+        it.note ? `<span class="inote">📝 ${esc(it.note)}</span>` : "",
         it.barcode || this._barcodesOf(pk).length ? `<span class="bc">▥</span>` : "",
         it.basic ? `<span>🧂 Grundvorrat</span>` : "",
         cat ? `<span>${esc(cat.name)}</span>` : "",
@@ -3259,7 +3260,7 @@ class EinkaufslisteCard extends HTMLElement {
     nav.append(bPrev, bNext);
     const ing = document.createElement("div");
     Object.assign(ing.style, { ...wrapW, display: "none", font: "17px/1.6 Roboto,sans-serif", color: "#ddd", marginTop: "22px" });
-    ing.innerHTML = r.items.map((i) => `• ${esc([i.quantity, i.name].filter(Boolean).join(" "))}${i.note ? ` <span style="color:#999">(${esc(i.note)})</span>` : ""}`).join("<br>");
+    ing.innerHTML = r.items.map((i) => `• ${esc([i.quantity, i.name].filter(Boolean).join(" "))}${i.note ? ` <span style="background:rgba(249,168,37,.22);border-radius:6px;padding:0 6px;">📝 ${esc(i.note)}</span>` : ""}`).join("<br>");
     ov.append(head, heatBox, pos, text, nav, ing);
     const show = () => {
       pos.textContent = `Schritt ${idx + 1} von ${steps.length}`;
