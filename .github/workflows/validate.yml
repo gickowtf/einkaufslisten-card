@@ -19,7 +19,6 @@ jobs:
       - uses: hacs/action@main
         with:
           category: integration
-          ignore: topics  # kommt weg, sobald die Themen (Topics) im Repo gesetzt sind
 
   tests:
     runs-on: ubuntu-latest
