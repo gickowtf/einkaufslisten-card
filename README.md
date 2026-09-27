@@ -164,7 +164,7 @@ Die Eingabe auf der Einkaufsliste ist bewusst schlank: **Name · 🔢 Menge · �
 - **Kategorie** kommt aus dem Gedächtnis oder dem Wörterbuch – ändern geht nachträglich per **langem Drücken → Kategorie**.
 - **Geschäft** kommt aus dem Gedächtnis (so wie zuletzt gekauft).
 - **Menge** direkt im Namen: „3 milch“ → Milch · 3x, „2 backpulver“ → 2 Pck. (gemerkte Einheit). Die Mengen-Knöpfe zeigen gleich die gemerkte Einheit.
-- Ein Tipp auf einen **Vorschlag** übernimmt Menge, Notiz und Für wen vom letzten Mal. Es gibt **höchstens 4 Vorschläge**, jedes Produkt nur einmal.
+- Ein Tipp auf einen **Vorschlag** übernimmt Menge, Notiz und Für wen vom letzten Mal. Es gibt **höchstens 4 Vorschläge**, jedes Produkt nur einmal – ein Produkt ist dabei Name **plus** Notiz („Gewürze“ und „Gewürze · Paprika“ sind zwei). Gesucht wird auch in der Notiz: „papr“ findet „Gewürze · 📝 Paprika“.
 - Beim Tippen klappt unten **„Erledigt“** auf und zeigt die Treffer – gesucht wird nach Name, Notiz oder Person.
 - Barcode zuordnen, Kategorie, Infos: alles per **langem Drücken** auf den Artikel.
 - **📋 Mehrere auf einmal:** „milch, 6 eier, 1,5 kg kartoffeln“ → ✔ → **3 Artikel**. Jeder bekommt sein eigenes Geschäft (gewählter Reiter, sonst wie zuletzt), seine Kategorie und seine Menge. Das Komma in „1,5“ trennt natürlich nicht. Trennen geht mit Komma, Semikolon oder neuer Zeile. (Mit Foto bitte einzeln eintragen.)

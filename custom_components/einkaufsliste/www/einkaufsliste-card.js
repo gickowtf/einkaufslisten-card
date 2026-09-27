@@ -2,7 +2,7 @@
  * Einkaufsliste Card – die Familien-Einkaufsliste für Home Assistant
  * Wird automatisch von der Integration "einkaufsliste" geladen.
  */
-const EL_VERSION = "2.17.3";
+const EL_VERSION = "2.17.4";
 
 // Doppelt-Finder: Wörter, die dasselbe meinen (alles klein, ohne Leer-/Sonderzeichen)
 const DUP_SYNONYMS = (() => {
@@ -1290,6 +1290,11 @@ class EinkaufslisteCard extends HTMLElement {
     if (!q || !this._data) return [];
     recipe = recipe || this._formMode === "recipe";
     const score = (low) => (low.startsWith(q) || low.split(/\s+/).some((w) => w.startsWith(q)) ? 0 : low.includes(q) ? 1 : -1);
+    // Name oder Notiz: „paprika“ findet auch „Gewürze · 📝 Paprika“ (Treffer in der Notiz etwas weiter hinten)
+    const scoreNN = (name, note) => { const a = score(name.toLowerCase()); const b = note ? score(note.toLowerCase()) : -1;
+      return a >= 0 ? a : b >= 0 ? b + 1 : -1; };
+    // Ein Produkt = Name + Notiz („Gewürze“ und „Gewürze · Paprika“ sind zwei Produkte)
+    const pkey = (name, note) => `${name.toLowerCase()}|${(note || "").toLowerCase()}`;
     const cands = [];
     const seenVariant = new Set();
     const names = new Set();
@@ -1304,20 +1309,21 @@ class EinkaufslisteCard extends HTMLElement {
       forPerson = whoNames.find((n) => n.toLowerCase().startsWith(q))?.toLowerCase() || null;
       if (forPerson) for (const i of items) {
         if ((i.for_whom || "").toLowerCase() !== forPerson) continue;
-        const key = i.name.toLowerCase();
+        const key = pkey(i.name, i.note);
         if (seenVariant.has(key)) continue;
         seenVariant.add(key);
-        names.add(key);
+        names.add(i.name.toLowerCase());
         cands.push({ sc: -1, name: i.name, item: i, fromRecipe: this._recipe(i.recipe_id)?.name });
       }
     }
     for (const i of items) {
       if (i.recipe_id) continue;
-      const low = i.name.toLowerCase();
-      const sc = score(low);
+      const sc = scoreNN(i.name, i.note);
       if (sc < 0) continue;
-      if (names.has(low) || seenVariant.has(low)) continue; // 1 Vorschlag pro Produkt (der vom letzten Mal)
-      names.add(low);
+      const key = pkey(i.name, i.note);
+      if (seenVariant.has(key)) continue; // 1 Vorschlag pro Produkt (der vom letzten Mal)
+      seenVariant.add(key);
+      names.add(i.name.toLowerCase());
       cands.push({ sc, name: i.name, item: i });
     }
     for (const h of this._data.history || []) {
@@ -1331,11 +1337,12 @@ class EinkaufslisteCard extends HTMLElement {
     // 🍽️ Zutaten aus Rezepten – auch wenn sie noch nie auf der Liste waren
     for (const r of this._data.recipes || []) {
       for (const ri of r.items || []) {
-        const low = ri.name.toLowerCase();
-        if (names.has(low)) continue;
-        const sc = score(low);
+        const key = pkey(ri.name, ri.note);
+        if (seenVariant.has(key) || (!ri.note && names.has(ri.name.toLowerCase()))) continue;
+        const sc = scoreNN(ri.name, ri.note);
         if (sc < 0) continue;
-        names.add(low);
+        seenVariant.add(key);
+        names.add(ri.name.toLowerCase());
         cands.push({ sc: sc + 0.5, name: ri.name, fromRecipe: r.name,
           item: { name: ri.name, note: ri.note || null, store_id: ri.store_id || null, category_id: ri.category_id || null, checked: true } });
       }
