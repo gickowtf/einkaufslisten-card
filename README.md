@@ -168,6 +168,7 @@ Die Eingabe auf der Einkaufsliste ist bewusst schlank: **Name · 🔢 Menge · �
 - Barcode zuordnen, Kategorie, Infos: alles per **langem Drücken** auf den Artikel.
 - **📋 Mehrere auf einmal:** „milch, 6 eier, 1,5 kg kartoffeln“ → ✔ → **3 Artikel**. Jeder bekommt sein eigenes Geschäft (gewählter Reiter, sonst wie zuletzt), seine Kategorie und seine Menge. Das Komma in „1,5“ trennt natürlich nicht. Trennen geht mit Komma, Semikolon oder neuer Zeile. (Mit Foto bitte einzeln eintragen.)
 - **📝 Notizen** sind in der Liste dezent farbig hinterlegt, damit man sie im Laden nicht übersieht.
+- **👤 Nach Person suchen:** Tippst du oben einen Namen („marco“), zeigen die Vorschläge alles, was für diese Person auf der Liste steht – offen, abgehakt und aus Rezepten. Antippen übernimmt Menge, Notiz und Für wen, z. B. um etwas Abgehaktes wieder draufzusetzen.
 
 ## 📖 Anleitung in der Karte
 

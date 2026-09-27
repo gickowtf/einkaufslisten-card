@@ -2,7 +2,7 @@
  * Einkaufsliste Card – die Familien-Einkaufsliste für Home Assistant
  * Wird automatisch von der Integration "einkaufsliste" geladen.
  */
-const EL_VERSION = "2.15.0";
+const EL_VERSION = "2.15.1";
 
 // Doppelt-Finder: Wörter, die dasselbe meinen (alles klein, ohne Leer-/Sonderzeichen)
 const DUP_SYNONYMS = (() => {
@@ -1289,6 +1289,19 @@ class EinkaufslisteCard extends HTMLElement {
     const items = [...this._data.items].sort((a, b) =>
       (recipe ? 0 : this._matchesTab(b) - this._matchesTab(a)) || (b.checked - a.checked)
       || String(b.added_at || "").localeCompare(String(a.added_at || "")));
+    // 👤 Name einer Person getippt („marco“)? Dann zuerst alles, was für sie auf der Liste steht
+    let forPerson = null;
+    if (!recipe && q.length >= 2) {
+      const whoNames = [...(this._data.persons || []).map((p) => p.name), ...this._data.items.map((i) => i.for_whom).filter(Boolean)];
+      forPerson = whoNames.find((n) => n.toLowerCase().startsWith(q))?.toLowerCase() || null;
+      if (forPerson) for (const i of items) {
+        if ((i.for_whom || "").toLowerCase() !== forPerson) continue;
+        const key = [i.name.toLowerCase(), i.quantity || "", i.note || "", i.for_whom || "", i.store_id || ""].join("|");
+        if (seenVariant.has(key)) continue;
+        seenVariant.add(key);
+        cands.push({ sc: -1, name: i.name, item: i, fromRecipe: this._recipe(i.recipe_id)?.name });
+      }
+    }
     for (const i of items) {
       if (i.recipe_id) continue;
       const low = i.name.toLowerCase();
@@ -1340,7 +1353,7 @@ class EinkaufslisteCard extends HTMLElement {
       cands.push(...fuzzy.slice(0, 2));
     }
     cands.sort((a, b) => a.sc - b.sc);
-    return cands.slice(0, 8);
+    return cands.slice(0, forPerson ? 14 : 8);
   }
 
   _suggestChips(list, q, act, { recipe = false } = {}) {
