@@ -2,7 +2,7 @@
  * Einkaufsliste Card – die Familien-Einkaufsliste für Home Assistant
  * Wird automatisch von der Integration "einkaufsliste" geladen.
  */
-const EL_VERSION = "2.20.2";
+const EL_VERSION = "2.20.3";
 
 // Doppelt-Finder: Wörter, die dasselbe meinen (alles klein, ohne Leer-/Sonderzeichen)
 const DUP_SYNONYMS = (() => {
@@ -652,7 +652,7 @@ ha-card.shop .item { padding:11px 5px; font-size:1.2em; }
 ha-card.shop .item .name { font-weight:600; }
 ha-card.shop .item .check { padding:9px; --mdc-icon-size:38px; }
 ha-card.shop .item .meta { font-size:.66em; }
-ha-card.shop .item .acts { opacity:.7; --mdc-icon-size:22px; }
+ha-card.shop .item .acts { opacity:1; --mdc-icon-size:26px; }
 ha-card.shop .item .acts .iconbtn { padding:8px; }
 ha-card.shop .item .qty { font-size:.8em; padding:2px 10px; }
 ha-card.shop .ghead { font-size:.95em; padding:10px 4px 4px; }
@@ -669,8 +669,6 @@ ha-card.compact .item .check { padding:3px; }
 ha-card.compact .ghead { padding:3px 4px 0; }
 ha-card.compact .group { margin-top:4px; }
 .item .acts { display:flex; opacity:.55; }
-/* 🏪✖ „war aus“: dezent – kleiner und blasser, damit es nicht ins Auge springt */
-.item .acts [data-act="move"] { --mdc-icon-size:19px; opacity:.6; }
 .delrow { padding:4px 0; border-bottom:1px solid var(--divider-color, rgba(127,127,127,.15)); }
 .delname { min-width:0; }
 .delname b { display:block; font-weight:500; word-break:break-word; }
@@ -725,7 +723,6 @@ ha-card.compact .group { margin-top:4px; }
 .servtag { font-weight:400; opacity:.75; }
 .rgrouprow select { width:auto; min-width:150px; }
 #titleIcon { cursor:pointer; }
-.item .meta .iout ha-icon { --mdc-icon-size:14px; vertical-align:-2px; }
 .item .meta .iout { color:var(--primary-text-color); font-weight:500; background:color-mix(in srgb, var(--error-color, #db4437) 9%, transparent); border-radius:6px; padding:0 6px; font-weight:400; }
 .moverow .outbtn { --c:var(--primary-color,#03a9f4); display:inline-flex; align-items:center; gap:4px; --mdc-icon-size:16px; }
 .bclist { display:flex; flex-wrap:wrap; gap:6px; }
@@ -1468,7 +1465,7 @@ class EinkaufslisteCard extends HTMLElement {
     // Reihenfolge unter dem Namen: Geschäft · Notiz · Barcode · wer eingetragen · wer abgehakt · (Rezept, Zeit)
     if (item.note) meta.push(`<span class="inote">📝 ${esc(item.note)}</span>`);
     if (!item.checked && item.out_at && Date.now() - new Date(item.out_at) < 3 * DAY)
-      meta.push(`<span class="iout" title="Beim letzten Einkauf nicht bekommen"><ha-icon icon="mdi:store-remove-outline"></ha-icon> war aus (${WD_SHORT[pyWd(new Date(item.out_at))]})</span>`);
+      meta.push(`<span class="iout" title="Beim letzten Einkauf nicht bekommen">⇄ war aus (${WD_SHORT[pyWd(new Date(item.out_at))]})</span>`);
     const pk = this._pk(item.name, item.note);
     const codes = this._barcodesOf(pk);
     if (codes.length && !this._shopMode) meta.push(`<span class="bc" title="Barcode hinterlegt: ${esc(codes.join(", "))}">▥</span>`);
@@ -1498,7 +1495,7 @@ class EinkaufslisteCard extends HTMLElement {
           <div class="line">${isNew ? `<span class="newbadge" title="Neu seit deinem letzten Blick">✨</span>` : ""}<span class="name">${esc(item.name)}</span>${qty}${who}${this._hasPhoto(pk) ? `<button class="photobtn" data-act="photo-view" data-name="${esc(pk)}" title="Foto ansehen"><ha-icon icon="mdi:camera"></ha-icon>${this._data.photo_counts?.[pk] > 1 ? `<small class="pcount">${this._data.photo_counts[pk]}</small>` : ""}</button>` : ""}</div>
           ${meta.length ? `<div class="meta">${meta.join("")}</div>` : ""}
         </div>
-        ${!item.checked && this._data.stores.length > 1 ? `<div class="acts"><button class="iconbtn" data-act="move" title="War aus – in anderes Geschäft"><ha-icon icon="mdi:store-remove-outline"></ha-icon></button></div>` : ""}
+        ${!item.checked && this._data.stores.length > 1 ? `<div class="acts"><button class="iconbtn" data-act="move" title="War aus – in anderes Geschäft"><ha-icon icon="mdi:swap-horizontal"></ha-icon></button></div>` : ""}
       </div>`;
   }
 
@@ -1507,7 +1504,7 @@ class EinkaufslisteCard extends HTMLElement {
     return `
       <div class="menurow" data-id="${item.id}">
         ${b("menu-edit", "mdi:pencil-outline", "Bearbeiten")}
-        ${!item.checked && this._data.stores.length > 1 ? b("menu-move", "mdi:store-remove-outline", "Verschieben") : ""}
+        ${!item.checked && this._data.stores.length > 1 ? b("menu-move", "mdi:swap-horizontal", "Verschieben") : ""}
         ${b("menu-qty", "mdi:numeric", "Menge")}
         ${b("menu-cat", "mdi:shape-outline", "Kategorie")}
         ${b("menu-photo", "mdi:camera-plus-outline", this._hasPhoto(this._pk(item.name, item.note)) ? "Fotos" : "Foto")}
@@ -3250,7 +3247,7 @@ class EinkaufslisteCard extends HTMLElement {
         <li>Oben die Reiter: <b>Alle</b>, Aldi, Netto … Die Zahl zeigt, wie viel dort offen ist.</li>
         <li>Die <b>rote Blase</b> heißt: Da ist was Neues dazugekommen, seit du zuletzt geschaut hast.</li>
         <li><b>✨</b> am Artikel = neu (verschwindet nach 24 Stunden).</li>
-        <li><b>🏪✖</b> am Artikel = war aus: <b>„Nächstes Mal wieder hier“</b> (bleibt offen, alle sehen „war aus“) oder gleich in ein anderes Geschäft schieben.</li></ul>`)}
+        <li><b>⇄</b> am Artikel = war aus: <b>„Nächstes Mal wieder hier“</b> (bleibt offen, alle sehen „war aus“) oder gleich in ein anderes Geschäft schieben.</li></ul>`)}
       ${sec("👆", "Ändern & lange drücken", `<ul>
         <li>Artikel <b>lange drücken</b> = Menü: Bearbeiten, Verschieben, Menge, Kategorie, Foto, Barcode.</li>
         <li>Menge direkt ändern: auf die Menge tippen, dann <span class="elg-k">−</span> und <span class="elg-k">＋</span>.</li>
@@ -4069,7 +4066,7 @@ class EinkaufslisteCard extends HTMLElement {
         this._moving = this._moving === id ? null : id;
         this._renderList();
         break;
-      case "move-out": { // 🏪✖ war aus, bleibt hier offen
+      case "move-out": { // ⇄ war aus, bleibt hier offen
         const itemId = el.closest(".moverow").dataset.id;
         this._moving = null;
         this._ws({ type: "einkaufsliste/item/out", item_id: itemId })
