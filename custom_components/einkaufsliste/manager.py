@@ -426,6 +426,7 @@ class EinkaufslisteManager:
             "barcodes_by_name": self._barcodes_by_name(),
             "aliases": [{"alias": a, "name": t["name"], "note": t.get("note")} for a, t in sorted(self.aliases.items())],
             "typos": {k: v["right"] for k, v in self.typos.items() if v.get("n", 0) >= TYPO_LEARN_AFTER},
+            "scanned_new": len({product_key(b.get("name"), b.get("note")) for b in self.barcodes.values() if b.get("new") and b.get("name")}),
             "settings": {
                 "cleanup_weekday": self.cleanup_weekday,
                 "cleanup_time": "%02d:%02d" % self.cleanup_time,
@@ -462,6 +463,8 @@ class EinkaufslisteManager:
                     "aliases": sorted(a for a, t in self.aliases.items() if product_key(t["name"], t.get("note")) == key),
                     "unit": hist.get("unit"),  # 📏 gemerkte Einheit beim direkten Eintragen
                     "unit_fixed": bool(hist.get("unit_fixed")),
+                    "stores": [sid for sid in hist.get("stores", []) if self.store_by_id(sid)],  # 🏪 gibt's bei …
+                    "scanned": False,  # 📷 neu gescannt – noch nicht geprüft
                     "barcodes": [],
                     "photos": 0,
                     "open": 0,
@@ -489,7 +492,11 @@ class EinkaufslisteManager:
                     e["store_id"] = ri["store_id"]
         for code, bc in self.barcodes.items():
             if bc.get("name"):
-                entry(bc["name"], bc.get("note"))["barcodes"].append(code)
+                e = entry(bc["name"], bc.get("note"))
+                e["barcodes"].append(code)
+                if bc.get("new"):
+                    e["scanned"] = True
+                    e["scanned_at"] = max(e.get("scanned_at") or "", bc.get("updated") or "")
         for key, ph in self.photos.items():
             if key.startswith("rezept#"):
                 continue
@@ -514,6 +521,7 @@ class EinkaufslisteManager:
         category_id: str | None = None,
         store_id: str | None = None,
         unit: str | None = None,
+        stores: list[str] | None = None,
     ) -> dict[str, Any]:
         """Produkt im Katalog ändern – zieht Artikel, Rezepte, Fotos, Barcodes und Verlauf mit.
 
@@ -559,6 +567,7 @@ class EinkaufslisteManager:
         for bc in self.barcodes.values():
             if product_key(bc.get("name"), bc.get("note")) == key:
                 bc.update(name=new_name, note=new_note)
+                bc.pop("new", None)  # 📷 im Katalog gespeichert = geprüft
                 if category_id is not None:
                     bc["category_id"] = cat
                 if store_id is not None:
@@ -586,6 +595,12 @@ class EinkaufslisteManager:
                 "store_id": store if store_id is not None else prod["store_id"],
                 "category_id": cat if category_id is not None else prod["category_id"],
             }
+        if stores is not None:  # 🏪 „Gibt's bei“: mehrere Geschäfte
+            valid = [sid for sid in dict.fromkeys(stores) if self.store_by_id(sid)]
+            target = self.history.setdefault(new_name.lower(), {
+                "name": new_name, "count": 0, "last_used": _now_iso(),
+                "store_id": prod["store_id"], "category_id": prod["category_id"]})
+            target["stores"] = valid
         if unit is not None and new_name.lower() in self.history:
             target = self.history[new_name.lower()]
             if unit:  # 📏 im Katalog fest eingestellt – wird nicht mehr überschrieben
@@ -595,6 +610,25 @@ class EinkaufslisteManager:
                 target.pop("unit_fixed", None)
         self._changed()
         return next((p for p in self.products() if p["key"] == new_key), {"key": new_key})
+
+    def _learn_store(self, name: str, store_id: str | None) -> None:
+        """Wo etwas gekauft wurde, gibt es das auch – für „Gibt's bei“ (mehrere Geschäfte pro Produkt)."""
+        if not store_id or not self.store_by_id(store_id):
+            return
+        hist = self.history.get((name or "").lower())
+        if hist is None:
+            return
+        stores = hist.setdefault("stores", [])
+        if store_id not in stores:
+            stores.append(store_id)
+
+    def confirm_scanned(self, key: str) -> None:
+        """📷 „Passt so“: neu gescanntes Produkt ist geprüft."""
+        key = (key or "").lower()
+        for bc in self.barcodes.values():
+            if product_key(bc.get("name"), bc.get("note")) == key:
+                bc.pop("new", None)
+        self._changed()
 
     def resolve_alias(self, name: str | None, note: str | None) -> tuple[str | None, str | None]:
         """🏷️ Spitzname -> richtiges Produkt („Tempos“ -> Taschentücher). Eigene Notiz hat Vorrang."""
@@ -955,7 +989,11 @@ class EinkaufslisteManager:
         category_id = self._check_category(category_id)
         quantity, note, for_whom = norm_qty(_clean(quantity)), _note(note), _clean(for_whom)
         if _clean(barcode):
-            self.learn_barcode(str(barcode).strip(), name, store_id, category_id, note, for_whom)
+            code = str(barcode).strip()
+            is_new = code not in self.barcodes
+            self.learn_barcode(code, name, store_id, category_id, note, for_whom)
+            if is_new:
+                self.barcodes[code]["new"] = True  # 📷 neu gescannt: im Katalog unter „Neu gescannt“ prüfen
 
         # Rezept-Zutaten kommen zusätzlich auf die Liste (eigener Eintrag pro Rezept)
         recipe_id = recipe_id if self.recipe_by_id(recipe_id) else None
@@ -1108,6 +1146,7 @@ class EinkaufslisteManager:
             return {**item, "checked": True, "checked_at": _now_iso(), "checked_by": by, "removed": True}
         if checked:
             item.update(checked=True, checked_at=_now_iso(), checked_by=by, out_at=None)
+            self._learn_store(item["name"], item.get("store_id"))  # 🏪 hier gekauft = gibt's hier
         else:
             # Wieder drauf: neues Datum, und wer ihn reinnimmt, steht dahinter
             item.update(
@@ -1847,6 +1886,8 @@ class EinkaufslisteManager:
             entry["color"] = _clean(fields["color"]) or entry.get("color")
         if "icon" in fields and kind != "persons":
             entry["icon"] = _icon(fields["icon"], entry.get("icon") or "mdi:tag-outline")
+        if "brands" in fields and kind == "stores":  # 🏷️ eigene Eigenmarken („Milsani, Moser Roth“)
+            entry["brands"] = [b.strip() for b in re.split(r"[,;]", fields["brands"] or "") if b.strip()][:30]
         self._changed()
         return entry
 

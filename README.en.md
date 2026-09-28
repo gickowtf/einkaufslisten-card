@@ -34,6 +34,14 @@
 | 🛒 **Shop mode** | Big rows, big circles, no input field – just check things off with one hand. |
 | 🏷️ **Nicknames** | “Kleenex” means tissues: give a product nicknames and whoever types one lands on the right product. |
 | 📥 **Import & backup** | Import recipes from a file, bring lists over from Bring!, Google Keep or the HA shopping list, download everything as a backup (.zip). |
+| 📱 **Offline app** | A small phone app (via Nabu Casa or another https address) that opens **without a connection**; checking off and adding keep working and are sent later. |
+| ⏳ **Dead spot? No problem.** | In the card too: checking off keeps working without a connection, the dot turns orange and everything is sent later. |
+| 🏪 **Available at …** | A product can be sold in several stores. The list learns it when you check things off and shows “🔁 Also available here” in a store's tab. |
+| 🏷️ **Own brands** | German store brands (Milsani, Milbona, ja!, Balea …) go straight to the right store when scanned; add your own per store. |
+| ⏲️ **Cooking times** | Cheat sheet for pasta, eggs, vegetables, meat & co. – pot, oven and air fryer. |
+| 🧠 **Learns typos** | Correct “mlik” to “milk” twice and the list does it by itself from then on. |
+| 🔒 **PIN for the gear** | Settings only with a PIN – the list itself stays open for everyone. |
+| 🛒😊 **Mascot** | Optional shopping cart with a face: beams when the list is empty, sweats when it's full, sleeps at night. |
 | ⚖️ **Converts US measures** | Imported recipes: “1 cup flour” → “125 g flour”, “2 tbsp” → “2 EL” (tbsp), “350 °F” → “175 °C”. |
 
 ---
@@ -70,7 +78,7 @@ type: custom:einkaufsliste-card
 ## ✍️ Adding items
 
 - Type a name, e.g. **milk**, then tap ✔. Up to 2 suggestions appear while typing; tapping one takes over quantity, note, for whom and store from last time.
-- Quantities work directly: **3 milk**, **500 g flour**, **tomatoes 2 cans**. English units (tbsp, tsp, cans, bottles, jars, cloves, cups …) are understood.
+- Quantities work directly: **3 milk**, **500 g flour**, **tomatoes 2 cans**, **milk (2)**. English units (tbsp, tsp, cans, bottles, jars, cloves, cups …) are understood.
 - **Several at once:** `milk, 6 eggs, bread` → ✔ → 3 things on the list.
 - The buttons below: 🔢 quantity · 📝 note · 👤 for whom · 📷 photo · 🧽 clear.
 - Below that: **Which store?** (or “Anywhere”) and the **category**, usually preselected correctly.
@@ -99,12 +107,18 @@ Tiles: **Stores · Categories · Recipes · Recipe groups · People · Products 
   - **Recipes from file** (admins): `.txt/.md` (each recipe starts with `# Name`, then “Ingredients” and “Instructions”), `.csv` (columns `recipe;quantity;unit;ingredient;note;instructions`) or `.json`.
   - **From other apps:** pick any Home Assistant to-do list and bring its items over, or paste a list shared from Bring!, Google Keep & co. (one item per line; checked ones stay out).
   - **Backup** (admins): download everything as a .zip, or restore one (replaces everything after a confirmation).
-- **History:** who did what, when and how – with filters.
+- **History:** who did what, when and how – with filters, plus “📈 Often not available” (e.g. “3× butter at Aldi – maybe buy it elsewhere?”).
+- **Products → Newly scanned:** products scanned for the first time wait here for a quick check – “✔ Looks good” or tap and correct.
+- **Products → Available at:** tick all stores that sell the product.
+- **Stores:** own brands per store (comma-separated).
+- **Protection:** a 4–8 digit PIN for the gear. Forgot it? Settings → Devices & services → Einkaufsliste → Configure → “Reset PIN” (admins).
+- **Offline app:** open `https://your-remote-address/einkaufsliste/app/` in the phone's browser (not the HA app), log in once, “Add to Home screen”. Needs an https address such as Nabu Casa.
 
 ## ⚙️ Card options
 
 | Option | Default | What it does |
 |---|---|---|
+| `mascot` | `false` | shopping cart with a face instead of the plain cart icon |
 | `language` | `auto` | `auto` = like Home Assistant (German, otherwise English), `de`, `en` |
 | `show_title` | `true` | `false` hides the cart icon (guide) at the top |
 | `store` | `all` | `all` = all stores with tabs, or one store only |
@@ -119,7 +133,12 @@ Tiles: **Stores · Categories · Recipes · Recipe groups · People · Products 
 
 ## 🤖 For automations
 
-Sensor `sensor.einkaufsliste_offene_artikel` (open items; attributes per store, items, checked, next cleanup).
+| Entity | What it shows |
+|---|---|
+| `sensor.einkaufsliste_offene_artikel` | all open items (attributes per store, items, checked, next cleanup) |
+| `sensor.einkaufsliste_<store>` | one sensor **per store**: open items there, attribute `artikel` |
+| `binary_sensor.einkaufsliste_etwas_zu_kaufen` (English HA: `…_something_to_buy`) | on as soon as anything is open |
+| `sensor.einkaufsliste_zuletzt_eingetragen` (English HA: `…_last_added`) | last added item with `von` (who), `wann` (when), `geschaeft` (store) |
 
 | Action | What happens |
 |---|---|

@@ -1624,3 +1624,33 @@ async def test_offline_app_pages(hass: HomeAssistant, setup, hass_client_no_auth
     assert r.status == 404
     r = await client.get("/einkaufsliste/app", allow_redirects=False)
     assert r.status == 302 and r.headers["Location"] == "/einkaufsliste/app/"
+
+
+async def test_scanned_stores_private_labels(hass: HomeAssistant, setup) -> None:
+    """📷 Neu gescannt im Katalog, 🏪 mehrere Geschäfte pro Produkt, 🏷️ Eigenmarken."""
+    from custom_components.einkaufsliste.barcode import private_label_store
+    m = mgr(hass)
+    aldi = next(s for s in m.stores if s["name"] == "Aldi")
+    netto = next(s for s in m.stores if s["name"] == "Netto")
+    dm = next(s for s in m.stores if s["name"] == "DM")
+    # Eigenmarken
+    assert private_label_store(m, "Milsani, Aldi") == (aldi["id"], "Aldi")
+    assert private_label_store(m, "Balea") == (dm["id"], "DM")
+    assert private_label_store(m, "K-Classic") == (None, None)  # kein Kaufland angelegt
+    lidl = next(s for s in m.stores if s["name"] == "Lidl")
+    assert private_label_store(m, "Wagner", ["en:lidl"]) == (lidl["id"], "Lidl")  # Datenbank kennt nur Lidl
+    assert private_label_store(m, "Wagner", ["en:lidl", "en:rewe"]) == (None, None)  # überall zu haben
+    m.update_group("stores", netto["id"], brands="Hausmarke X, Biobio")
+    assert private_label_store(m, "hausmarke x") == (netto["id"], "Netto")
+    # Neu gescannt
+    item = m.add_item("H-Milch", store_id=aldi["id"], note="Weihenstephan", barcode="4008452027008")
+    prod = next(p for p in m.products() if p["key"] == "h-milch|weihenstephan")
+    assert prod["scanned"] is True and m.as_dict()["scanned_new"] == 1
+    m.add_item("H-Milch", store_id=netto["id"], note="Weihenstephan", barcode="4008452027008")  # schon bekannt
+    m.confirm_scanned("h-milch|weihenstephan")
+    assert m.as_dict()["scanned_new"] == 0
+    # Gibt's bei: lernt beim Abhaken, im Katalog setzbar
+    m.set_checked(item["id"], True)
+    assert aldi["id"] in next(p for p in m.products() if p["name"] == "H-Milch")["stores"]
+    m.update_product("h-milch|weihenstephan", stores=[aldi["id"], netto["id"], "gibtsnicht"])
+    assert m.history["h-milch"]["stores"] == [aldi["id"], netto["id"]]

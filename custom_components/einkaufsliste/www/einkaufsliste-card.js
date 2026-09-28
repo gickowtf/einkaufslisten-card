@@ -2,7 +2,7 @@
  * Einkaufsliste Card – die Familien-Einkaufsliste für Home Assistant
  * Wird automatisch von der Integration "einkaufsliste" geladen.
  */
-const EL_VERSION = "2.21.2";
+const EL_VERSION = "2.22.0";
 
 // Doppelt-Finder: Wörter, die dasselbe meinen (alles klein, ohne Leer-/Sonderzeichen)
 const DUP_SYNONYMS = (() => {
@@ -866,8 +866,12 @@ ha-card.compact .group { margin-top:4px; }
 .sechead .back { padding:6px 10px; }
 .prodrow { cursor:pointer; }
 .prodrow .pmeta { display:flex; flex-wrap:wrap; gap:2px 8px; }
+.alsohere { display:flex; flex-wrap:wrap; gap:6px; align-items:center; margin:2px 0 10px; padding:8px 10px; border-radius:12px; background:color-mix(in srgb, var(--primary-color,#03a9f4) 8%, transparent); font-size:.92em; }
+.pestores { display:flex; flex-wrap:wrap; gap:6px; align-items:center; font-size:.92em; }
+.pestores .stck { display:inline-flex; align-items:center; gap:4px; border-radius:999px; padding:3px 10px 3px 6px; background:color-mix(in srgb, var(--c) 16%, transparent); cursor:pointer; }
 .prodedit { display:grid; grid-template-columns:1fr 1fr; gap:6px; padding:8px; border-radius:12px; background:var(--secondary-background-color, rgba(127,127,127,.07)); margin:6px 0; }
-.prodedit .btnrow, .prodedit .hint { grid-column:1/-1; }
+.prodedit .btnrow, .prodedit .hint, .prodedit .pestores, .prodedit .bclist { grid-column:1/-1; }
+.prodrow .btn.primary { white-space:nowrap; flex:0 0 auto; }
 .ppers { display:flex; align-items:center; gap:6px; flex-wrap:wrap; padding:6px 4px 10px; border-bottom:1px solid var(--divider-color, rgba(127,127,127,.25)); margin-bottom:6px; }
 .ppers > span { font-weight:600; }
 .ppers b { min-width:26px; text-align:center; font-size:1.2em; }
@@ -991,6 +995,117 @@ label.btn { cursor:pointer; }
 .rrow.editing { outline:2px solid var(--primary-color,#03a9f4); }
 [hidden] { display:none !important; }
 `;
+
+// ⏲️ Gar-Zeiten-Spickzettel (Richtwerte). Je Zeile: [deutsch, englisch, Topf/Pfanne, Backofen, Heißluftfritteuse, Hinweis de, Hinweis en]
+// Zeiten in Minuten; Backofen = Ober-/Unterhitze vorgeheizt.
+const GAR = [
+  ["🍝", "Nudeln & Reis", "Pasta & rice", [
+    ["Spaghetti", "Spaghetti", "8–10", "", "", "sprudelnd, gut gesalzen", "rolling boil, well salted"],
+    ["Penne, Fusilli", "Penne, fusilli", "10–12", "", "", "", ""],
+    ["Frische Nudeln", "Fresh pasta", "2–4", "", "", "aus dem Kühlregal", "from the fridge"],
+    ["Lasagne", "Lasagne", "", "180 °C · 35–45", "", "", ""],
+    ["Reis (Langkorn)", "Rice (long grain)", "15–20", "", "", "1 Tasse Reis : 2 Tassen Wasser", "1 cup rice : 2 cups water"],
+    ["Basmati-Reis", "Basmati rice", "10–12", "", "", "1 : 1,5 Wasser", "1 : 1.5 water"],
+    ["Risotto-Reis", "Risotto rice", "18–20", "", "", "Brühe nach und nach", "add stock bit by bit"],
+    ["Couscous", "Couscous", "5", "", "", "nur quellen: 1 : 1 kochendes Wasser", "just soak: 1 : 1 boiling water"],
+    ["Quinoa", "Quinoa", "12–15", "", "", "1 : 2 Wasser", "1 : 2 water"],
+  ]],
+  ["🥔", "Kartoffeln", "Potatoes", [
+    ["Pellkartoffeln", "Jacket potatoes (boiled)", "20–25", "", "", "je nach Größe", "depending on size"],
+    ["Salzkartoffeln", "Boiled potatoes (quartered)", "15–20", "", "", "geschält, geviertelt", "peeled, quartered"],
+    ["Kartoffelspalten", "Potato wedges", "", "200 °C · 30–40", "200 °C · 20–25", "", ""],
+    ["Pommes (TK)", "Fries (frozen)", "", "220 °C · 20–25", "200 °C · 15–18", "zwischendurch wenden/schütteln", "turn/shake halfway"],
+    ["Süßkartoffel-Spalten", "Sweet potato wedges", "", "200 °C · 25–30", "190 °C · 15–18", "", ""],
+    ["Kroketten (TK)", "Croquettes (frozen)", "", "220 °C · 15–20", "200 °C · 10–12", "", ""],
+  ]],
+  ["🥚", "Eier", "Eggs", [
+    ["Ei weich", "Egg soft", "5", "", "", "ab kochendem Wasser, Größe M", "from boiling water, size M"],
+    ["Ei wachsweich", "Egg medium", "7", "", "", "", ""],
+    ["Ei hart", "Egg hard", "10", "", "", "danach kalt abschrecken", "then rinse cold"],
+    ["Spiegelei", "Fried egg", "3–4", "", "", "Pfanne, mittlere Hitze", "pan, medium heat"],
+    ["Rührei", "Scrambled eggs", "2–3", "", "", "Pfanne, niedrige Hitze", "pan, low heat"],
+  ]],
+  ["🥦", "Gemüse", "Vegetables", [
+    ["Brokkoli", "Broccoli", "4–6", "200 °C · 15–20", "180 °C · 8–10", "Röschen", "florets"],
+    ["Blumenkohl", "Cauliflower", "8–12", "200 °C · 20–25", "180 °C · 12–15", "Röschen", "florets"],
+    ["Möhren", "Carrots", "8–10", "200 °C · 25–30", "180 °C · 12–15", "in Scheiben", "sliced"],
+    ["Grüne Bohnen", "Green beans", "8–10", "", "", "", ""],
+    ["Erbsen (TK)", "Peas (frozen)", "3–5", "", "", "", ""],
+    ["Spargel weiß", "White asparagus", "12–15", "", "", "je nach Dicke", "depending on thickness"],
+    ["Spargel grün", "Green asparagus", "5–8", "200 °C · 12–15", "180 °C · 7–9", "", ""],
+    ["Maiskolben", "Corn on the cob", "10–15", "", "200 °C · 10–12", "", ""],
+    ["Zucchini", "Zucchini", "5–7", "200 °C · 15–20", "180 °C · 8–10", "Pfanne, in Scheiben", "pan, sliced"],
+    ["Gemüse-Mix (TK)", "Mixed vegetables (frozen)", "8–10", "", "", "Pfanne", "pan"],
+  ]],
+  ["🍗", "Fleisch", "Meat", [
+    ["Hähnchenbrust", "Chicken breast", "6–8", "180 °C · 20–25", "180 °C · 15–18", "Pfanne: pro Seite · innen 74 °C", "pan: per side · 74 °C inside"],
+    ["Hähnchenschenkel", "Chicken legs", "", "200 °C · 40–45", "190 °C · 25–30", "", ""],
+    ["Schnitzel (paniert)", "Schnitzel (breaded)", "3–4", "", "", "Pfanne: pro Seite", "pan: per side"],
+    ["Steak (2–3 cm, medium)", "Steak (2–3 cm, medium)", "3–4", "", "", "pro Seite, dann 5 Min ruhen lassen", "per side, then rest 5 min"],
+    ["Frikadellen", "Meatballs / patties", "10–12", "", "180 °C · 10–12", "Pfanne, öfter wenden", "pan, turn often"],
+    ["Bratwurst", "Bratwurst", "10–12", "", "180 °C · 10–12", "", ""],
+    ["Hackfleisch", "Minced meat", "8–10", "", "", "krümelig braten", "fry until crumbly"],
+  ]],
+  ["🐟", "Fisch", "Fish", [
+    ["Lachsfilet", "Salmon fillet", "3–4", "180 °C · 12–15", "180 °C · 8–10", "Pfanne: pro Seite", "pan: per side"],
+    ["Fischstäbchen", "Fish sticks", "3–4", "220 °C · 15–20", "200 °C · 8–10", "Pfanne: pro Seite", "pan: per side"],
+    ["Garnelen", "Prawns", "2–3", "", "", "Pfanne, bis sie rosa sind", "pan, until pink"],
+  ]],
+  ["🍕", "TK & Aufbacken", "Frozen & bake-off", [
+    ["TK-Pizza", "Frozen pizza", "", "220 °C · 10–15", "180 °C · 8–10", "Packung beachten", "check the package"],
+    ["Chicken Nuggets", "Chicken nuggets", "", "200 °C · 15–20", "200 °C · 8–10", "", ""],
+    ["Aufbackbrötchen", "Bake-off rolls", "", "200 °C · 6–8", "180 °C · 4–6", "", ""],
+    ["Flammkuchen (TK)", "Tarte flambée (frozen)", "", "220 °C · 10–12", "", "", ""],
+  ]],
+];
+
+function showGarTable() {
+  const en = EL_LANG !== "de";
+  const ov = makeOverlay();
+  Object.assign(ov.style, { background: "#111", justifyContent: "flex-start", overflowY: "auto", touchAction: "pan-y",
+    paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 40px)" });
+  const min = en ? "min" : "Min";
+  const cell = (v) => (v ? esc(v) + " " + min : "–");
+  ov.innerHTML = `<style>
+    .gar { width:100%; max-width:700px; color:#eee; font:15px/1.4 Roboto,sans-serif; }
+    .gar h2 { font-size:20px; margin:4px 0; }
+    .gar .sub { color:#aaa; font-size:13.5px; margin:0 0 10px; }
+    .gar input { width:100%; box-sizing:border-box; font:inherit; padding:10px 12px; border-radius:10px; border:1px solid #444; background:#1e1e1e; color:#eee; margin-bottom:8px; }
+    .gar h3 { font-size:15px; margin:16px 0 6px; color:#fff; }
+    .gar table { width:100%; border-collapse:collapse; font-size:14px; }
+    .gar th { text-align:left; color:#aaa; font-weight:500; padding:4px 6px; font-size:12.5px; }
+    .gar td { padding:6px; border-top:1px solid #2c2c2c; vertical-align:top; }
+    .gar td.n { font-weight:600; }
+    .gar td small { display:block; color:#aaa; font-weight:400; }
+    .gar td.t { white-space:nowrap; }
+  </style>
+  <div class="gar" translate="no">
+    <h2>⏲️ ${en ? "Cooking times" : "Gar-Zeiten"}</h2>
+    <p class="sub">${en ? "Guide values – check the package. Oven = top/bottom heat, preheated (fan: about 20 °C less)."
+      : "Richtwerte – Packung beachten. Backofen = Ober-/Unterhitze, vorgeheizt (Umluft: etwa 20 °C weniger)."}</p>
+    <input type="search" placeholder="${en ? "Search, e.g. egg" : "Suchen, z. B. Ei"}">
+    <div class="garlist"></div>
+  </div>`;
+  const list = ov.querySelector(".garlist"), inp = ov.querySelector("input");
+  const draw = () => {
+    const q = inp.value.trim().toLowerCase();
+    list.innerHTML = GAR.map(([icon, gde, gen, rows]) => {
+      const hit = rows.filter((r) => !q || r[0].toLowerCase().includes(q) || r[1].toLowerCase().includes(q) || gde.toLowerCase().includes(q) || gen.toLowerCase().includes(q));
+      if (!hit.length) return "";
+      return `<h3>${icon} ${esc(en ? gen : gde)}</h3><table><tr><th></th><th>🍲 ${en ? "Pot/pan" : "Topf/Pfanne"}</th><th>🔥 ${en ? "Oven" : "Backofen"}</th><th>💨 ${en ? "Air fryer" : "Heißluftfr."}</th></tr>${
+        hit.map((r) => `<tr><td class="n">${esc(en ? r[1] : r[0])}${(en ? r[6] : r[5]) ? `<small>${esc(en ? r[6] : r[5])}</small>` : ""}</td><td class="t">${cell(r[2])}</td><td class="t">${cell(r[3])}</td><td class="t">${cell(r[4])}</td></tr>`).join("")}</table>`;
+    }).join("") || `<p class="sub">${en ? "Nothing found." : "Nichts gefunden."}</p>`;
+  };
+  inp.addEventListener("input", draw);
+  draw();
+  const bClose = ovButton(en ? "Close" : "Schließen", true);
+  Object.assign(bClose.style, { marginTop: "16px" });
+  ov.append(bClose);
+  const close = () => { ov.remove(); document.removeEventListener("keydown", onKey); };
+  const onKey = (e) => { if (e.key === "Escape") close(); };
+  document.addEventListener("keydown", onKey);
+  bClose.onclick = close;
+}
 
 // 🛒😊 Maskottchen: ein kleiner Einkaufswagen mit Gesicht – seine Laune hängt an der Liste
 function easterDate(y) { // Gauß'sche Osterformel
@@ -1955,14 +2070,22 @@ class EinkaufslisteCard extends HTMLElement {
 
   _moveHtml(item) {
     const here = this._store(item.store_id);
-    const targets = this._data.stores.filter((s) => s.id !== item.store_id);
+    // 🏪 Wo gibt's das sonst noch? Die kommen zuerst (mit ✓)
+    const known = this._prodStores(item.name);
+    const targets = this._data.stores.filter((s) => s.id !== item.store_id)
+      .sort((a, b) => (known.includes(b.id) ? 1 : 0) - (known.includes(a.id) ? 1 : 0));
     return `
       <div class="moverow" data-id="${item.id}">
         <span class="movetxt">${here ? `Bei ${esc(here.name)} nicht da?` : "Wo gibt's das?"}</span>
         ${here ? `<button class="tab outbtn" data-act="move-out" title="Bleibt offen hier – alle sehen „war aus“"><ha-icon icon="mdi:refresh"></ha-icon>Nächstes Mal wieder hier</button><span class="movetxt">oder ab zu:</span>` : ""}
-        ${targets.map((s) => `<button class="tab" style="--c:${esc(s.color)}" data-act="move-to" data-store="${s.id}"><span class="dot"></span>${esc(s.name)}</button>`).join("")}
+        ${targets.map((s) => `<button class="tab" style="--c:${esc(s.color)}" data-act="move-to" data-store="${s.id}"${known.includes(s.id) ? ` title="Gibt's da auch"` : ""}><span class="dot"></span>${esc(s.name)}${known.includes(s.id) ? " ✓" : ""}</button>`).join("")}
         <button class="iconbtn" data-act="move-cancel" title="Abbrechen"><ha-icon icon="mdi:close"></ha-icon></button>
       </div>`;
+  }
+
+  _prodStores(name) {
+    const h = (this._data.history || []).find((x) => x.name.toLowerCase() === String(name || "").toLowerCase());
+    return h?.stores || [];
   }
 
   _editHtml(item) {
@@ -2048,6 +2171,17 @@ class EinkaufslisteCard extends HTMLElement {
         <div class="dbtns"><button class="btn" data-act="dup-ignore">Passt so</button><button class="primary addbtn" data-act="dup-merge"><ha-icon icon="mdi:call-merge"></ha-icon>Zusammenlegen</button></div></div>`);
     }
 
+    // 🏪 Gibt's auch hier: Artikel, die bei einem anderen Geschäft offen stehen, die es aber auch hier gibt
+    const here = !allView ? (this._fixedStore || this._activeTab) : null;
+    if (here && here !== "none" && !filter && this._store(here)) {
+      const also = d.items.filter((i) => !i.checked && i.store_id && i.store_id !== here && !i.recipe_id && this._prodStores(i.name).includes(here));
+      if (also.length) {
+        html.push(`<div class="alsohere"><b>🔁 Gibt's auch hier:</b> ${also.slice(0, 8).map((i) => {
+          const st = this._store(i.store_id);
+          return `<button class="tab" style="--c:${esc(st?.color || "#888")}" data-act="also-here" data-id="${esc(i.id)}" data-store="${esc(here)}" title="Hierher holen">${esc(i.name)}<span class="n">${esc(st?.name || "")}</span></button>`;
+        }).join("")}</div>`);
+      }
+    }
     if (!open.length) {
       html.push(`<div class="empty"><ha-icon icon="mdi:cart-check"></ha-icon>${
         items.length ? "Alles im Korb – nix mehr offen! 🎉" : "Noch nichts auf der Liste. Tipp oben rein, was fehlt! ✍️"}</div>`);
@@ -2301,6 +2435,11 @@ class EinkaufslisteCard extends HTMLElement {
           <option value="">📍 Keine Zone</option>
           ${zones.map((z) => `<option value="${z.id}" ${z.id === e.zone ? "selected" : ""}>📍 ${esc(z.name)}</option>`).join("")}
         </select>
+      </div>` : ""}
+      ${kind === "stores" ? `
+      <div class="srow zonerow" data-kind="stores" data-id="${e.id}">
+        <ha-icon class="prev" icon="mdi:tag-outline"></ha-icon>
+        <input class="grow" data-field="brands" value="${esc((e.brands || []).join(", "))}" placeholder="🏷️ Eigenmarken, z. B. Milsani, Moser Roth (mit Komma)" title="Beim Scannen landen diese Marken gleich bei diesem Geschäft">
       </div>` : ""}`;
     const zones = Object.values(this._hass.states)
       .filter((st) => st.entity_id.startsWith("zone.") && st.entity_id !== "zone.home")
@@ -2351,14 +2490,17 @@ class EinkaufslisteCard extends HTMLElement {
         <p class="hint">${persons.length ? "Diese Namen erscheinen als Schnellknöpfe bei 👤 „Für wen?“." : "Noch keine Personen – solange bleibt das Feld „Für wen?“ ausgeblendet."}</p>` },
       { key: "products", icon: "mdi:package-variant-closed", title: "Produkte", info: "alle Produkte, Fotos, Barcodes, löschen", html: () => `
         <div class="subtabs">
-          <button class="tab ${this._prodTab !== "delete" ? "active" : ""}" data-act="prod-tab" data-tab="catalog"><ha-icon icon="mdi:package-variant-closed"></ha-icon>Alle Produkte</button>
+          <button class="tab ${!this._prodTab || this._prodTab === "catalog" ? "active" : ""}" data-act="prod-tab" data-tab="catalog"><ha-icon icon="mdi:package-variant-closed"></ha-icon>Alle Produkte</button>
+          <button class="tab ${this._prodTab === "scanned" ? "active" : ""}" data-act="prod-tab" data-tab="scanned" style="--c:var(--warning-color,#ffa600)"><ha-icon icon="mdi:barcode-scan"></ha-icon>Neu gescannt${d.scanned_new ? ` (${d.scanned_new})` : ""}</button>
           <button class="tab ${this._prodTab === "delete" ? "active" : ""}" data-act="prod-tab" data-tab="delete" style="--c:var(--error-color,#db4437)"><ha-icon icon="mdi:delete-outline"></ha-icon>Einkaufsliste Produkte löschen</button>
         </div>
         ${this._prodTab === "delete" ? `
         <p class="hint">Hier verschwinden Artikel endgültig von der Einkaufsliste, auch aus „Erledigt“. Barcode und Vorschlag bleiben; das Foto kommt mit weg, wenn das Produkt sonst nirgends mehr steht. Ganz löschen geht unter „Alle Produkte“.</p>
         <div class="srow"><ha-icon class="prev" icon="mdi:magnify"></ha-icon><input class="grow" id="delSearch" placeholder="Artikel suchen …" value="${esc(this._delFilter || "")}"></div>
         <div id="delList"></div>` : `
-        <p class="hint">Alle Produkte, die die Liste kennt. Antippen = ändern oder ganz löschen. Umbenennen zieht Fotos, Barcodes, Artikel und Rezepte mit.</p>
+        ${this._prodTab === "scanned"
+          ? `<p class="hint">Hier stehen Produkte, die neu gescannt wurden. Kurz prüfen: Stimmt der Name? Dann <b>✔ Passt</b>. Sonst antippen und korrigieren – Speichern zählt auch als geprüft.</p>`
+          : `<p class="hint">Alle Produkte, die die Liste kennt. Antippen = ändern oder ganz löschen. Umbenennen zieht Fotos, Barcodes, Artikel und Rezepte mit.</p>`}
         <div class="srow"><ha-icon class="prev" icon="mdi:magnify"></ha-icon><input class="grow" id="prodSearch" placeholder="Produkt suchen …" value="${esc(this._prodFilter || "")}"></div>
         <div id="prodList"><p class="hint">Lade Produkte …</p></div>`}` },
       { key: "check", icon: "mdi:check-decagram-outline", title: "Alles ok?", info: "prüfen & reparieren", html: () => `
@@ -2681,8 +2823,10 @@ class EinkaufslisteCard extends HTMLElement {
     const box = this.$("prodList");
     if (!box || !this._products) return;
     const q = (this._prodFilter || "").trim().toLowerCase();
-    const list = this._products.filter((p) => !q || `${p.name} ${p.note || ""}`.toLowerCase().includes(q));
-    if (!list.length) { box.innerHTML = `<p class="hint">${q ? `Nichts gefunden zu „${esc(q)}“.` : "Noch keine Produkte."}</p>`; return; }
+    const scannedTab = this._prodTab === "scanned";
+    let list = this._products.filter((p) => (!scannedTab || p.scanned) && (!q || `${p.name} ${p.note || ""}`.toLowerCase().includes(q)));
+    if (scannedTab) list = list.sort((a, b) => String(b.scanned_at || "").localeCompare(String(a.scanned_at || "")));
+    if (!list.length) { box.innerHTML = `<p class="hint">${q ? `Nichts gefunden zu „${esc(q)}“.` : scannedTab ? "Alles geprüft – nichts Neues gescannt. 👍" : "Noch keine Produkte."}</p>`; return; }
     const shown = list.slice(0, 80);
     box.innerHTML = shown.map((p) => {
       const cat = this._cat(p.category_id), st = this._store(p.store_id);
@@ -2701,6 +2845,8 @@ class EinkaufslisteCard extends HTMLElement {
           <input id="peAliases" value="${esc((p.aliases || []).join(", "))}" data-orig="${esc((p.aliases || []).join(", "))}" placeholder="🏷️ Spitznamen, z. B. Tempos, Tempo (mit Komma)" title="Wer so etwas eintippt, landet bei diesem Produkt">
           <select id="peCat">${this._selectOptions(this._data.categories, p.category_id, "📦 Ohne Kategorie")}</select>
           <select id="peStore">${this._selectOptions(this._data.stores, p.store_id, "🛒 Kein Standard-Geschäft")}</select>
+          ${this._data.stores.length > 1 ? `<div class="pestores" title="In welchen Geschäften gibt es das? Lernt sich beim Abhaken auch von selbst.">🏪 Gibt's bei: ${this._data.stores.map((st) =>
+            `<label class="stck" style="--c:${esc(st.color || "#888")}"><input type="checkbox" class="pestore" value="${esc(st.id)}" ${(p.stores || []).includes(st.id) || st.id === p.store_id ? "checked" : ""}>${esc(st.name)}</label>`).join("")}</div>` : ""}
           ${(() => { const t = Object.entries(this._data.typos || {}).filter(([, r]) => r.toLowerCase() === p.name.toLowerCase()).map(([w]) => w);
             return t.length ? `<div class="bclist" title="Diese Tippfehler korrigiert die Liste von selbst">${t.map((w) => `<span class="bcchip">🧠 ${esc(w)}<button type="button" class="iconbtn" data-act="typo-forget" data-w="${esc(w)}" title="Vergessen"><ha-icon icon="mdi:close"></ha-icon></button></span>`).join("")}</div>` : ""; })()}
           ${p.barcodes.length ? `<div class="bclist">${p.barcodes.map((code) => `<span class="bcchip">▥ ${esc(code)}<button type="button" class="iconbtn" data-act="bc-remove" data-code="${esc(code)}" title="Diesen Barcode löschen"><ha-icon icon="mdi:delete-outline"></ha-icon></button></span>`).join("")}</div>` : ""}
@@ -2714,8 +2860,8 @@ class EinkaufslisteCard extends HTMLElement {
         </div>`;
       }
       return `<div class="srow delrow prodrow" data-act="prod-edit" data-key="${esc(p.key)}">
-        <div class="grow delname"><b>${esc(p.name)}${p.note ? ` · ${esc(p.note)}` : ""}</b><small class="pmeta">${bits || "–"}</small></div>
-        <ha-icon icon="mdi:chevron-right"></ha-icon>
+        <div class="grow delname"><b>${esc(p.name)}${p.note ? ` · ${esc(p.note)}` : ""}</b><small class="pmeta">${p.scanned && !scannedTab ? "<span>📷 neu gescannt</span>" : ""}${bits || "–"}</small></div>
+        ${scannedTab ? `<button class="btn primary" data-act="prod-confirm" data-key="${esc(p.key)}" title="Name stimmt">✔ Passt</button>` : `<ha-icon icon="mdi:chevron-right"></ha-icon>`}
       </div>`;
     }).join("") + (list.length > shown.length ? `<p class="hint">… und ${list.length - shown.length} weitere – oben suchen.</p>` : "");
   }
@@ -2793,7 +2939,7 @@ class EinkaufslisteCard extends HTMLElement {
     const count = (this._data.recipes || []).length;
     // Suchfeld nur einmal bauen – sonst springt beim Tippen der Cursor raus
     if (!ov.querySelector("#recipeList") || !!ov.querySelector("#recipeSearch") !== count > 0) {
-      ov.innerHTML = `<div class="sec"><h3><ha-icon icon="mdi:chef-hat"></ha-icon>Rezepte</h3>${
+      ov.innerHTML = `<div class="sec"><h3><ha-icon icon="mdi:chef-hat"></ha-icon>Rezepte<span style="flex:1"></span><button class="btn" data-act="gar" title="Gar-Zeiten"><ha-icon icon="mdi:timer-outline"></ha-icon>Gar-Zeiten</button></h3>${
         count ? this._recipeSearchHtml("recipeSearch") : ""}<div id="recipeList"></div></div>`;
     }
     this._renderRecipeList();
@@ -3803,7 +3949,9 @@ class EinkaufslisteCard extends HTMLElement {
         <li>Oben die Reiter: <b>Alle</b>, Aldi, Netto … Die Zahl zeigt, wie viel dort offen ist.</li>
         <li>Die <b>rote Blase</b> heißt: Da ist was Neues dazugekommen, seit du zuletzt geschaut hast.</li>
         <li><b>✨</b> am Artikel = neu (verschwindet nach 24 Stunden).</li>
-        <li><b>⇄</b> am Artikel = war aus: <b>„Nächstes Mal wieder hier“</b> (bleibt offen, alle sehen „war aus“) oder gleich in ein anderes Geschäft schieben.</li></ul>`)}
+        <li><b>⇄</b> am Artikel = war aus: <b>„Nächstes Mal wieder hier“</b> (bleibt offen, alle sehen „war aus“) oder gleich in ein anderes Geschäft schieben. Geschäfte mit ✓ führen das Produkt auch.</li>
+        <li><b>🔁 Gibt's auch hier</b> (im Reiter eines Geschäfts): Sachen, die bei einem anderen Geschäft stehen, die es aber auch hier gibt. Antippen holt sie her.</li>
+        <li>Kein Netz im Laden? Einfach weiter abhaken. Der Punkt oben wird <b>orange ⏳</b>, und alles wird nachgeschickt, sobald wieder Netz da ist.</li></ul>`)}
       ${sec("👆", "Ändern & lange drücken", `<ul>
         <li>Artikel <b>lange drücken</b> = Menü: Bearbeiten, Verschieben, Menge, Kategorie, Foto, Barcode.</li>
         <li>Menge direkt ändern: auf die Menge tippen, dann <span class="elg-k">−</span> und <span class="elg-k">＋</span>.</li>
@@ -3824,7 +3972,8 @@ class EinkaufslisteCard extends HTMLElement {
         <li>Steht <b>„Noch nie gekauft – wo kaufen?“</b>, einfach das Geschäft wählen.</li>
         <li><b>Von der Liste (3)</b> nimmt die Zutaten dieses Rezepts wieder runter.</li>
         <li>📷 = Rezept-Fotos · <b>🔥 Kochen</b> = Schritt für Schritt in großer Schrift · <b>Teilen</b> = z. B. per WhatsApp.</li>
-        <li>Abgehakte Rezept-Zutaten verschwinden ganz (nicht bei „Erledigt“).</li></ul>`)}
+        <li>Abgehakte Rezept-Zutaten verschwinden ganz (nicht bei „Erledigt“).</li>
+        <li><b>⏲️ Gar-Zeiten</b> (oben bei den Rezepten und im Koch-Modus): Spickzettel für Nudeln, Eier, Gemüse, Fleisch & Co. – Topf, Backofen und Heißluftfritteuse.</li></ul>`)}
       ${sec("🟢", "Was bedeuten die Zeichen oben?", `<ul>
         <li>Von links: <b>🛒 Einkaufswagen</b> = diese Anleitung · <b>🟢 Punkt</b> · <b>Zahl</b> · <b>▥ Barcode</b>.</li>
         <li><b>🟢 Grüner Punkt</b> = verbunden, alles ist live auf allen Handys. <b>🔴 Rot</b> = gerade keine Verbindung.</li>
@@ -3866,7 +4015,9 @@ class EinkaufslisteCard extends HTMLElement {
         <li>At the top the tabs: <b>All</b> and your stores. The number shows how much is still open there.</li>
         <li>The <b>red bubble</b> means: something new was added since you last looked.</li>
         <li><b>✨</b> on the item = new (disappears after 24 hours).</li>
-        <li><b>⇄</b> on the item = was out: <b>“Here again next time”</b> (stays open, everyone sees “was out”) or move it straight to another store.</li></ul>`)}
+        <li><b>⇄</b> on the item = was out: <b>“Here again next time”</b> (stays open, everyone sees “was out”) or move it straight to another store. Stores with ✓ carry the product too.</li>
+        <li><b>🔁 Also available here</b> (in a store's tab): things listed at another store that this store has too. Tap to bring them here.</li>
+        <li>No connection in the store? Just keep checking things off. The dot at the top turns <b>orange ⏳</b> and everything is sent once there's a connection again.</li></ul>`)}
       ${sec("👆", "Changing & long-press", `<ul>
         <li><b>Long-press</b> an item = menu: edit, move, quantity, category, photo, barcode.</li>
         <li>Change the quantity directly: tap the quantity, then <span class="elg-k">−</span> and <span class="elg-k">＋</span>.</li>
@@ -3887,7 +4038,8 @@ class EinkaufslisteCard extends HTMLElement {
         <li>If it says <b>“Never bought – where to buy?”</b>, just pick the store.</li>
         <li><b>Off the list (3)</b> takes this recipe's ingredients off again.</li>
         <li>📷 = recipe photos · <b>🔥 Cook</b> = step by step in large print · <b>Share</b> = e.g. via WhatsApp.</li>
-        <li>Checked recipe ingredients disappear completely (not under “Done”).</li></ul>`)}
+        <li>Checked recipe ingredients disappear completely (not under “Done”).</li>
+        <li><b>⏲️ Cooking times</b> (at the top of the recipes and in cook mode): cheat sheet for pasta, eggs, vegetables, meat & co. – pot, oven and air fryer.</li></ul>`)}
       ${sec("🟢", "What do the symbols at the top mean?", `<ul>
         <li>From the left: <b>🛒 shopping cart</b> = this guide · <b>🟢 dot</b> · <b>number</b> · <b>▥ barcode</b>.</li>
         <li><b>🟢 Green dot</b> = connected, everything is live on all phones. <b>🔴 Red</b> = no connection right now.</li>
@@ -3913,8 +4065,10 @@ class EinkaufslisteCard extends HTMLElement {
     const title = document.createElement("div");
     title.textContent = `👨‍🍳 ${r.name}`;
     Object.assign(title.style, { font: "600 18px Roboto,sans-serif", flex: "1" });
-    const bIng = ovButton("🥕 Zutaten"), bClose = ovButton("✕");
-    head.append(title, bIng, bClose);
+    const bIng = ovButton("🥕 Zutaten"), bGar = ovButton("⏲️"), bClose = ovButton("✕");
+    bGar.title = elT("Gar-Zeiten");
+    bGar.onclick = () => showGarTable();
+    head.append(title, bIng, bGar, bClose);
     const heatBox = document.createElement("div");
     Object.assign(heatBox.style, { ...wrapW, display: heat.length ? "flex" : "none", flexDirection: "column", gap: "6px", marginTop: "14px" });
     heatBox.innerHTML = heat.map((h) => `<div style="background:#3a1f0f;border:1px solid #a64b12;color:#ffd7b5;border-radius:12px;padding:10px 12px;font:600 17px Roboto,sans-serif">${esc(heatText(h))}</div>`).join("");
@@ -4170,7 +4324,7 @@ class EinkaufslisteCard extends HTMLElement {
             barcode: res.code || code,
           });
           stats.added++;
-          return res.found ? `✅ ${name} ist drauf` : `❓ Unbekannt – später umbenennen`;
+          return res.found ? `✅ ${name} ist drauf${res.private_label ? ` · 🏷️ Eigenmarke von ${res.private_label}` : ""}` : `❓ Unbekannt – später umbenennen`;
         } catch (err) {
           return `⚠️ ${err?.message || "Hat nicht geklappt"}`;
         }
@@ -4227,10 +4381,10 @@ class EinkaufslisteCard extends HTMLElement {
         this._catManual = false;
         if (res.category_id && this._cat(res.category_id)) this.$("inCat").value = res.category_id;
         else this._onNameInput();
-        if (res.store_id && !this._fixedStore && this._activeTab === "all" && this._store(res.store_id)) this.$("inStore").value = res.store_id;
+        if (res.store_id && !this._fixedStore && (this._activeTab === "all" || res.private_label) && this._store(res.store_id)) this.$("inStore").value = res.store_id;
         this._toast(res.source === "gemerkt"
           ? `🔍 Kenn ich: „${res.name}${res.note ? ` · ${res.note}` : ""}“ – tippe ✅ zum Hinzufügen`
-          : `🔍 Gefunden: „${res.name}“ – Name passt? Dann ✅ tippen`);
+          : `🔍 Gefunden: „${res.name}“ – Name passt? Dann ✅ tippen${res.private_label ? ` · 🏷️ Eigenmarke von ${res.private_label}` : ""}`);
       } else {
         nameEl.value = "";
         this._toast(`🤔 Diesen Barcode kenne ich noch nicht – tipp den Namen ein, ich merk ihn mir!`);
@@ -4693,6 +4847,18 @@ class EinkaufslisteCard extends HTMLElement {
         this._moving = null;
         this._renderList();
         break;
+      case "gar":
+        showGarTable();
+        break;
+      case "also-here": {
+        const item = this._data.items.find((i) => i.id === el.dataset.id);
+        const target = this._store(el.dataset.store);
+        if (!item || !target) break;
+        const from = this._store(item.store_id);
+        this._ws({ type: "einkaufsliste/item/move", item_id: item.id, store_id: target.id })
+          .then(() => this._toast(`🔁 ${item.name}: ${from ? `bei ${from.name} abgehakt, ` : ""}jetzt bei ${target.name} offen`)).catch(() => {});
+        break;
+      }
       case "move-to": {
         const itemId = el.closest(".moverow").dataset.id;
         const item = this._data.items.find((i) => i.id === itemId);
@@ -4779,6 +4945,8 @@ class EinkaufslisteCard extends HTMLElement {
           name: this.$("peName").value.trim(), note: this.$("peNote").value.trim() || null,
           category_id: this.$("peCat").value || null, store_id: this.$("peStore").value || null,
         };
+        const boxes = [...this.shadowRoot.querySelectorAll(".prodedit input.pestore")];
+        if (boxes.length) msg.stores = boxes.filter((b) => b.checked).map((b) => b.value);
         const pa = this.$("peAliases");
         if (pa && pa.value.trim() !== pa.dataset.orig) msg.aliases = pa.value.split(/[,;]/).map((x) => x.trim()).filter(Boolean);
         if (!msg.name) { this.$("peName").classList.add("shake"); break; }
@@ -4797,6 +4965,11 @@ class EinkaufslisteCard extends HTMLElement {
           .then(() => { this._toast(`🗑️ „${label}“ gelöscht`); this._prodEdit = null; this._loadProducts(); }).catch(() => {});
         break;
       }
+      case "prod-confirm":
+        e.stopPropagation?.();
+        this._ws({ type: "einkaufsliste/product/confirm", key: el.dataset.key })
+          .then(() => { this._toast("✔ Geprüft"); this._loadProducts(); }).catch(() => {});
+        break;
       case "typo-forget":
         this._ws({ type: "einkaufsliste/typo/forget", wrong: el.dataset.w })
           .then(() => { this._toast("🧠 Tippfehler vergessen"); setTimeout(() => this._renderProducts(), 300); }).catch(() => {});

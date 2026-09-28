@@ -50,6 +50,7 @@ def async_register(hass: HomeAssistant) -> None:
         ws_product_remove,
         ws_barcode_remove,
         ws_typo_learn,
+        ws_product_confirm,
         ws_typo_forget,
         ws_pin_set,
         ws_pin_check,
@@ -294,11 +295,12 @@ def ws_group_add(hass, connection, msg):
         vol.Optional("color"): OPT_STR,
         vol.Optional("icon"): OPT_STR,
         vol.Optional("zone"): OPT_STR,
+        vol.Optional("brands"): OPT_STR,
     }
 )
 @callback
 def ws_group_update(hass, connection, msg):
-    fields = _pick(msg, "name", "color", "icon", "zone")
+    fields = _pick(msg, "name", "color", "icon", "zone", "brands")
     _run(
         hass, connection, msg, lambda m: m.update_group(msg["kind"], msg["group_id"], **fields)
     )
@@ -460,11 +462,12 @@ def ws_products(hass, connection, msg):
         vol.Optional("store_id"): OPT_STR,
         vol.Optional("unit"): OPT_STR,  # 📏 "" oder None = automatisch lernen
         vol.Optional("aliases"): [str],  # 🏷️ Spitznamen („Tempos“)
+        vol.Optional("stores"): [str],  # 🏪 „Gibt's bei“
     }
 )
 @callback
 def ws_product_update(hass, connection, msg):
-    fields = _pick(msg, "name", "note", "category_id", "store_id", "unit")
+    fields = _pick(msg, "name", "note", "category_id", "store_id", "unit", "stores")
     if "unit" in fields and fields["unit"] is None:
         fields["unit"] = ""
     if "note" in fields and fields["note"] is None:
@@ -542,6 +545,13 @@ def ws_item_out(hass, connection, msg):
 @callback
 def ws_barcode_remove(hass, connection, msg):
     _run(hass, connection, msg, lambda m: m.remove_barcode(msg["code"]))
+
+
+@websocket_api.websocket_command({vol.Required("type"): "einkaufsliste/product/confirm", vol.Required("key"): str})
+@callback
+def ws_product_confirm(hass, connection, msg):
+    """📷 Neu gescanntes Produkt geprüft – „Passt so“."""
+    _run(hass, connection, msg, lambda m: m.confirm_scanned(msg["key"]))
 
 
 @websocket_api.websocket_command(

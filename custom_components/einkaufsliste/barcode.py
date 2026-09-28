@@ -24,7 +24,7 @@ SOURCES = [
     ("Open Beauty Facts", "https://world.openbeautyfacts.org"),
     ("Open Products Facts", "https://world.openproductsfacts.org"),
 ]
-FIELDS = "product_name,product_name_de,generic_name_de,brands,categories_tags"
+FIELDS = "product_name,product_name_de,generic_name_de,brands,categories_tags,stores_tags"
 USER_AGENT = f"HomeAssistant-Einkaufsliste/{VERSION} (github.com/misterm2310/einkaufslisten-card)"
 
 # Stichwort in den Kategorien der Datenbank -> passende Kategorie-Namen bei dir
@@ -60,6 +60,51 @@ def guess_category(tags: list[str], source: str, categories: list[dict[str, Any]
         if any(w in cat["name"].lower() for w in wanted):
             return cat["id"]
     return None
+
+
+# 🏷️ Eigenmarken: gibt's nur in einer Kette. Stichwort im Geschäfts-Namen -> Marken (klein geschrieben)
+PRIVATE_LABELS: dict[str, tuple[str, ...]] = {
+    "aldi": ("milsani", "moser roth", "gut bio", "lacura", "tandil", "choceur", "cucina nobile", "rio d'oro",
+             "mamia", "golden bridge", "knusperone", "ombra"),
+    "lidl": ("milbona", "pilos", "cien", "formil", "w5", "freeway", "crownfield", "favorina", "deluxe", "solevita",
+             "fin carré", "chef select", "pikok", "vemondo", "alesto", "snack day", "italiamo", "kania", "dulano"),
+    "rewe": ("ja!", "rewe beste wahl", "rewe bio", "rewe feine welt"),
+    "penny": ("penny", "naturgut"),
+    "kaufland": ("k-classic", "k-bio", "k-favourites", "k-take it veggie"),
+    "netto": ("biobio", "gut & günstig", "gut&günstig"),
+    "edeka": ("gut & günstig", "gut&günstig", "edeka bio", "edeka", "elkos"),
+    "dm": ("balea", "alverde", "ebelin", "babylove", "dmbio", "dm bio", "mivolis", "denkmit", "profissimo",
+           "sundance", "jessa", "dontodent"),
+    "rossmann": ("isana", "alterra", "babydream", "domol", "enerbio", "rival de loop", "sunozon", "prokudent"),
+}
+
+
+def private_label_store(manager: Any, brands: str | None, stores_tags: list[str] | None = None) -> tuple[str | None, str | None]:
+    """(Geschäfts-ID, Geschäfts-Name) für eine Eigenmarke – oder (None, None).
+
+    1. Eigene Marken, die beim Geschäft in ⚙️ eingetragen sind.
+    2. Die eingebaute Eigenmarken-Liste (nur wenn es das Geschäft in deiner Liste gibt).
+    3. Die Produkt-Datenbank kennt genau EIN Geschäft, und das gibt es bei dir.
+    """
+    wanted = [b.strip().lower() for b in (brands or "").split(",") if b.strip()]
+    stores = manager.stores
+    for brand in wanted:
+        for st in stores:
+            own = [b.strip().lower() for b in (st.get("brands") or []) if b and b.strip()]
+            if brand in own:
+                return st["id"], st["name"]
+    for brand in wanted:
+        for key, labels in PRIVATE_LABELS.items():
+            if brand in labels:
+                st = next((x for x in stores if key in x["name"].lower().replace("-", " ").split() or x["name"].lower().startswith(key)), None)
+                if st:
+                    return st["id"], st["name"]
+    tags = [t.split(":")[-1].replace("-", " ") for t in (stores_tags or [])]
+    if len(tags) == 1:
+        st = next((x for x in stores if tags[0] and (tags[0] in x["name"].lower() or x["name"].lower() in tags[0])), None)
+        if st:
+            return st["id"], st["name"]
+    return None, None
 
 
 def _product_name(product: dict[str, Any]) -> tuple[str | None, str | None]:
@@ -132,13 +177,15 @@ async def async_lookup(hass: HomeAssistant, manager: Any, code: str) -> dict[str
         name, brand = _product_name(product)
         if not name:
             continue
+        pl_store, pl_name = private_label_store(manager, product.get("brands"), product.get("stores_tags"))
         return {
             "code": code,
             "found": True,
             "source": source,
             "name": name,
             "note": brand,
-            "store_id": None,
+            "store_id": pl_store,
+            "private_label": pl_name,
             "category_id": guess_category(
                 product.get("categories_tags") or [], source, manager.categories
             ),

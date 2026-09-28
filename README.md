@@ -43,6 +43,14 @@
 | 📥 **Import & Sicherung** | Rezepte aus einer Datei einlesen, Listen aus Bring!, Google Keep oder der HA-Einkaufsliste herüberholen und alles als Sicherung (.zip) herunterladen. |
 | ⚖️ **Umrechnen** | Amerikanische Rezepte? „1 cup flour“ wird zu „125 g flour“, „2 tbsp“ zu „2 EL“, „350 °F“ zu „175 °C“. |
 | 🌍 **Englisch** | Läuft Home Assistant auf Englisch (oder einer anderen Sprache), spricht die Karte Englisch. |
+| 📱 **Offline-App** | Eigene kleine App fürs Handy (über Nabu Casa oder eine andere https-Adresse): öffnet auch **ohne Netz**, Abhaken und Eintragen gehen weiter, alles wird nachgeschickt. |
+| ⏳ **Funkloch? Egal.** | Auch in der normalen Karte: Kurz kein Netz im Laden? Abhaken geht weiter, der Punkt oben wird orange, und alles wird nachgeschickt. |
+| 🏪 **Gibt's bei …** | Ein Produkt kann es in mehreren Geschäften geben. Die Liste lernt das beim Abhaken und zeigt im Geschäfts-Reiter „🔁 Gibt's auch hier“. |
+| 🏷️ **Eigenmarken** | Milsani, Milbona, ja!, Balea & Co. landen beim Scannen gleich beim richtigen Geschäft. |
+| ⏲️ **Gar-Zeiten** | Spickzettel für Nudeln, Eier, Gemüse, Fleisch & Co. – Topf, Backofen und Heißluftfritteuse. |
+| 🧠 **Lernt Tippfehler** | Wird „Mlich“ zweimal zu „Milch“ korrigiert, macht die Liste das ab dann von selbst. |
+| 🔒 **PIN fürs Zahnrad** | Die Einstellungen nur mit PIN – die Liste selbst bleibt für alle offen. |
+| 🛒😊 **Maskottchen** | Auf Wunsch ein Einkaufswagen mit Gesicht: strahlt bei leerer Liste, schwitzt bei vollem Wagen, schläft nachts. |
 | 🔎 **Merkt sich Produkte** | Beim Tippen kommen Vorschläge, Geschäft und Kategorie werden automatisch ausgefüllt. Tippst du einen Vorschlag an, kommen auch Menge, Notiz und „für wen“ mit. |
 
 ---
@@ -126,7 +134,7 @@ Was du gewählt hast, steht direkt am Symbol, zum Beispiel **🔢 2x · 👤 Oma
 ---
 
 **Noch schneller eintragen:**
-- **🔢 Menge gleich mittippen:** „3 milch“, „milch 3x“ oder „500g mehl“ – daraus wird **Milch · 3x** bzw. **Mehl · 500 g**.
+- **🔢 Menge gleich mittippen:** „3 milch“, „milch 3x“, „500g mehl“ oder „Milch (2)“ (so schreiben es z. B. OurGroceries & Co.) – daraus wird **Milch · 3x** bzw. **Mehl · 500 g**. Englische Einheiten wie „2 cans“ oder „3 tbsp“ gehen auch.
 - **📏 Mengen werden überall gleich geschrieben** – auf der Liste, im Rezept (schon beim Eintippen) und beim Rezept-Import:
   - Einheiten: „1l“, „1 Liter“ → **1 L**, „500gr“ → **500 g**, „3el“ → **3 EL**, „1“ oder „3 stk“ → **1x** / **3x**, „1 messerspitze“ → **1 Msp.**
   - Brüche werden Kommazahlen: „1/2 tl“ oder „½ TL“ → **0,5 TL**, „1½ L“ → **1,5 L**, „1/3 Tasse“ → **0,33 Tassen**
@@ -343,6 +351,14 @@ Alle Produkte, die die Liste kennt – mit Kategorie, Standard-Geschäft, Anzahl
 
 **🗑️ Ganz löschen** entfernt das Produkt komplett: Fotos, Barcodes, Vorschlag **und** alle Einträge auf der Einkaufsliste (offen und erledigt). Steht es noch in einem **Rezept**, sagt die Karte vorher, in welchem – im Rezept bleibt es stehen, bis du es dort änderst. Das geht auch direkt bei „✅ Alles ok?“: Bei „ohne Kategorie“ / „ohne Geschäft“ gibt es in der Auswahl **„🗑️ Produkt ganz löschen“** – praktisch für Tippfehler und Sachen, die es gar nicht gibt.
 
+**📷 Neu gescannt:** Gescannte Produkte, die die Liste noch nicht kannte, stehen unter **⚙️ → Produkte → Neu gescannt**. Dort kurz den Namen prüfen: **✔ Passt** oder antippen und korrigieren (Speichern zählt auch als geprüft). So muss niemand die neuen Sachen in der Liste suchen.
+
+**🏪 Gibt's bei:** Im Produkt gibt es Häkchen für die Geschäfte, in denen es das Produkt gibt. Wo du etwas abhakst, wird automatisch angehakt. Bei ⇄ stehen diese Geschäfte zuerst (mit ✓), und im Reiter eines Geschäfts zeigt **„🔁 Gibt's auch hier“** Sachen, die gerade bei einem anderen Geschäft stehen – antippen holt sie her.
+
+**🏷️ Eigenmarken:** Beim Scannen erkennt die Liste bekannte Eigenmarken (z. B. Milsani / Moser Roth → Aldi, Milbona / Pilos → Lidl, ja! → Rewe, K-Classic → Kaufland, Gut & Günstig → Edeka / Netto, Balea / alverde → DM, Isana → Rossmann) und setzt gleich das richtige Geschäft – aber nur, wenn es das Geschäft bei dir gibt. Eigene Marken trägst du unter **⚙️ → Geschäfte** beim jeweiligen Geschäft ein. Kennt die Produkt-Datenbank nur genau ein Geschäft für ein Produkt, wird das auch genommen. Ehrlich gesagt: Die Datenbank kennt nicht bei jedem Produkt die Marke – bei kleinen Marken klappt es manchmal nicht.
+
+**🧠 Tippfehler:** Nimmst du „Meintest du Milch?“ zweimal für „Mlich“ an, korrigiert die Liste „Mlich“ ab dann von selbst. Gelernte Tippfehler stehen im Produkt und lassen sich dort mit ✕ vergessen.
+
 ### 📥 Import & Sicherung
 Drei Knöpfe oben:
 
@@ -356,10 +372,22 @@ Drei Knöpfe oben:
   - **Text einfügen:** In Bring!, Google Keep & Co. die Liste teilen oder kopieren und einfügen – ein Artikel pro Zeile. Aufzählungszeichen, ☐ und `- [ ]` stören nicht, schon Abgehaktes (☑, `[x]`) bleibt draußen. Mengen wie „2 Äpfel“ werden erkannt.
 - **💾 Sicherung** (nur Admins): **Herunterladen** packt alles in eine .zip – Liste, Rezepte, Produkte, Barcodes, Fotos, Geschäfte, Kategorien, Personen, Verlauf. **Einspielen** ersetzt nach einer Rückfrage **alles** durch den Stand aus der Datei. Praktisch für einen Umzug auf ein neues Home Assistant.
 
+### 🔒 Schutz (PIN)
+In **⚙️ → Schutz** eine PIN (4–8 Ziffern) festlegen. Danach geht das Zahnrad nur noch mit PIN auf; auf dem Gerät bleibt es danach 10 Minuten offen. Eintragen, Abhaken, Rezepte und Laden-Modus bleiben für alle frei. **PIN vergessen?** Einstellungen → Geräte & Dienste → Einkaufsliste → Konfigurieren → „PIN zurücksetzen“ (nur Admins). Ehrlich gesagt: Die PIN schützt vor versehentlichem Verstellen und neugierigen Kinderaugen – ein Tresor ist sie nicht.
+
+### 📱 Offline-App
+Für den Einkauf ohne Netz gibt es eine eigene kleine App-Seite:
+1. Auf dem Handy im **Browser** (Chrome oder Safari, nicht in der HA-App) deine Adresse von unterwegs öffnen und `/einkaufsliste/app/` anhängen, z. B. `https://deine-adresse.ui.nabu.casa/einkaufsliste/app/`.
+2. Einmal mit dem Home-Assistant-Benutzer **anmelden**.
+3. Im Browser-Menü **„Zum Startbildschirm hinzufügen“**.
+
+Die App speichert den letzten Stand im Handy und öffnet auch **ohne Netz**. Abhaken, Eintragen, Menge, Notiz, Für wen, ⇄ und Laden-Modus gehen offline; oben steht „⏳ 2 warten“, und sobald wieder Netz da ist, wird alles nachgeschickt. Einstellungen, Rezepte und Scannen gibt es nur in der Karte. Gut zu wissen: Es braucht eine **https**-Adresse (z. B. Nabu Casa). Ändern zwei Leute gleichzeitig denselben Artikel, gewinnt die letzte Änderung. iPhones löschen den Offline-Speicher einer Web-App manchmal, wenn sie wochenlang nicht geöffnet wurde – dann einmal mit Netz öffnen.
+
 ### 📋 Verlauf: wer hat wann was wie gemacht?
 - Alles steht drin, das Neueste oben, nach Tagen sortiert: **eingetragen**, **wieder drauf**, **abgehakt**, **geändert** (mit Details wie „Menge 2x → 4x“), **verschoben** („Aldi → Netto“) und **gelöscht**.
 - Das Zeichen vorne zeigt, **wie** es passiert ist: ✍️ in der Karte · ▥ gescannt · 🍳 Rezept · 🔗 zusammengelegt · 🧹 automatisch aufgeräumt · 🤖 Automation/Dienst.
 - **Filter:** nach Person, Geschäft und Aktion, dazu eine **Suche** nach dem Artikel.
+- **📈 Oft nicht bekommen:** Oben im Verlauf steht, was öfter „war aus“ war oder weggeschoben wurde, z. B. „3× Butter bei Aldi – vielleicht woanders kaufen?“.
 - **Aufheben für:** 7, 30, 90 (Standard), 180 oder 365 Tage. Ältere Einträge verschwinden von selbst. Mit **„Verlauf leeren“** ist alles auf einmal weg.
 
 Rezepte stehen überall **von A bis Z** sortiert.
@@ -383,6 +411,7 @@ Alles lässt sich bequem im visuellen Editor einstellen. Für YAML-Fans:
 | `compact` | `false` | 📱 Kompakt-Modus: kleinere Zeilen ohne Zusatz-Infos |
 | `auto_store` | `true` | 📍 Automatisch zum Geschäft springen, bei dem man gerade ist |
 | `show_settings` | `true` | Zahnrad für Geschäfte und Kategorien anzeigen (zum Beispiel fürs Kinder-Tablet ausschalten) |
+| `mascot` | `false` | 🛒😊 Maskottchen statt des Einkaufswagens oben: Laune je nach Liste, nachts schläft er, zu Weihnachten gibt's eine Mütze |
 | `language` | `auto` | 🌍 `auto` = wie Home Assistant (Deutsch, sonst Englisch), `de` = immer Deutsch, `en` = immer Englisch |
 
 **Geschäfte, Kategorien & Personen:** Tipp auf das ⚙️-Zahnrad. Dort kannst du alles anlegen, umbenennen, sortieren (▲▼) und löschen. Geschäfte kannst du außerdem einfärben.
@@ -392,8 +421,32 @@ Alles lässt sich bequem im visuellen Editor einstellen. Für YAML-Fans:
 
 ## 🤖 Für Automationen
 
-### Sensor
-`sensor.einkaufsliste_offene_artikel` zeigt die Anzahl der offenen Artikel und hat diese Attribute:
+### Sensoren
+| Sensor | Was zeigt er? |
+|---|---|
+| `sensor.einkaufsliste_offene_artikel` | Anzahl aller offenen Artikel (Attribute siehe unten) |
+| `sensor.einkaufsliste_aldi` usw. | **Pro Geschäft** ein Sensor: offene Artikel dort, Attribut `artikel` = Liste der Namen. Neue Geschäfte bekommen ihren Sensor automatisch. |
+| `binary_sensor.einkaufsliste_etwas_zu_kaufen` | **An**, sobald etwas offen ist (Attribute `anzahl`, `geschaefte`) – z. B. für eine Lampe an der Haustür |
+| `sensor.einkaufsliste_zuletzt_eingetragen` | Name des zuletzt eingetragenen Artikels, dazu `von`, `wann`, `geschaeft`, `menge`, `notiz`, `fuer` – z. B. für „Sandra hat Milch auf die Liste gesetzt“ |
+
+```yaml
+# Beispiel: Nachricht, wenn man bei Aldi ist und dort etwas steht
+trigger:
+  - platform: zone
+    entity_id: person.anna
+    zone: zone.aldi
+    event: enter
+condition:
+  - condition: numeric_state
+    entity_id: sensor.einkaufsliste_aldi
+    above: 0
+action:
+  - action: notify.mobile_app_annas_handy
+    data:
+      message: "🛒 Bei Aldi stehen {{ states('sensor.einkaufsliste_aldi') }} Sachen auf der Liste"
+```
+
+`sensor.einkaufsliste_offene_artikel` hat diese Attribute:
 
 | Attribut | Inhalt |
 |---|---|
