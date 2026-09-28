@@ -2,7 +2,7 @@
  * Einkaufsliste Card – die Familien-Einkaufsliste für Home Assistant
  * Wird automatisch von der Integration "einkaufsliste" geladen.
  */
-const EL_VERSION = "2.32.0";
+const EL_VERSION = "2.33.0";
 const EGAL_CHIP = `<span class="chip" style="--c:#888">🤷 Egal wo</span>`; // Artikel ohne Geschäft: überall kaufen
 
 // Doppelt-Finder: Wörter, die dasselbe meinen (alles klein, ohne Leer-/Sonderzeichen)
@@ -553,7 +553,68 @@ function ovButton(label, main = false) {
 
 // 📷 Woher kommt das Foto? Kamera · Galerie · Einfügen (Zwischenablage) – gibt "camera" | "gallery" | "paste" | null
 const elCanPaste = () => !!(window.isSecureContext && navigator.clipboard?.read);
-function askPhotoSource() {
+// 📱 Läuft die Karte in der HA-App (Android/iPhone)?
+const elInHaApp = () => !!(window.externalApp || window.webkit?.messageHandlers?.getExternalAuth);
+// 🖥️ PC/Laptop mit Maus (kein Touch)
+const elIsPc = () => !!window.matchMedia?.("(hover: hover) and (pointer: fine)").matches && !(navigator.maxTouchPoints > 0);
+
+// 🖥️ Am PC: Fenster mit großer Fläche – Bild reinziehen, Strg + V oder klicken. Gibt eine Datei, "browse" oder null
+function askPhotoDrop() {
+  return new Promise((resolve) => {
+    const ov = makeOverlay();
+    ov.style.background = "rgba(0,0,0,.7)";
+    ov.innerHTML = `<div style="width:100%;max-width:460px;background:#222;border-radius:18px;padding:18px;box-shadow:0 4px 24px rgba(0,0,0,.5);display:flex;flex-direction:column;gap:12px">
+      <div style="font:600 17px Roboto,sans-serif;text-align:center">🖼️ Foto hinzufügen</div>
+      <div data-zone style="border:2px dashed rgba(255,255,255,.45);border-radius:14px;padding:34px 16px;text-align:center;cursor:pointer;line-height:1.5;transition:background .15s">
+        <div style="font-size:34px">📥</div>
+        <div><b>Bild hier reinziehen</b></div>
+        <div>oder <b>Strg + V</b> drücken (z. B. Screenshot)</div>
+        <div style="opacity:.75;font-size:.92em;margin-top:4px">oder klicken zum Auswählen</div>
+        <div data-msg style="color:#ffb74d;margin-top:8px;min-height:1.2em"></div>
+      </div>
+    </div>`;
+    const box = ov.firstElementChild;
+    const zone = ov.querySelector("[data-zone]");
+    const msg = ov.querySelector("[data-msg]");
+    const cancel = ovButton("Abbrechen");
+    box.appendChild(cancel);
+    let over = false;
+    const done = (v) => {
+      if (over) return;
+      over = true;
+      document.removeEventListener("paste", onPaste, true);
+      document.removeEventListener("keydown", onKey, true);
+      clearInterval(watch);
+      ov.remove();
+      resolve(v);
+    };
+    const pick = (files) => {
+      const f = [...(files || [])].find((x) => x.type?.startsWith("image/"));
+      if (f) done(f);
+      else msg.textContent = elT("Das war kein Bild 🙈");
+    };
+    const onPaste = (e) => {
+      const f = [...(e.clipboardData?.items || [])].filter((i) => i.kind === "file").map((i) => i.getAsFile()).filter(Boolean);
+      e.preventDefault();
+      e.stopPropagation();
+      pick(f);
+    };
+    const onKey = (e) => { if (e.key === "Escape") done(null); };
+    document.addEventListener("paste", onPaste, true);
+    document.addEventListener("keydown", onKey, true);
+    const watch = setInterval(() => { if (!ov.isConnected) done(null); }, 400);
+    zone.onclick = () => done("browse");
+    zone.ondragover = (e) => { e.preventDefault(); zone.style.background = "rgba(255,255,255,.08)"; };
+    zone.ondragleave = () => { zone.style.background = ""; };
+    zone.ondrop = (e) => { e.preventDefault(); zone.style.background = ""; pick(e.dataTransfer?.files); };
+    ov.ondragover = (e) => e.preventDefault();
+    ov.ondrop = (e) => { e.preventDefault(); pick(e.dataTransfer?.files); };
+    cancel.onclick = () => done(null);
+    ov.onclick = (e) => { if (e.target === ov) done(null); };
+  });
+}
+
+function askPhotoSource(camera = true) {
   return new Promise((resolve) => {
     const ov = makeOverlay();
     ov.style.justifyContent = "flex-end";
@@ -565,7 +626,7 @@ function askPhotoSource() {
     title.style.cssText = "font:600 16px Roboto,sans-serif;text-align:center;opacity:.85";
     box.appendChild(title);
     const done = (v) => { ov.remove(); resolve(v); };
-    const opts = [["camera", "📷 Kamera"], ["gallery", "🖼️ Galerie"]];
+    const opts = camera ? [["camera", "📷 Kamera"], ["gallery", "🖼️ Galerie"]] : [["gallery", "🖼️ Galerie"]];
     if (elCanPaste()) opts.push(["paste", "📋 Einfügen (Zwischenablage)"]);
     for (const [v, label] of opts) {
       const b = ovButton(label, v === "camera");
@@ -4064,7 +4125,17 @@ class EinkaufslisteCard extends HTMLElement {
   // 📷 Foto holen: erst fragen woher (Kamera, Galerie, Einfügen), dann wie gewohnt weiter
   async _pickFile(id) {
     const input = this.$(id);
-    const how = await askPhotoSource();
+    const browse = () => { input.removeAttribute("capture"); input.value = ""; input.click(); };
+    if (elIsPc()) { // 🖥️ PC: Fenster zum Reinziehen / Strg + V / Auswählen
+      const r = await askPhotoDrop();
+      if (r === "browse") browse();
+      else if (r) this._photoFromFile(id, r);
+      return;
+    }
+    // 📱 HA-App über http (zu Hause im WLAN): Kamera geht da nicht – also gleich die Galerie, ohne Menü
+    const camera = window.isSecureContext || !elInHaApp();
+    if (!camera && !elCanPaste()) { browse(); return; }
+    const how = await askPhotoSource(camera);
     if (!how) return;
     if (how === "paste") {
       let file = null;
@@ -4091,6 +4162,7 @@ class EinkaufslisteCard extends HTMLElement {
 
   // ⌨️ Strg + V mit einem Bild: in der Liste = Foto fürs Eintragen, im Rezept-Editor = Rezept-Foto
   _onPaste(e) {
+    if (document.querySelector("[data-elov]")) return; // ein Fenster (z. B. Foto hinzufügen) kümmert sich selbst
     const item = [...(e.clipboardData?.items || [])].find((i) => i.kind === "file" && i.type.startsWith("image/"));
     const file = item?.getAsFile();
     if (!file) return;

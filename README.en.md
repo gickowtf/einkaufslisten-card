@@ -61,7 +61,7 @@ Copy `custom_components/einkaufsliste` to `/config/custom_components/einkaufslis
 
 ## 👆 How to use it
 
-**Adding:** type a name, tap the green ✔. The buttons below: 🔢 quantity · 📝 note · 👤 for whom · 📷 photo (📷 camera · 🖼️ gallery · 📋 paste – on a PC, Ctrl + V into the input field works too; over https the camera opens right inside the card, otherwise the phone decides) · 🧽 clear. Store and category are usually picked correctly already. A store is missing? Pick **“➕ New store …”** in the list – just type the name, the rest later in ⚙️.
+**Adding:** type a name, tap the green ✔. The buttons below: 🔢 quantity · 📝 note · 👤 for whom · 📷 photo (on the phone: 📷 camera · 🖼️ gallery · 📋 paste – over https the camera opens right inside the card; in the HA app over the local http address the gallery opens straight away. On a PC: a window to drag into, **Ctrl + V** (e.g. a screenshot of a flyer) or choose a file) · 🧽 clear. Store and category are usually picked correctly already. A store is missing? Pick **“➕ New store …”** in the list – just type the name, the rest later in ⚙️.
 
 **In the list:**
 - ⭕ **Circle** = check off. Under “Done” once more = back on the list.
