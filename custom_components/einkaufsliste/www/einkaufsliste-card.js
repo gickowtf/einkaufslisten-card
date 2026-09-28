@@ -2,7 +2,8 @@
  * Einkaufsliste Card – die Familien-Einkaufsliste für Home Assistant
  * Wird automatisch von der Integration "einkaufsliste" geladen.
  */
-const EL_VERSION = "2.29.0";
+const EL_VERSION = "2.30.0";
+const EGAL_CHIP = `<span class="chip" style="--c:#888">🤷 Egal wo</span>`; // Artikel ohne Geschäft: überall kaufen
 
 // Doppelt-Finder: Wörter, die dasselbe meinen (alles klein, ohne Leer-/Sonderzeichen)
 const DUP_SYNONYMS = (() => {
@@ -1777,7 +1778,7 @@ class EinkaufslisteCard extends HTMLElement {
     const t = this._activeTab;
     if (t === "all") return true;
     if (t === "none") return !item.store_id;
-    return item.store_id === t;
+    return item.store_id === t || !item.store_id; // 🤷 „Egal wo“ gibt es in jedem Geschäft
   }
   _autoCheckDate(item) {
     const s = this._data?.settings;
@@ -1911,7 +1912,7 @@ class EinkaufslisteCard extends HTMLElement {
     btnR.querySelector("ha-icon").setAttribute("icon", this._view === "recipes" ? "mdi:close" : "mdi:chef-hat");
     if (!d) { this.$("listView").hidden = true; this.$("footer").hidden = true; return; }
 
-    const open = d.items.filter((i) => !i.checked && (this._fixedStore ? i.store_id === this._fixedStore : true));
+    const open = d.items.filter((i) => !i.checked && (this._fixedStore ? i.store_id === this._fixedStore || !i.store_id : true));
     const cnt = this.$("count");
     cnt.hidden = open.length === 0;
     cnt.textContent = open.length;
@@ -1952,7 +1953,7 @@ class EinkaufslisteCard extends HTMLElement {
     const noneFn = (i) => !i.store_id;
     const parts = [`<button class="tab ${active === "all" ? "active" : ""}" data-act="tab" data-tab="all">Alle <span class="n">${openCount(() => true)}</span>${bubble(() => true, active === "all")}</button>`];
     for (const s of d.stores) {
-      parts.push(`<button class="tab ${active === s.id ? "active" : ""}" style="--c:${esc(s.color)}" data-act="tab" data-tab="${s.id}"><span class="dot"></span>${this._lastNear === s.id ? "📍 " : ""}${esc(s.name)} <span class="n">${openCount((i) => i.store_id === s.id)}</span>${bubble((i) => i.store_id === s.id, active === s.id)}</button>`);
+      parts.push(`<button class="tab ${active === s.id ? "active" : ""}" style="--c:${esc(s.color)}" data-act="tab" data-tab="${s.id}"><span class="dot"></span>${this._lastNear === s.id ? "📍 " : ""}${esc(s.name)} <span class="n">${openCount((i) => i.store_id === s.id || !i.store_id)}</span>${bubble((i) => i.store_id === s.id || !i.store_id, active === s.id)}</button>`);
     }
     const none = d.items.filter((i) => !i.store_id).length;
     if (none || active === "none") {
@@ -2176,8 +2177,9 @@ class EinkaufslisteCard extends HTMLElement {
     const meta = [];
     const grp = this._grpMap?.get(item.id);
     if (grp && grp.length > 1) {
-      for (const g of grp) { const st = this._store(g.store_id); if (st) meta.push(`<span class="chip" style="--c:${esc(st.color)}">${esc(st.name)}</span>`); }
+      for (const g of grp) { const st = this._store(g.store_id); meta.push(st ? `<span class="chip" style="--c:${esc(st.color)}">${esc(st.name)}</span>` : EGAL_CHIP); }
     } else if (this._activeTab === "all" && store) meta.push(`<span class="chip" style="--c:${esc(store.color)}">${esc(store.name)}</span>`);
+    else if (!item.store_id && this._activeTab !== "none") meta.push(EGAL_CHIP); // 🤷 überall zu haben
     // Reihenfolge unter dem Namen: Geschäft · Notiz · Barcode · wer eingetragen · wer abgehakt · (Rezept, Zeit)
     if (item.note) meta.push(`<span class="inote">📝 ${esc(item.note)}</span>`);
     if (!item.checked && item.out_at && Date.now() - new Date(item.out_at) < 3 * DAY)
@@ -2446,7 +2448,8 @@ class EinkaufslisteCard extends HTMLElement {
     // 🏪 Gibt's auch hier: Artikel, die bei einem anderen Geschäft offen stehen, die es aber auch hier gibt
     const here = !allView ? (this._fixedStore || this._activeTab) : null;
     if (here && here !== "none" && !filter && this._store(here)) {
-      const also = d.items.filter((i) => !i.checked && i.store_id && i.store_id !== here && !i.recipe_id && this._prodStores(i.name).includes(here));
+      const openHere = new Set(rawOpen.map((i) => i.name.toLowerCase())); // steht schon hier (z. B. 🤷 „Egal wo“)
+      const also = d.items.filter((i) => !i.checked && i.store_id && i.store_id !== here && !i.recipe_id && !openHere.has(i.name.toLowerCase()) && this._prodStores(i.name).includes(here));
       if (also.length) {
         html.push(`<div class="alsohere"><b>🔁 Gibt's auch hier:</b> ${also.slice(0, 8).map((i) => {
           const st = this._store(i.store_id);
@@ -3879,6 +3882,12 @@ class EinkaufslisteCard extends HTMLElement {
     if (this._data.items.some((i) => fn(i) && this._isNewFor(i, seen)) || (tab === "all" && !seen.all)) sendSeen(tab);
     // 🔴 Blase: nur der Reiter, der gerade offen ist (nicht „Alle“)
     if (tab !== "all" && this._newCount(fn)) sendSeen("b:" + tab);
+    // 🤷 „Egal wo“ steht in jedem Geschäft mit drin – also dort auch gleich als gesehen merken
+    if (tab !== "all" && tab !== "none") {
+      const none = (i) => !i.store_id;
+      if (this._data.items.some((i) => none(i) && this._isNewFor(i, seen))) sendSeen("none");
+      if (this._newCount(none)) sendSeen("b:none");
+    }
   }
 
   // Ein Produkt = Name + Notiz (Käse · Gouda ≠ Käse · Leerdammer) – für Fotos und Barcodes
@@ -4337,6 +4346,7 @@ class EinkaufslisteCard extends HTMLElement {
         <li>Die <b>rote Blase</b> heißt: Da ist was Neues dazugekommen, seit du zuletzt geschaut hast.</li>
         <li><b>✨</b> am Artikel = neu (verschwindet nach 24 Stunden).</li>
         <li><b>⇄</b> am Artikel = war aus: <b>„Nächstes Mal wieder hier“</b> (bleibt offen, alle sehen „war aus“) oder gleich in ein anderes Geschäft schieben. Geschäfte mit ✓ führen das Produkt auch.</li>
+        <li><b>🤷 „Egal wo“</b> = kein festes Geschäft: steht in jedem Geschäfts-Reiter mit drin. Mit ⇄ in ein Geschäft schieben = zieht einfach um.</li>
         <li><b>🔁 Gibt's auch hier</b> (im Reiter eines Geschäfts): Sachen, die bei einem anderen Geschäft stehen, die es aber auch hier gibt. Antippen holt sie her.</li>
         <li>Kein Netz im Laden? Einfach weiter abhaken. Der Punkt oben wird <b>orange ⏳</b>, und alles wird nachgeschickt, sobald wieder Netz da ist.</li></ul>`)}
       ${sec("👆", "Ändern & lange drücken", `<ul>

@@ -1864,3 +1864,28 @@ async def test_todo_sync_keep_and_full(hass: HomeAssistant, setup) -> None:
     await settle()
     assert len([i for i in m.items if i["name"].lower().startswith("tee")]) == 1
     assert m.as_dict()["settings"]["todo_sync"]["mode"] == "sync" and "links" not in m.as_dict()["settings"]["todo_sync"]
+
+
+async def test_move_from_anywhere_relocates(hass: HomeAssistant, setup) -> None:
+    """🤷 Aus „Egal wo“ verschieben = einfach umziehen, kein abgehakter Rest bleibt zurück."""
+    m = mgr(hass)
+    netto, aldi = m.find_store("Netto"), m.find_store("Aldi")
+    milch = m.add_item("Milch", quantity="2x")
+    new = m.move_item(milch["id"], netto)
+    assert new["id"] == milch["id"] and new["store_id"] == netto and not new["checked"]
+    assert len([i for i in m.items if i["name"] == "Milch"]) == 1
+    # alter abgehakter Eintrag im Ziel wird ersetzt statt doppelt
+    old = m.add_item("Kakao", store_id=aldi)
+    m.set_checked(old["id"], True)
+    kakao = m.add_item("Kakao")
+    new = m.move_item(kakao["id"], aldi)
+    assert [i["id"] for i in m.items if i["name"] == "Kakao"] == [kakao["id"]] and new["store_id"] == aldi
+    # dort schon offen -> zusammenlegen
+    m.add_item("Brot", store_id=netto)
+    brot = m.add_item("Brot", quantity="3x")
+    new = m.move_item(brot["id"], netto)
+    assert len([i for i in m.items if i["name"] == "Brot"]) == 1 and new["quantity"] == "3x"
+    # zwischen echten Geschäften bleibt „War aus“: alt abgehakt, neu offen
+    m.move_item(new["id"], aldi)
+    brote = [i for i in m.items if i["name"] == "Brot"]
+    assert len(brote) == 2 and {i["checked"] for i in brote} == {True, False}

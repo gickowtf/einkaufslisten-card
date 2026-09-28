@@ -66,6 +66,7 @@ Copy `custom_components/einkaufsliste` to `/config/custom_components/einkaufslis
 **In the list:**
 - ⭕ **Circle** = check off. Under “Done” once more = back on the list.
 - ⇄ = was out (stays open marked “was out”, or moves to another store).
+- 🤷 **“Anywhere”** = items without a fixed store. They show up in **every** store tab (tagged “🤷 Anywhere”) – wherever you happen to be. Check off = gone everywhere. Moving one to a store with ⇄ simply relocates it, nothing is left under “Done”.
 - **Long-press** = menu: edit, move, quantity, category, photo, barcode, info.
 - **Tap the quantity** = [−] 2x [＋].
 - ✨ = new since you last looked; the red number on a tab shows how much is new there.

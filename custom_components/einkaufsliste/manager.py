@@ -1301,6 +1301,24 @@ class EinkaufslisteManager:
         twin = self._find_same(
             item["name"], item.get("note"), item.get("for_whom"), target, item.get("recipe_id")
         )
+        if item["store_id"] is None and not item["checked"]:
+            # 🤷 aus „Egal wo“: einfach umziehen – kein abgehakter Rest bleibt zurück
+            if twin is not None and not twin["checked"]:  # dort schon offen -> zusammenlegen
+                if item.get("quantity"):
+                    twin["quantity"] = item["quantity"]
+                self.items.remove(item)
+                self._relink(item["id"], twin["id"])
+                new = twin
+            else:
+                if twin is not None:  # alter abgehakter Eintrag dort wird ersetzt
+                    self.items.remove(twin)
+                    self._relink(twin["id"], item["id"])
+                item["store_id"] = target
+                new = item
+            self._remember(new)
+            self._log("move", new, f"{source_name} → {target_name}", who=by)
+            self._changed()
+            return new
         # alter Laden: abhaken (Rezept-Zutaten verschwinden wie beim normalen Abhaken)
         if not item["checked"]:
             if item.get("recipe_id"):
@@ -1339,6 +1357,15 @@ class EinkaufslisteManager:
         self._log("move", new, f"{source_name} → {target_name}", who=by)
         self._changed()
         return new
+
+    def _relink(self, old_id: str, new_id: str) -> None:
+        """🔁 Verknüpfungen der To-do-Liste auf den verbleibenden Eintrag umbiegen."""
+        links = (self.todo_sync or {}).get("links") or {}
+        if any(v.get("item") == new_id for v in links.values()):
+            return  # schon verknüpft: der doppelte Eintrag drüben wird beim Abgleich gelöscht
+        for v in links.values():
+            if v.get("item") == old_id:
+                v["item"] = new_id
 
     @callback
     def remove_item(self, item_id: str) -> None:
