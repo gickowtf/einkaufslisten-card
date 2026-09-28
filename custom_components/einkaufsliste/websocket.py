@@ -14,6 +14,7 @@ from homeassistant.helpers.dispatcher import async_dispatcher_connect
 from .barcode import async_auto_photo, async_lookup, async_product_info
 from .recipe_import import async_import
 from .const import DOMAIN, SIGNAL_UPDATED
+from .mail_import import mail_sources
 from .transfer import async_todo_text, import_recipe_file, import_text, todo_lists
 from .manager import EinkaufslisteManager, person_name_for_user, product_key
 
@@ -60,6 +61,8 @@ def async_register(hass: HomeAssistant) -> None:
         ws_import_todo_lists,
         ws_import_todo,
         ws_todo_sync,
+        ws_mail_sources,
+        ws_mail_import,
         ws_mascot,
         ws_seen,
         ws_group_add,
@@ -541,6 +544,27 @@ async def ws_import_todo(hass, connection, msg):
 def ws_todo_sync(hass, connection, msg):
     """🔁 To-do-Liste zum automatischen Herüberholen wählen (ohne entity_id = aus)."""
     _run(hass, connection, msg, lambda m: m.set_todo_sync(msg.get("entity_id") or None, msg.get("store_id") or None))
+
+
+@websocket_api.websocket_command({vol.Required("type"): "einkaufsliste/mail/sources"})
+@callback
+def ws_mail_sources(hass, connection, msg):
+    """📧 Eingerichtete IMAP-Postfächer."""
+    connection.send_result(msg["id"], mail_sources(hass))
+
+
+@websocket_api.websocket_command(
+    {
+        vol.Required("type"): "einkaufsliste/mail/set",
+        vol.Optional("entry_id"): OPT_STR,
+        vol.Optional("store_id"): OPT_STR,
+        vol.Optional("senders"): [str],
+    }
+)
+@callback
+def ws_mail_import(hass, connection, msg):
+    """📧 „Per E-Mail auf die Liste“ einstellen (ohne entry_id = aus)."""
+    _run(hass, connection, msg, lambda m: m.set_mail_import(msg.get("entry_id") or None, msg.get("store_id") or None, msg.get("senders")))
 
 
 @websocket_api.websocket_command({vol.Required("type"): "einkaufsliste/mascot/set", vol.Required("on"): bool})

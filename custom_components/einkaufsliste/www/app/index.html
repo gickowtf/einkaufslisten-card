@@ -513,10 +513,27 @@ function update() {
       if (confirm(T("Abmelden? Noch nicht gesendete Änderungen gehen verloren.", "Log out? Changes not sent yet will be lost."))) logout(false);
     });
   }
+  runShortcut();
   const pill = document.getElementById("pill");
   pill.textContent = ready ? T("🟢 verbunden", "🟢 connected") : T("📴 offline – letzter Stand", "📴 offline – last state");
   pill.classList.toggle("off", !ready);
   card.hass = makeHass();
+}
+// 📱 Schnellmenü am App-Symbol (lange drücken): ?do=add | shop | scan
+let shortcut = new URLSearchParams(location.search).get("do");
+if (shortcut) history.replaceState(null, "", BASE);
+let shortcutTries = 0;
+function runShortcut() {
+  if (!shortcut || !card) return;
+  if (!card._data || !card.shadowRoot) { if (shortcutTries++ < 30) setTimeout(runShortcut, 300); return; }
+  const what = shortcut;
+  shortcut = null;
+  setTimeout(() => {
+    const $ = (id) => card.shadowRoot.getElementById(id);
+    if (what === "add") { $("inName")?.focus(); $("inName")?.scrollIntoView({ block: "center" }); }
+    else if (what === "shop" && !$("btnShop")?.classList.contains("on")) $("btnShop")?.click();
+    else if (what === "scan" && !$("btnScan")?.hidden) $("btnScan")?.click();
+  }, 300);
 }
 function logout(silent) {
   const refresh = auth?.refresh;

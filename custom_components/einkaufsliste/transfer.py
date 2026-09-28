@@ -88,6 +88,8 @@ async def async_restore(manager: EinkaufslisteManager, raw: bytes) -> dict[str, 
     await manager.async_load()
     if getattr(manager, "sync", None) is not None:
         manager.sync.start()  # 🔁 gewählte To-do-Liste aus der Sicherung übernehmen
+    if getattr(manager, "mail", None) is not None:
+        manager.mail.start()
     # Fotos, die jetzt zu nichts mehr gehören, wegräumen
     await manager.async_check(fixes={"photo_orphans": ""})
     manager._changed()

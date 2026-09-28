@@ -29,6 +29,11 @@ _TYPES = {
     "zxing.min.js": "text/javascript",  # Barcode-Leser für Handys ohne eingebauten (ZXing-js 0.21.3, Apache 2.0), gepackt als .gz
 }
 _GZ = {"icons.json", "zxing.min.js"}
+_MANIFEST_EN = {
+    '"Einkaufsliste"': '"Shopping list"', '"Einkauf"': '"Shopping"',
+    "Die Familien-Einkaufsliste aus Home Assistant – auch ohne Netz.": "The family shopping list from Home Assistant – even offline.",
+    '"Eintragen"': '"Add"', '"Laden-Modus"': '"Shop mode"', '"Laden"': '"Shop"', '"Scannen"': '"Scan"',
+}
 
 
 class AppView(HomeAssistantView):
@@ -50,6 +55,9 @@ class AppView(HomeAssistantView):
                                 headers={"Content-Encoding": "gzip", "Cache-Control": "public, max-age=604800"})
         if file in ("index.html", "sw.js"):
             body = body.replace(b"__EL_VERSION__", VERSION.encode())
+        if file == "manifest.json" and not str(getattr(hass.config, "language", "de") or "de").lower().startswith("de"):
+            for de, en in _MANIFEST_EN.items():  # 🌍 Schnellmenü am App-Symbol auf Englisch
+                body = body.replace(de.encode(), en.encode())
         headers = {"Cache-Control": "no-cache"}
         if file == "sw.js":
             headers["Service-Worker-Allowed"] = APP_URL

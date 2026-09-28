@@ -66,7 +66,7 @@ Den Ordner `custom_components/einkaufsliste` nach `/config/custom_components/ein
 
 ## 👆 So wird's benutzt
 
-**Eintragen:** Name tippen, grüner Haken ✔. Die Knöpfe darunter: 🔢 Menge · 📝 Notiz · 👤 Für wen · 📷 Foto · 🧽 alles leeren. Geschäft und Kategorie sind meist schon richtig ausgewählt.
+**Eintragen:** Name tippen, grüner Haken ✔. Die Knöpfe darunter: 🔢 Menge · 📝 Notiz · 👤 Für wen · 📷 Foto · 🧽 alles leeren. Geschäft und Kategorie sind meist schon richtig ausgewählt. Ein Geschäft fehlt? In der Auswahl **„➕ Neues Geschäft …“** – nur den Namen tippen, den Rest später in ⚙️.
 
 **In der Liste:**
 - ⭕ **Kreis** = abhaken. Unten bei „Erledigt“ nochmal = wieder drauf.
@@ -106,6 +106,8 @@ Die **komplette Karte** als eigene App auf dem Startbildschirm – mit Rezepten,
 3. Mit dem eigenen Home-Assistant-Benutzer anmelden.
 4. Browser-Menü → **„Zum Startbildschirm hinzufügen“**.
 
+**📱 Schnellmenü (Android):** Lange aufs App-Symbol drücken → ✍️ Eintragen · 🛍️ Laden-Modus · 📷 Scannen – die App geht gleich an der richtigen Stelle auf. (Auf dem iPhone gibt es das für Web-Apps nicht.)
+
 **Nur mit Netz:** neue Barcodes nachschlagen, Produkt-Infos, Rezept-Links, neue Fotos, Sicherung.
 
 **🔄 Nachschicken bei geschlossener App:** Unter **Android mit Chrome** schickt die App gemerkte Änderungen auch dann nach, wenn sie zu ist – Android weckt sie kurz auf, sobald wieder Netz da ist (wann genau, entscheidet Android; bei strengem Akkusparen kann es dauern). Auf dem **iPhone** geht das nicht, dort wird beim nächsten Öffnen nachgeschickt. Jede App hat ihre eigene Warteschlange: Was in der Offline-App gemerkt ist, schickt auch nur die Offline-App nach.
@@ -118,7 +120,7 @@ Gut zu wissen: Es braucht eine **https**-Adresse (z. B. Nabu Casa). Ändern zwei
 
 | Kachel | Was drin ist |
 |---|---|
-| 🏪 **Geschäfte** | Jedes Geschäft als eigene Kachel. Antippen = Name, Farbe, Reihenfolge, 📍 Zonen (mehrere, z. B. für mehrere Filialen) und 🏷️ Eigenmarken. |
+| 🏪 **Geschäfte** | Jedes Geschäft als eigene Kachel. Antippen = Name, Farbe, Icon, Reihenfolge, 📍 Zonen (mehrere, z. B. für mehrere Filialen) und 🏷️ Eigenmarken. Ohne eigenes Icon nimmt die Liste das Icon der Zone (falls sie eins hat), sonst 🛒. |
 | 🗂️ **Kategorien** · 👥 **Personen** | Anlegen, umbenennen, Farbe, Icon (einfach „hund“ tippen, ohne „mdi:“), sortieren. |
 | 👨‍🍳 **Rezepte** | Zwei Reiter: **Rezepte** (neu, bearbeiten, löschen) und **Rezept-Gruppen**. |
 | 📦 **Produkte** | Alles, was die Liste kennt: umbenennen, Kategorie, Geschäft („Gibt's bei“), Spitznamen, Fotos, Barcodes, gelernte Tippfehler, ganz löschen. Dazu „Neu gescannt“ zum Prüfen. |
@@ -139,6 +141,13 @@ Die Einkaufsliste kann eine andere To-do-Liste aus Home Assistant **automatisch 
 3. Ab jetzt: „Alexa, setz Milch auf die Einkaufsliste“ → Milch steht drauf, mit „🔁 Alexa“ als Eintrager.
 
 Das geht mit jeder To-do-Liste in HA (Google Tasks, Bring!, Todoist, die HA-Einkaufsliste …). Ehrlich gesagt: „Hey Google, …“ schreibt in Google Keep, und Keep hat keine offizielle Verbindung zu Home Assistant – mit Google klappt es deshalb so nicht.
+
+### 📧 Per E-Mail auf die Liste
+1. Eine **eigene Mail-Adresse** nur für die Einkaufsliste anlegen und in Home Assistant die Integration **„IMAP“** damit einrichten.
+2. In der Karte **⚙️ → Werkzeuge → Import & Sicherung → Aus anderen Apps → 📧 Per E-Mail**: Postfach wählen, auf Wunsch ein Geschäft, **erlaubte Absender** eintragen (mindestens einer), **Einschalten**.
+3. Mail an die Adresse schicken – **jede Zeile ein Artikel** („Milch“, „6 Eier“ …). Zitate, Signatur und „Gesendet von meinem iPhone“ werden übersprungen, Mengen erkannt. Im Verlauf steht 📧.
+
+Ehrlich gesagt: Absender lassen sich fälschen – deshalb eine Adresse nehmen, die nicht öffentlich ist. Je nach Postfach dauert es ein paar Sekunden bis Minuten, bis eine Mail ankommt. Die Mails bleiben im Postfach liegen.
 
 ---
 

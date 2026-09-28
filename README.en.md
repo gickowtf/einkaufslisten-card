@@ -61,7 +61,7 @@ Copy `custom_components/einkaufsliste` to `/config/custom_components/einkaufslis
 
 ## 👆 How to use it
 
-**Adding:** type a name, tap the green ✔. The buttons below: 🔢 quantity · 📝 note · 👤 for whom · 📷 photo · 🧽 clear. Store and category are usually picked correctly already.
+**Adding:** type a name, tap the green ✔. The buttons below: 🔢 quantity · 📝 note · 👤 for whom · 📷 photo · 🧽 clear. Store and category are usually picked correctly already. A store is missing? Pick **“➕ New store …”** in the list – just type the name, the rest later in ⚙️.
 
 **In the list:**
 - ⭕ **Circle** = check off. Under “Done” once more = back on the list.
@@ -101,6 +101,8 @@ The **complete card** as its own app on your home screen – with recipes, cook 
 3. Log in with your own Home Assistant user.
 4. Browser menu → **“Add to Home screen”**.
 
+**📱 Quick menu (Android):** long-press the app icon → ✍️ Add · 🛍️ Shop mode · 📷 Scan – the app opens right at that spot. (iPhones don't offer this for web apps.)
+
 **Needs a connection:** looking up new barcodes, product info, recipe links, new photos, backup.
 
 **🔄 Sending while the app is closed:** on **Android with Chrome** the app sends remembered changes even when it's closed – Android wakes it up briefly once there's a connection again (Android decides exactly when; with strict battery saving it can take a while). **iPhones** can't do this; there it's sent the next time you open the app. Each app has its own queue: what the offline app remembered is only sent by the offline app.
@@ -113,7 +115,7 @@ Good to know: it needs an **https** address (e.g. Nabu Casa). If two people chan
 
 | Tile | What's inside |
 |---|---|
-| 🏪 **Stores** | Every store as its own tile. Tap = name, color, order, 📍 zones (several, e.g. for several branches) and 🏷️ store brands. |
+| 🏪 **Stores** | Every store as its own tile. Tap = name, color, icon, order, 📍 zones (several, e.g. for several branches) and 🏷️ store brands. Without an icon of its own the list uses the zone's icon (if it has one), otherwise 🛒. |
 | 🗂️ **Categories** · 👥 **People** | Add, rename, color, icon (just type “dog”, no “mdi:”), sort. |
 | 👨‍🍳 **Recipes** | Two tabs: **Recipes** (new, edit, delete) and **Recipe groups**. |
 | 📦 **Products** | Everything the list knows: rename, category, store (“Available at”), nicknames, photos, barcodes, learned typos, delete completely. Plus “Newly scanned” to check. |
@@ -134,6 +136,13 @@ The shopping list can **empty another Home Assistant to-do list automatically**:
 3. From now on: “Alexa, add milk to my shopping list” → milk is on the list, with “🔁 Alexa” as the one who added it.
 
 This works with any to-do list in HA (Google Tasks, Bring!, Todoist, the HA shopping list …). Honestly: “Hey Google, …” writes to Google Keep, which has no official Home Assistant connection – so it doesn't work that way with Google.
+
+### 📧 Onto the list by email
+1. Create a **separate email address** just for the shopping list and set up the **“IMAP”** integration in Home Assistant with it.
+2. In the card: **⚙️ → Tools → Import & backup → From other apps → 📧 By email**: pick the mailbox, a store if you like, enter the **allowed senders** (at least one), **Turn on**.
+3. Send an email to that address – **one item per line** (“milk”, “6 eggs” …). Quotes, signatures and “Sent from my iPhone” are skipped, quantities are recognized. The history shows 📧.
+
+Honestly: senders can be faked – so use an address that isn't public. Depending on the mailbox it takes a few seconds to minutes until an email arrives. The emails stay in the mailbox.
 
 ---
 

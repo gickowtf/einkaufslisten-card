@@ -246,6 +246,7 @@ class EinkaufslisteManager:
         self.pin_hash: str | None = None  # 🔒 PIN für die Einstellungen (nur als Prüfsumme gespeichert)
         self.mascot: bool = False  # 🛒😊 Maskottchen an/aus – gilt für alle Karten und Handys
         self.todo_sync: dict[str, Any] | None = None  # 🔁 {"entity_id", "store_id", "count"} – To-do-Liste herüberholen
+        self.mail_import: dict[str, Any] | None = None  # 📧 {"entry_id", "store_id", "senders", "count"} – per E-Mail
         self.photo_dir = Path(hass.config.path("einkaufsliste_fotos"))
         self.history: dict[str, dict[str, Any]] = {}
         self.last_cleanup: str | None = None
@@ -333,6 +334,7 @@ class EinkaufslisteManager:
         self.pin_hash = data.get("pin")
         self.mascot = bool(data.get("mascot", False))
         self.todo_sync = data.get("todo_sync") or None
+        self.mail_import = data.get("mail_import") or None
         for store in self.stores:  # 📍 früher eine Zone pro Geschäft, jetzt beliebig viele
             if "zones" not in store:
                 store["zones"] = [store["zone"]] if store.get("zone") else []
@@ -380,6 +382,7 @@ class EinkaufslisteManager:
             "pin": self.pin_hash,
             "mascot": self.mascot,
             "todo_sync": self.todo_sync,
+            "mail_import": self.mail_import,
             "last_cleanup": self.last_cleanup,
             "log": self.log,
             "log_days": self.log_days,
@@ -446,6 +449,7 @@ class EinkaufslisteManager:
                 "app_url": self._app_url(),
                 "mascot": self.mascot,
                 "todo_sync": self._todo_sync_info(),
+                "mail_import": self._mail_import_info(),
             },
             "missed": self.missed_counts(),
         }
@@ -455,6 +459,40 @@ class EinkaufslisteManager:
             return None
         st = self.hass.states.get(self.todo_sync["entity_id"])
         return {**self.todo_sync, "name": st.name if st else self.todo_sync["entity_id"], "ok": st is not None and st.state != "unavailable"}
+
+    def _mail_import_info(self) -> dict[str, Any] | None:
+        if not self.mail_import:
+            return None
+        entry = self.hass.config_entries.async_get_entry(self.mail_import["entry_id"])
+        return {**self.mail_import, "name": (entry.title if entry else None) or "IMAP", "ok": entry is not None}
+
+    def set_mail_import(self, entry_id: str | None, store_id: str | None = None, senders: list[str] | None = None) -> None:
+        """📧 Postfach (IMAP) für „per E-Mail auf die Liste“ wählen (None = aus)."""
+        if entry_id:
+            entry = self.hass.config_entries.async_get_entry(entry_id)
+            if entry is None or entry.domain != "imap":
+                raise ValueError("Dieses Postfach gibt es nicht. Erst in Home Assistant die Integration „IMAP“ einrichten.")
+            clean: list[str] = []
+            for raw in senders or []:
+                for part in re.split(r"[,;\s]+", str(raw)):
+                    part = part.strip().lower()
+                    if not part:
+                        continue
+                    if not re.fullmatch(r"[^@\s]+@[^@\s]+\.[^@\s]+", part):
+                        raise ValueError(f"„{part}“ ist keine E-Mail-Adresse.")
+                    if part not in clean:
+                        clean.append(part)
+            if not clean:
+                raise ValueError("Bitte mindestens einen erlaubten Absender eintragen – sonst dürfte jeder etwas auf die Liste schicken.")
+            store_id = self._check_store(store_id)
+            count = self.mail_import.get("count", 0) if self.mail_import and self.mail_import.get("entry_id") == entry_id else 0
+            self.mail_import = {"entry_id": entry_id, "store_id": store_id, "senders": clean[:20], "count": count}
+        else:
+            self.mail_import = None
+        self._changed()
+        mail = getattr(self, "mail", None)
+        if mail is not None:
+            mail.start()
 
     def set_mascot(self, on: bool) -> None:
         """🛒😊 Maskottchen für alle an- oder ausschalten."""
@@ -1700,6 +1738,8 @@ class EinkaufslisteManager:
     def async_stop(self) -> None:
         if getattr(self, "sync", None) is not None:
             self.sync.stop()
+        if getattr(self, "mail", None) is not None:
+            self.mail.stop()
         if self._unsub_time:
             self._unsub_time()
             self._unsub_time = None
@@ -1966,7 +2006,9 @@ class EinkaufslisteManager:
             entry["zone"] = zones[0] if zones else None
         if "color" in fields and kind in ("stores", "categories", "persons", "recipe_groups"):
             entry["color"] = _clean(fields["color"]) or entry.get("color")
-        if "icon" in fields and kind != "persons":
+        if "icon" in fields and kind == "stores" and not _clean(fields["icon"]):
+            entry["icon"] = None  # 🏪 leer = automatisch (Icon der Zone, sonst Einkaufswagen)
+        elif "icon" in fields and kind != "persons":
             entry["icon"] = _icon(fields["icon"], entry.get("icon") or "mdi:tag-outline")
         if "brands" in fields and kind == "stores":  # 🏷️ eigene Eigenmarken („Milsani, Moser Roth“)
             entry["brands"] = [b.strip() for b in re.split(r"[,;]", fields["brands"] or "") if b.strip()][:30]

@@ -1620,7 +1620,9 @@ async def test_offline_app_pages(hass: HomeAssistant, setup, hass_client_no_auth
     assert r.status == 200 and r.headers.get("Service-Worker-Allowed") == "/einkaufsliste/app/"
     assert "el-queue" in await r.text()  # 🔄 im Hintergrund nachschicken
     r = await client.get("/einkaufsliste/app/manifest.json")
-    assert r.status == 200 and (await r.json())["start_url"] == "/einkaufsliste/app/"
+    man = await r.json()
+    assert r.status == 200 and man["start_url"] == "/einkaufsliste/app/"
+    assert [x["url"].split("=")[-1] for x in man["shortcuts"]] == ["add", "shop", "scan"]  # 📱 Schnellmenü
     r = await client.get("/einkaufsliste/app/../manifest.json")
     assert r.status == 404
     r = await client.get("/einkaufsliste/app", allow_redirects=False)
@@ -1737,3 +1739,45 @@ async def test_zones_mascot_todo_sync(hass: HomeAssistant, setup, hass_ws_client
     await hass.async_block_till_done()
     assert not any(i["name"] == "Tee" for i in m.items)
     assert m.as_dict()["settings"]["todo_sync"] is None
+
+
+async def test_mail_import_and_store_icon(hass: HomeAssistant, setup, hass_ws_client) -> None:
+    """📧 Produkte per E-Mail (IMAP-Ereignis) und 🏪 Geschäfts-Icon leer = automatisch."""
+    from custom_components.einkaufsliste.mail_import import mail_text
+    m = mgr(hass)
+    assert mail_text("Milch\n6 Eier\n\n> alt\n-- \nMax\nSignatur") == "Milch\n6 Eier"
+    assert mail_text("<html><body><div>Brot</div><div>Käse &amp; Wurst</div></body></html>") == "Brot\nKäse & Wurst"
+    assert mail_text("", "Milch, Butter") == "Milch\nButter"
+    imap = MockConfigEntry(domain="imap", title="liste@example.com")
+    imap.add_to_hass(hass)
+    client = await hass_ws_client(hass)
+    await client.send_json({"id": 1, "type": "einkaufsliste/mail/sources"})
+    assert (await client.receive_json())["result"] == [{"entry_id": imap.entry_id, "name": "liste@example.com"}]
+    await client.send_json({"id": 2, "type": "einkaufsliste/mail/set", "entry_id": imap.entry_id, "senders": []})
+    assert not (await client.receive_json())["success"]  # ohne Absender geht's nicht
+    aldi = next(s for s in m.stores if s["name"] == "Aldi")
+    await client.send_json({"id": 3, "type": "einkaufsliste/mail/set", "entry_id": imap.entry_id, "store_id": aldi["id"],
+                            "senders": ["Papa@Example.com, oma@example.com"]})
+    assert (await client.receive_json())["success"]
+    assert m.mail_import["senders"] == ["papa@example.com", "oma@example.com"]
+    ev = {"entry_id": imap.entry_id, "initial": True, "uid": "1", "date": "x", "subject": "Einkauf",
+          "sender": "Papa <papa@example.com>", "text": "Kaffee\n2 Joghurt\n\nGesendet von meinem iPhone"}
+    hass.bus.async_fire("imap_content", ev)
+    await hass.async_block_till_done()
+    kaffee = next(i for i in m.items if i["name"] == "Kaffee")
+    assert kaffee["store_id"] == aldi["id"] and kaffee["added_by"] == "📧 Papa"
+    assert any(i["name"] == "Joghurt" and i["quantity"] == "2x" for i in m.items)
+    assert m.log[-1]["v"] == "mail"
+    n = len(m.items)
+    hass.bus.async_fire("imap_content", ev)  # dieselbe Mail nochmal
+    hass.bus.async_fire("imap_content", {**ev, "uid": "2", "sender": "fremd@spam.com", "text": "Bitcoin"})
+    await hass.async_block_till_done()
+    assert len(m.items) == n
+    assert m.as_dict()["settings"]["mail_import"]["count"] == 2
+    await client.send_json({"id": 4, "type": "einkaufsliste/mail/set", "entry_id": None})
+    assert (await client.receive_json())["success"] and m.mail_import is None
+    # 🏪 Icon leer = automatisch
+    m.update_group("stores", aldi["id"], icon="baguette")
+    assert aldi["icon"] == "mdi:baguette"
+    m.update_group("stores", aldi["id"], icon="")
+    assert aldi["icon"] is None
