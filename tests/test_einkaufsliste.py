@@ -1816,3 +1816,51 @@ async def test_mail_stores_and_after(hass: HomeAssistant, setup) -> None:
     assert len(calls) == 2 or calls[-1]["uid"] != "12" or any(i["name"] == "Hallo" for i in m.items)
     with pytest.raises(ValueError):
         m.set_mail_import(imap.entry_id, None, ["ich@example.com"], "weg")
+
+
+async def test_todo_sync_keep_and_full(hass: HomeAssistant, setup) -> None:
+    """🔗 To-do-Liste abgleichen: bei beiden behalten (keep) und voller Abgleich (sync)."""
+    import os
+    from datetime import timedelta
+    from pytest_homeassistant_custom_component.common import async_fire_time_changed
+    from homeassistant.util import dt as dt_util
+    m = mgr(hass)
+    if os.path.exists(hass.config.path(".shopping_list.json")):
+        os.remove(hass.config.path(".shopping_list.json"))
+    sl = MockConfigEntry(domain="shopping_list")
+    sl.add_to_hass(hass)
+    assert await hass.config_entries.async_setup(sl.entry_id)
+    await hass.async_block_till_done()
+    ent = "todo.einkaufsliste"
+
+    async def todo():
+        r = await hass.services.async_call("todo", "get_items", {"entity_id": ent}, blocking=True, return_response=True)
+        return {t["summary"]: t for t in r[ent]["items"]}
+
+    async def settle():
+        await hass.async_block_till_done()
+        async_fire_time_changed(hass, dt_util.utcnow() + timedelta(seconds=3))
+        await hass.async_block_till_done()
+
+    await hass.services.async_call("todo", "add_item", {"entity_id": ent, "item": "Kaffee"}, blocking=True)
+    m.set_todo_sync(ent, None, "keep")
+    await settle()
+    kaffee = next(i for i in m.items if i["name"] == "Kaffee")
+    assert (await todo())["Kaffee"]["status"] == "needs_action"  # bleibt drüben
+    m.set_checked(kaffee["id"], True)  # bei uns abgehakt -> drüben abgehakt
+    await settle()
+    assert (await todo())["Kaffee"]["status"] == "completed"
+    await hass.services.async_call("todo", "update_item", {"entity_id": ent, "item": "Kaffee", "status": "needs_action"}, blocking=True)
+    await settle()
+    assert not next(i for i in m.items if i["name"] == "Kaffee")["checked"]  # drüben wieder offen -> bei uns auch
+    await hass.services.async_call("todo", "remove_item", {"entity_id": ent, "item": ["Kaffee"]}, blocking=True)
+    await settle()
+    assert next(i for i in m.items if i["name"] == "Kaffee")["checked"]  # drüben gestrichen -> abgehakt
+    # voller Abgleich: Eigenes kommt auch rüber, ohne doppelt zurückzukommen
+    m.set_todo_sync(ent, None, "sync")
+    m.add_item("Tee", quantity="2x")
+    await settle()
+    assert "Tee (2x)" in await todo()
+    await settle()
+    assert len([i for i in m.items if i["name"].lower().startswith("tee")]) == 1
+    assert m.as_dict()["settings"]["todo_sync"]["mode"] == "sync" and "links" not in m.as_dict()["settings"]["todo_sync"]

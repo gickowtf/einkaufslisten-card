@@ -458,7 +458,9 @@ class EinkaufslisteManager:
         if not self.todo_sync:
             return None
         st = self.hass.states.get(self.todo_sync["entity_id"])
-        return {**self.todo_sync, "name": st.name if st else self.todo_sync["entity_id"], "ok": st is not None and st.state != "unavailable"}
+        info = {k: v for k, v in self.todo_sync.items() if k != "links"}
+        return {**info, "mode": info.get("mode", "move"), "name": st.name if st else self.todo_sync["entity_id"],
+                "ok": st is not None and st.state != "unavailable"}
 
     def _mail_import_info(self) -> dict[str, Any] | None:
         if not self.mail_import:
@@ -503,14 +505,18 @@ class EinkaufslisteManager:
         self.mascot = bool(on)
         self._changed()
 
-    def set_todo_sync(self, entity_id: str | None, store_id: str | None = None) -> None:
+    def set_todo_sync(self, entity_id: str | None, store_id: str | None = None, mode: str | None = None) -> None:
         """🔁 To-do-Liste zum automatischen Herüberholen wählen (None = aus)."""
         if entity_id:
             if not entity_id.startswith("todo.") or self.hass.states.get(entity_id) is None:
                 raise ValueError("Diese To-do-Liste gibt es nicht.")
             store_id = self._check_store(store_id)
-            count = self.todo_sync.get("count", 0) if self.todo_sync and self.todo_sync.get("entity_id") == entity_id else 0
-            self.todo_sync = {"entity_id": entity_id, "store_id": store_id, "count": count}
+            same = self.todo_sync if self.todo_sync and self.todo_sync.get("entity_id") == entity_id else {}
+            mode = mode or same.get("mode") or "move"
+            if mode not in ("move", "keep", "sync"):
+                raise ValueError("Unbekannte Art des Abgleichs.")
+            self.todo_sync = {"entity_id": entity_id, "store_id": store_id, "count": same.get("count", 0), "mode": mode,
+                              "links": same.get("links", {}) if mode != "move" else {}}
         else:
             self.todo_sync = None
         self._changed()

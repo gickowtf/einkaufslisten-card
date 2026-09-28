@@ -136,6 +136,12 @@ The shopping list can **empty another Home Assistant to-do list automatically**:
 1. Set up the **“Alexa Devices”** integration in Home Assistant. The Alexa shopping list then shows up as a to-do list in HA.
 2. In the card: **⚙️ → Tools → Import & backup → From other apps → 🔁 Bring over automatically**, pick the Alexa list (and a store if you like), **Turn on**.
 3. From now on: “Alexa, add milk to my shopping list” → milk is on the list, with “🔁 Alexa” as the one who added it.
+4. **Pick how lists are matched:**
+   - 🗑️ **Fetch & delete there** – Alexa is just the mailbox.
+   - 🔗 **Keep on both** – on both lists; checking off (or removing in Alexa) happens on both sides.
+   - 🔄 **Full sync** – like 🔗, and everything you add in the shopping list also goes to Alexa (“Milk (2 L)” – Alexa doesn't know stores, notes or photos). Then “Alexa, what's on my shopping list?” reads it all out.
+
+   Honestly: if you rename something in Alexa, the list can't match it reliably – it may become a new entry.
 
 This works with any to-do list in HA (Google Tasks, Bring!, Todoist, the HA shopping list …). Honestly: “Hey Google, …” writes to Google Keep, which has no official Home Assistant connection – so it doesn't work that way with Google.
 

@@ -538,12 +538,13 @@ async def ws_import_todo(hass, connection, msg):
 
 
 @websocket_api.websocket_command(
-    {vol.Required("type"): "einkaufsliste/todo_sync/set", vol.Optional("entity_id"): OPT_STR, vol.Optional("store_id"): OPT_STR}
+    {vol.Required("type"): "einkaufsliste/todo_sync/set", vol.Optional("entity_id"): OPT_STR, vol.Optional("store_id"): OPT_STR,
+     vol.Optional("mode"): vol.In(["move", "keep", "sync"])}
 )
 @callback
 def ws_todo_sync(hass, connection, msg):
     """🔁 To-do-Liste zum automatischen Herüberholen wählen (ohne entity_id = aus)."""
-    _run(hass, connection, msg, lambda m: m.set_todo_sync(msg.get("entity_id") or None, msg.get("store_id") or None))
+    _run(hass, connection, msg, lambda m: m.set_todo_sync(msg.get("entity_id") or None, msg.get("store_id") or None, msg.get("mode")))
 
 
 @websocket_api.websocket_command({vol.Required("type"): "einkaufsliste/mail/sources"})

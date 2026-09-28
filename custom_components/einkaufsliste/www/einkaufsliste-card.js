@@ -2,7 +2,7 @@
  * Einkaufsliste Card – die Familien-Einkaufsliste für Home Assistant
  * Wird automatisch von der Integration "einkaufsliste" geladen.
  */
-const EL_VERSION = "2.28.0";
+const EL_VERSION = "2.29.0";
 
 // Doppelt-Finder: Wörter, die dasselbe meinen (alles klein, ohne Leer-/Sonderzeichen)
 const DUP_SYNONYMS = (() => {
@@ -2951,9 +2951,13 @@ class EinkaufslisteCard extends HTMLElement {
       const syncStore = sync?.store_id ? this._store(sync.store_id)?.name : null;
       body = `
         <div class="syncbox">
-        <p class="hint"><b>🔁 Automatisch herüberholen</b>: Alles, was auf der gewählten Liste landet, wandert <b>sofort</b> in die Einkaufsliste und wird dort gelöscht – ganz ohne Automation. Für <b>Alexa</b>: in Home Assistant die Integration „Alexa Devices“ einrichten und hier deren Einkaufsliste wählen. Dann reicht „Alexa, setz Milch auf die Einkaufsliste“.</p>
-        ${sync ? `<p><b>✅ An:</b> <span translate="no">${esc(sync.name || sync.entity_id)}</span> → ${syncStore ? `<span translate="no">${esc(syncStore)}</span>` : "<span>Egal wo</span>"}${sync.count ? `<span> · schon ${sync.count}× herübergeholt</span>` : ""}${sync.ok === false ? `<br><span>⚠️ Die Liste ist gerade nicht erreichbar – es geht weiter, sobald sie wieder da ist.</span>` : ""}</p>` : ""}
+        <p class="hint"><b>🔁 Automatisch herüberholen</b>: Alles, was auf der gewählten Liste landet, wandert <b>sofort</b> in die Einkaufsliste – ganz ohne Automation. Unten auswählen: 🗑️ dort löschen · 🔗 bei beiden behalten (Abhaken wird in beide Richtungen abgeglichen) · 🔄 voller Abgleich (zusätzlich kommt alles aus der Einkaufsliste auch dorthin, ohne Geschäft und Notiz). Für <b>Alexa</b>: in Home Assistant die Integration „Alexa Devices“ einrichten und hier deren Einkaufsliste wählen. Dann reicht „Alexa, setz Milch auf die Einkaufsliste“.</p>
+        ${sync ? `<p><b>✅ An:</b> <span translate="no">${esc(sync.name || sync.entity_id)}</span> → ${syncStore ? `<span translate="no">${esc(syncStore)}</span>` : "<span>Egal wo</span>"}<span> · ${{ move: "herüberholen & dort löschen", keep: "bei beiden behalten", sync: "voller Abgleich" }[sync.mode || "move"]}</span>${sync.count ? `<span> · schon ${sync.count}× herübergeholt</span>` : ""}${sync.ok === false ? `<br><span>⚠️ Die Liste ist gerade nicht erreichbar – es geht weiter, sobald sie wieder da ist.</span>` : ""}</p>` : ""}
         <div class="srow"><ha-icon class="prev" icon="mdi:sync"></ha-icon><select class="grow" id="syncTodo"><option value="">Lade Listen …</option></select></div>
+        <div class="srow"><ha-icon class="prev" icon="mdi:swap-horizontal"></ha-icon><select class="grow" id="syncMode" title="Wie abgeglichen wird">
+          ${[["move", "🗑️ Holen & dort löschen"], ["keep", "🔗 Bei beiden behalten"], ["sync", "🔄 Voller Abgleich"]]
+            .map(([v, l]) => `<option value="${v}" ${(sync?.mode || "move") === v ? "selected" : ""}>${l}</option>`).join("")}
+        </select></div>
         <div class="srow"><ha-icon class="prev" icon="mdi:store-outline"></ha-icon><select class="grow" id="syncStore">${this._selectOptions(this._data.stores, sync?.store_id || null, "🛒 Egal wo")}</select></div>
         <div class="btnrow"><button class="btn primary" data-act="sync-on"><ha-icon icon="mdi:sync"></ha-icon>${sync ? "Ändern" : "Einschalten"}</button>${sync ? `<button class="btn" data-act="sync-off"><ha-icon icon="mdi:sync-off"></ha-icon>Ausschalten</button>` : ""}</div>
         </div>
@@ -5562,7 +5566,7 @@ class EinkaufslisteCard extends HTMLElement {
       case "sync-on": {
         const entity_id = this.$("syncTodo")?.value;
         if (!entity_id) { this._toast("Erst eine Liste auswählen 😉"); break; }
-        this._ws({ type: "einkaufsliste/todo_sync/set", entity_id, store_id: this._xferStore("syncStore") })
+        this._ws({ type: "einkaufsliste/todo_sync/set", entity_id, store_id: this._xferStore("syncStore"), mode: this.$("syncMode")?.value || "move" })
           .then(() => { this._toast("🔁 Ab jetzt wird automatisch herübergeholt"); setTimeout(() => this._renderSettings(), 300); }).catch(() => {});
         break;
       }

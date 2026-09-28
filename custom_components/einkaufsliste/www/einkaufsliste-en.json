@@ -1008,5 +1008,14 @@
 "📬 Mail danach liegen lassen": "📬 Leave the email afterwards",
 "👁️ Mail danach als gelesen markieren": "👁️ Mark the email as read afterwards",
 "🗑️ Mail danach löschen": "🗑️ Delete the email afterwards",
-"Unbekannte Auswahl, was mit der Mail passieren soll.": "Unknown choice for what should happen to the email."
+"Unbekannte Auswahl, was mit der Mail passieren soll.": "Unknown choice for what should happen to the email.",
+"Wie abgeglichen wird": "How lists are matched",
+"· herüberholen & dort löschen": "· bring over & delete there",
+"· bei beiden behalten": "· keep on both",
+"· voller Abgleich": "· full sync",
+"Unbekannte Art des Abgleichs.": "Unknown kind of sync.",
+"🗑️ Holen & dort löschen": "🗑️ Fetch & delete there",
+"🔗 Bei beiden behalten": "🔗 Keep on both",
+"🔄 Voller Abgleich": "🔄 Full sync",
+"in die Einkaufsliste – ganz ohne Automation. Unten auswählen: 🗑️ dort löschen · 🔗 bei beiden behalten (Abhaken wird in beide Richtungen abgeglichen) · 🔄 voller Abgleich (zusätzlich kommt alles aus der Einkaufsliste auch dorthin, ohne Geschäft und Notiz). Für": "into the shopping list – no automation needed. Pick below: 🗑️ delete there · 🔗 keep on both (checking off is matched both ways) · 🔄 full sync (additionally everything from the shopping list goes there too, without store and note). For"
 }
