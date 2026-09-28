@@ -711,7 +711,7 @@
 "– eine Zeile pro Zutat.": "– one line per ingredient.",
 "– fertig, eigenes 🛒-Symbol.": "– done, your own 🛒 icon.",
 "– keine –": "– none –",
-"– mit Rezepten, Koch-Modus, Gar-Zeiten und Einstellungen. Ohne Netz kannst du alles ansehen, abhaken, eintragen und Rezepte ändern; es wird nachgeschickt. Nur mit Netz: Barcode-Infos, Rezept-Links, neue Fotos, Sicherung. Der Barcode-Scanner der HA-App fehlt in der App. Wichtig: Es braucht eine": "– with recipes, cook mode, cooking times and settings. Without a connection you can view everything, check off, add and change recipes; it's sent later. Needs a connection: barcode info, recipe links, new photos, backup. The HA app's barcode scanner isn't available in the app. Important: it needs an",
+"– mit Rezepten, Koch-Modus, Gar-Zeiten und Einstellungen. Ohne Netz kannst du alles ansehen, abhaken, eintragen und Rezepte ändern; es wird nachgeschickt. Scannen geht mit der Handykamera (beim ersten Mal fragt das Handy, ob die Seite die Kamera nutzen darf); ohne Netz erkennt sie nur Barcodes, die die Liste schon kennt. Nur mit Netz: neue Barcodes nachschlagen, Produkt-Infos, Rezept-Links, neue Fotos, Sicherung. Wichtig: Es braucht eine": "– with recipes, cook mode, cooking times and settings. Without a connection you can view everything, check off, add and change recipes; it's sent later. Scanning works with the phone camera (the first time the phone asks whether the page may use the camera); without a connection it only recognizes barcodes the list already knows. Needs a connection: looking up new barcodes, product info, recipe links, new photos, backup. Important: it needs an",
 "– oder „Egal wo“. Meist ist es schon richtig ausgewählt (so wie zuletzt).": "– or “Anywhere”. Usually it's already picked correctly (like last time).",
 "– samt Foto 📷": "– including photo 📷",
 "– was {} Tage oder länger drauf steht, wird abgehakt": "– anything on it for {0} days or longer gets checked off",
@@ -921,5 +921,7 @@
 "🧠 Tippfehler vergessen": "🧠 Typo forgotten",
 "🧺 {} Zutaten von „{}“ von der Liste genommen": "🧺 {0} ingredients of “{1}” taken off the list",
 "🧽 Alles geleert": "🧽 Everything cleared",
-"🧽 Verlauf geleert": "🧽 History cleared"
+"🧽 Verlauf geleert": "🧽 History cleared",
+"📴 Ohne Netz kenne ich nur schon gemerkte Barcodes": "📴 Without a connection I only know barcodes I've already learned",
+"📴 Ohne Netz kann ich neue Barcodes nicht nachschlagen – tipp den Namen ein, ich merk mir den Barcode!": "📴 Without a connection I can't look up new barcodes – type the name, I'll remember the barcode!"
 }

@@ -40,6 +40,21 @@ body { padding:calc(env(safe-area-inset-top) + 8px) 8px calc(env(safe-area-inset
 .login img { width:96px; height:96px; border-radius:22px; }
 .big { font:inherit; border:0; background:var(--primary-color); color:#fff; border-radius:12px; padding:13px 22px; font-size:17px; font-weight:600; margin-top:16px; cursor:pointer; }
 .small { font-size:13px; color:var(--secondary-text-color); }
+/* 📷 Scanner mit der Handykamera */
+.scan { position:fixed; inset:0; z-index:10040; background:#000; color:#fff; display:flex; flex-direction:column; }
+.scan video { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; }
+.scan .shade { position:absolute; left:8%; right:8%; top:34%; height:26%; border-radius:16px; box-shadow:0 0 0 100vmax rgba(0,0,0,.55); border:3px solid #fff; }
+.scan .shade::after { content:""; position:absolute; left:6%; right:6%; top:50%; height:2px; background:#ff5252; box-shadow:0 0 8px #ff5252; }
+.scan .shade.hit { border-color:#66bb6a; }
+.scan .top { position:relative; padding:calc(env(safe-area-inset-top) + 18px) 20px 0; text-align:center; }
+.scan .top h2 { margin:0 0 6px; font-size:19px; }
+.scan .top p { margin:0; color:#ddd; font-size:14px; }
+.scan .msg { position:absolute; left:50%; top:63%; transform:translateX(-50%); background:rgba(30,30,30,.92); border-radius:12px; padding:9px 14px; font-size:15px; max-width:88vw; text-align:center; }
+.scan .msg:empty { display:none; }
+.scan .btns { position:absolute; left:0; right:0; bottom:calc(env(safe-area-inset-bottom) + 22px); display:flex; gap:10px; justify-content:center; flex-wrap:wrap; padding:0 16px; }
+.scan .btns button { font:inherit; font-size:16px; font-weight:600; border:0; border-radius:12px; padding:13px 18px; cursor:pointer; background:rgba(255,255,255,.18); color:#fff; }
+.scan .btns button.main { background:var(--primary-color); }
+.scan ~ .toast { bottom:calc(env(safe-area-inset-bottom) + 96px); }
 .toast { position:fixed; left:50%; bottom:calc(env(safe-area-inset-bottom) + 20px); transform:translateX(-50%); background:#323232; color:#fff;
   border-radius:10px; padding:10px 16px; font-size:14px; max-width:90vw; z-index:10050; box-shadow:0 4px 16px rgba(0,0,0,.3); }
 </style>
@@ -201,6 +216,140 @@ const cacheKey = (msg) => BASE + "__ws/" + encodeURIComponent(JSON.stringify(msg
 async function cachePut(msg, res) { try { const c = await caches.open("einkaufsliste-daten"); await c.put(cacheKey(msg), new Response(JSON.stringify(res), { headers: { "Content-Type": "application/json" } })); } catch (_) { /* egal */ } }
 async function cacheGet(msg) { try { const c = await caches.open("einkaufsliste-daten"); const r = await c.match(cacheKey(msg)); return r ? r.json() : undefined; } catch (_) { return undefined; } }
 
+// ---------------------------------------------------------------- 📷 Barcode-Scanner mit der Handykamera
+// Die Karte kennt den Scanner der Home-Assistant-App. Diese Seite spielt genau diesen Scanner nach –
+// so funktionieren alle Scan-Sachen der Karte (eintragen, mehrere scannen, im Laden abhaken, zuordnen).
+// Android/Chrome hat einen Barcode-Leser eingebaut; sonst (z. B. iPhone) liest ZXing (Apache 2.0) die Bilder.
+const FORMATS = ["ean_13", "ean_8", "upc_a", "upc_e", "code_128", "code_39", "itf", "qr_code"];
+const EXT = {
+  config: { hasBarCodeScanner: !!(window.isSecureContext && navigator.mediaDevices?.getUserMedia) },
+  receiveMessage() {}, // wird von der Karte „angezapft“
+  fireMessage(msg) {
+    if (msg?.type === "bar_code/scan") scanOpen(msg.payload || {});
+    else if (msg?.type === "bar_code/close") scanClose();
+    else if (msg?.type === "bar_code/notify") scanNote(msg.payload?.message || "");
+  },
+};
+const toCard = (command, payload) => EXT.receiveMessage({ type: "command", command, payload });
+let scan = null;
+let zxingLoad = null;
+function loadZxing() {
+  if (window.ZXing) return Promise.resolve(window.ZXing);
+  return zxingLoad || (zxingLoad = new Promise((ok, fail) => {
+    const s = document.createElement("script");
+    s.src = BASE + "zxing.min.js?v=" + VERSION;
+    s.onload = () => (window.ZXing ? ok(window.ZXing) : fail(new Error("zxing")));
+    s.onerror = () => { zxingLoad = null; fail(new Error("zxing")); };
+    document.head.append(s);
+  }));
+}
+async function makeReader() {
+  if ("BarcodeDetector" in window) {
+    try {
+      const have = await BarcodeDetector.getSupportedFormats();
+      const formats = FORMATS.filter((f) => have.includes(f));
+      if (formats.includes("ean_13")) {
+        const det = new BarcodeDetector({ formats });
+        return async (video) => { const r = await det.detect(video); return r[0] ? { rawValue: r[0].rawValue, format: r[0].format } : null; };
+      }
+    } catch (_) { /* dann eben ZXing */ }
+  }
+  const Z = await loadZxing();
+  const reader = new Z.MultiFormatReader();
+  const F = Z.BarcodeFormat;
+  const hints = new Map([[Z.DecodeHintType.POSSIBLE_FORMATS, [F.EAN_13, F.EAN_8, F.UPC_A, F.UPC_E, F.CODE_128, F.CODE_39, F.ITF, F.QR_CODE]], [Z.DecodeHintType.TRY_HARDER, true]]);
+  reader.setHints(hints);
+  const canvas = document.createElement("canvas");
+  const ctx = canvas.getContext("2d", { willReadFrequently: true });
+  const names = { [F.EAN_13]: "ean_13", [F.EAN_8]: "ean_8", [F.UPC_A]: "upc_a", [F.UPC_E]: "upc_e", [F.CODE_128]: "code_128", [F.CODE_39]: "code_39", [F.ITF]: "itf", [F.QR_CODE]: "qr_code" };
+  return async (video) => {
+    const w = video.videoWidth, h = video.videoHeight;
+    if (!w || !h) return null;
+    // nur die Mitte (da, wo der Rahmen ist) – geht schneller und stört weniger
+    const cw = Math.round(w * 0.9), ch = Math.round(h * 0.5);
+    const scale = Math.min(1, 900 / cw);
+    canvas.width = Math.round(cw * scale); canvas.height = Math.round(ch * scale);
+    ctx.drawImage(video, (w - cw) / 2, (h - ch) / 2, cw, ch, 0, 0, canvas.width, canvas.height);
+    try {
+      const bmp = new Z.BinaryBitmap(new Z.HybridBinarizer(new Z.HTMLCanvasElementLuminanceSource(canvas)));
+      const r = reader.decodeWithState(bmp);
+      return { rawValue: r.getText(), format: names[r.getBarcodeFormat()] || "unknown" };
+    } catch (_) { return null; } finally { reader.reset(); }
+  };
+}
+async function scanOpen(p) {
+  scanClose(true);
+  const el = document.createElement("div");
+  el.className = "scan";
+  el.innerHTML = `<video playsinline muted autoplay></video><div class="shade"></div>
+    <div class="top"><h2></h2><p></p></div><div class="msg"></div>
+    <div class="btns">${p.alternative_option_label ? `<button class="main" data-b="alt"></button>` : ""}<button data-b="x">✕ ${T("Schließen", "Close")}</button></div>`;
+  el.querySelector("h2").textContent = p.title || T("Barcode scannen", "Scan barcode");
+  el.querySelector(".top p").textContent = p.description || "";
+  const alt = el.querySelector('[data-b="alt"]');
+  if (alt) alt.textContent = p.alternative_option_label;
+  document.body.append(el);
+  const me = scan = { el, stream: null, timer: null, last: { code: null, at: 0 }, noteTimer: null };
+  el.querySelector('[data-b="x"]').onclick = () => { scanClose(); toCard("bar_code/aborted", { reason: "canceled" }); };
+  if (alt) alt.onclick = () => { scanClose(); toCard("bar_code/aborted", { reason: "alternative_options" }); };
+  if (!history.state?.elScan) history.pushState({ elScan: 1 }, ""); // Zurück-Taste am Handy schließt den Scanner
+  try {
+    me.stream = await navigator.mediaDevices.getUserMedia({ audio: false, video: { facingMode: { ideal: "environment" }, width: { ideal: 1280 }, height: { ideal: 720 } } });
+  } catch (err) {
+    if (scan !== me) return;
+    scanNote(err?.name === "NotAllowedError"
+      ? T("📷 Die Kamera ist nicht erlaubt. Bitte in den Browser-Einstellungen für diese Seite erlauben.", "📷 Camera not allowed. Please allow it for this page in the browser settings.")
+      : T("📷 Keine Kamera gefunden.", "📷 No camera found."), true);
+    return;
+  }
+  if (scan !== me) { me.stream.getTracks().forEach((t) => t.stop()); return; }
+  const video = el.querySelector("video");
+  video.srcObject = me.stream;
+  try { await video.play(); } catch (_) { /* startet trotzdem */ }
+  let read;
+  try { read = await makeReader(); } catch (_) {
+    scanNote(T("⚠️ Der Barcode-Leser konnte nicht geladen werden – einmal mit Netz öffnen.", "⚠️ The barcode reader could not be loaded – open the app once with a connection."), true);
+    return;
+  }
+  const tick = async () => {
+    if (scan !== me) return;
+    let hit = null;
+    try { hit = await read(video); } catch (_) { /* nächstes Bild */ }
+    if (scan !== me) return;
+    if (hit?.rawValue && !(hit.rawValue === me.last.code && Date.now() - me.last.at < 2500)) {
+      me.last = { code: hit.rawValue, at: Date.now() };
+      navigator.vibrate?.(40);
+      const shade = el.querySelector(".shade");
+      shade.classList.add("hit"); setTimeout(() => shade.classList.remove("hit"), 600);
+      toCard("bar_code/scan_result", hit);
+    }
+    me.timer = setTimeout(tick, 120);
+  };
+  tick();
+}
+function scanNote(text, stay = false) {
+  if (!scan) return;
+  const m = scan.el.querySelector(".msg");
+  m.textContent = text;
+  clearTimeout(scan.noteTimer);
+  if (!stay) scan.noteTimer = setTimeout(() => { if (m.textContent === text) m.textContent = ""; }, 3000);
+}
+function scanClose(quiet) {
+  if (!scan) return;
+  const s = scan;
+  scan = null;
+  clearTimeout(s.timer); clearTimeout(s.noteTimer);
+  s.stream?.getTracks().forEach((t) => t.stop());
+  s.el.remove();
+  // Zurück-Eintrag erst wegräumen, wenn nicht gleich der nächste Scanner aufgeht (z. B. „Mehrere scannen“)
+  if (!quiet) setTimeout(() => { if (!scan && history.state?.elScan) { ignorePop = true; history.back(); } }, 50);
+}
+let ignorePop = false;
+window.addEventListener("popstate", () => {
+  if (ignorePop) { ignorePop = false; return; }
+  if (scan) { scanClose(true); toCard("bar_code/aborted", { reason: "canceled" }); }
+});
+
 // ---------------------------------------------------------------- 🏠 „Home Assistant“ für die Karte
 function makeHass() {
   return {
@@ -209,7 +358,7 @@ function makeHass() {
     locale: { language: EN ? "en" : "de" },
     user: user || { id: "", name: "", is_admin: false },
     states,
-    auth: { external: undefined },
+    auth: { external: EXT.config.hasBarCodeScanner ? EXT : undefined },
     async callWS(msg) {
       const plain = { ...msg };
       if (ready) {
@@ -244,6 +393,7 @@ function makeHass() {
 // ---------------------------------------------------------------- 🖼️ Seite
 let card = null;
 function toast(msg) {
+  document.querySelectorAll("body > .toast").forEach((t) => t.remove());
   const el = document.createElement("div"); el.className = "toast"; el.textContent = msg;
   document.body.append(el); setTimeout(() => el.remove(), 3500);
 }

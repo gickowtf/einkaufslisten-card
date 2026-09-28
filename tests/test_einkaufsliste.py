@@ -1629,6 +1629,10 @@ async def test_offline_app_pages(hass: HomeAssistant, setup, hass_client_no_auth
     icons = await r.json()
     assert "cart" in icons and icons["cart"].startswith("M")
     assert "einkaufsliste-card.js" in body  # 📱 in der App steckt dieselbe Karte
+    r = await client.get("/einkaufsliste/app/zxing.min.js")  # 📷 Barcode-Leser für Handys ohne eingebauten
+    assert r.status == 200 and "javascript" in r.headers["Content-Type"]
+    assert "MultiFormatReader" in await r.text()
+    assert "bar_code/scan" in body and "hasBarCodeScanner" in body  # 📷 Kamera-Scanner in der App
 
 
 async def test_scanned_stores_private_labels(hass: HomeAssistant, setup) -> None:

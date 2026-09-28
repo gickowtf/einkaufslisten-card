@@ -4,9 +4,9 @@
 
 🇩🇪 **Deutsch?** → [README auf Deutsch](README.md)
 
-**The family shopping list right in your dashboard.** Several stores, categories, recipes and live sync on every phone. Every item shows who added it. Bought things get checked off and stay in the list as “bought before”, so next time they are back on with a single tap.
+**The family shopping list right in your dashboard.** Several stores, categories, recipes and live sync on every phone. Every item shows who added it. Bought things get checked off and stay as “bought before”, so next time they are back on with a single tap.
 
-> 🌍 The card was written in German and speaks English whenever your Home Assistant is not set to German (or when you set `language: en`). The integration's setup dialogs, services and – on a fresh English install – the default stores, categories and recipe groups are English too. Your own entries (items, notes, recipes) are never translated. Some rarely seen texts may still show up in German – please open an issue if you spot one.
+> 🌍 The card was written in German and speaks English whenever your Home Assistant is not set to German (or with `language: en`). On a fresh English install the default stores, categories and recipe groups are English too. Your own entries are never translated. Spot a German leftover? Please open an issue.
 
 ![Preview](docs/screenshot.png)
 
@@ -16,120 +16,135 @@
 
 | Feature | How it works |
 |---|---|
-| 🏪 **Several stores** | Each store gets its own tab at the top. Add, rename, color and sort them in ⚙️. |
-| 🗂️ **Categories** | Fruit & vegetables, bakery, frozen and so on. Open **and** done items are grouped by category. |
-| 👨‍👩‍👧‍👦 **For the whole family** | Everyone who can log in to Home Assistant can join – no admin rights needed. |
-| ⭕ **Check off with the circle** | Only the circle checks an item off, so no accidental taps. |
-| ♻️ **Nothing gets lost** | Checked items move to “Done – bought before”. Tap the circle again and it's back on the list. |
-| 🏷️ **For whom & who** | “Cheese (for Grandma)” – and in small print who added it. |
-| 🚫 **No duplicates** | Each item is on the list once. A second one needs a different note, “for whom” or store. |
-| 🍽️ **Recipes** | Save a recipe with all ingredients. **Add to list**, tick what you need, done. With servings, oven settings, cook mode and sharing. |
-| 🧹 **Automatic cleanup** | Once a week everything that has been on the list for 7+ days gets **checked off**. **Nothing is deleted.** |
-| ⚡ **Live sync** | When someone adds something, it shows up on every phone right away. |
-| 📸 **Photos** | Up to 6 photos per product (“exactly this brand!”). |
-| 🔍 **Barcodes** | Scan in the Home Assistant app: at home to **add**, in the store to **check off**. |
-| 📖 **Guesses the category** | “Milk” goes to dairy, “frozen pizza” to frozen – there's a built-in dictionary (German and English). |
-| 🔁 **“Was out!”** | Store didn't have it? Tap **⇄**: keep it open for next time (everyone sees “⇄ was out”) or move it to another store. |
-| 📍 **Nearest store** | When you are at a store (HA zone), the list jumps to its tab. |
-| 🛒 **Shop mode** | Big rows, big circles, no input field – just check things off with one hand. |
-| 🏷️ **Nicknames** | “Kleenex” means tissues: give a product nicknames and whoever types one lands on the right product. |
-| 📥 **Import & backup** | Import recipes from a file, bring lists over from Bring!, Google Keep or the HA shopping list, download everything as a backup (.zip). |
-| 📱 **Offline app** | The complete card as its own phone app (via Nabu Casa or another https address): opens **without a connection**, with recipes, cook mode and settings – changes are sent later. |
-| ⏳ **Dead spot? No problem.** | In the card too: checking off keeps working without a connection, the dot turns orange and everything is sent later. |
-| 🏪 **Available at …** | A product can be sold in several stores. The list learns it when you check things off and shows “🔁 Also available here” in a store's tab. |
-| 🏷️ **Own brands** | German store brands (Milsani, Milbona, ja!, Balea …) go straight to the right store when scanned; add your own per store. |
-| ⏲️ **Cooking times** | Cheat sheet for pasta, eggs, vegetables, meat & co. – pot, oven and air fryer. |
-| 🧠 **Learns typos** | Correct “mlik” to “milk” twice and the list does it by itself from then on. |
-| 🔒 **PIN for the gear** | Settings only with a PIN – the list itself stays open for everyone. |
-| 🛒😊 **Mascot** | Optional shopping cart with a face: beams when the list is empty, sweats when it's full, sleeps at night. |
-| ⚖️ **Converts US measures** | Imported recipes: “1 cup flour” → “125 g flour”, “2 tbsp” → “2 EL” (tbsp), “350 °F” → “175 °C”. |
+| 🏪 **Several stores** | Each store gets its own tab. When your location says you're at a store, the list jumps there. |
+| 🗂️ **Categories** | Fruit & vegetables, frozen … The list guesses the category itself (“yogurt” → dairy). |
+| 👨‍👩‍👧‍👦 **For the whole family** | Everyone with an HA user can join, no admin rights needed. Live on every phone. |
+| ♻️ **Nothing gets lost** | Checked items move down to “Done”. Tap the circle again = back on the list. |
+| 🏷️ **For whom & who** | *Cheese (for Grandma)* – and in small print who added it. |
+| ⚡ **Quick entry** | “3 milk”, “500 g flour” or “milk, 6 eggs, bread” at once. Suggestions bring back everything from last time. |
+| 🍽️ **Recipes** | Ingredients onto the list with one tap, scaled for x people. Cook mode, photos, sharing and import (links and US measures too). |
+| 🔍 **Barcodes** | Scan in the HA app or with the phone camera in the offline app: add at home, check off in the store. |
+| 🔁 **“Was out!”** | ⇄ on the item: here again next time, or move it to another store. The list notices what's often missing. |
+| 🛒 **Shop mode** | Big rows, checking off only – one hand on the cart. |
+| 📱 **Offline app** | The complete card as a phone app that opens without a connection. Changes are sent later. |
+| ⏲️ **Cooking times** | Cheat sheet by appliance: 🍲 stove, 🔥 oven, 💨 air fryer. |
+| 🧹 **Cleanup** | Once a week old items get **checked off**, nothing is deleted. |
+| 🔒 **PIN** | Settings (the gear) only with a PIN – the list stays open for everyone. |
+
+Plus lots of small things: photos per product, nicknames (“Kleenex” = tissues), learned typos, store brands when scanning, duplicate finder, history, backup, a mascot 🛒😊 and more.
 
 ---
 
 ## 📦 Installation
 
-### Step 1: Add it to HACS
-1. Open **HACS**.
-2. Top right **⋮ → Custom repositories**.
-3. Repository `https://github.com/misterm2310/einkaufslisten-card`, type **Integration**, **Add**.
-4. Search for **Einkaufsliste**, **Download**, then **restart Home Assistant**.
-
-<details>
-<summary>Without HACS (manually)</summary>
-
-Copy the folder `custom_components/einkaufsliste` to `/config/custom_components/einkaufsliste` and restart Home Assistant.
-</details>
-
-### Step 2: Set up the integration
-**Settings → Devices & services → Add integration → Einkaufsliste**, pick the cleanup day, time and minimum age, **Submit**. Done! 🎉
-
-### Step 3: Card on the dashboard
-Dashboard → **Edit → Add card → Einkaufsliste**. Or in YAML:
+1. Open **HACS** → top right **⋮ → Custom repositories**.
+2. Add `https://github.com/misterm2310/einkaufslisten-card`, type **Integration**.
+3. Search for **Einkaufsliste**, **Download**, **restart Home Assistant**.
+4. **Settings → Devices & services → Add integration → Einkaufsliste**, pick the cleanup day and time, done. 🎉
+5. Dashboard → **Edit → Add card → Einkaufsliste**.
 
 ```yaml
 type: custom:einkaufsliste-card
 ```
 
-> 🙌 You don't have to add a resource by hand – the integration registers the card itself and keeps it up to date.
-> Card looks odd after an update? Pull down to refresh in the app or clear the browser cache (Ctrl+F5).
+> 🙌 No need to add a resource by hand – the integration does it.
+> Card looks odd after an update? Pull down to refresh in the app or press Ctrl+F5 in the browser.
+
+<details><summary>Without HACS (manually)</summary>
+
+Copy `custom_components/einkaufsliste` to `/config/custom_components/einkaufsliste` and restart Home Assistant.
+</details>
 
 ---
 
-## ✍️ Adding items
+## 👆 How to use it
 
-- Type a name, e.g. **milk**, then tap ✔. Up to 2 suggestions appear while typing; tapping one takes over quantity, note, for whom and store from last time.
-- Quantities work directly: **3 milk**, **500 g flour**, **tomatoes 2 cans**, **milk (2)**. English units (tbsp, tsp, cans, bottles, jars, cloves, cups …) are understood.
-- **Several at once:** `milk, 6 eggs, bread` → ✔ → 3 things on the list.
-- The buttons below: 🔢 quantity · 📝 note · 👤 for whom · 📷 photo · 🧽 clear.
-- Below that: **Which store?** (or “Anywhere”) and the **category**, usually preselected correctly.
-- Typing a person's name shows what's on the list for them. Typos get a “Did you mean …?”.
+**Adding:** type a name, tap the green ✔. The buttons below: 🔢 quantity · 📝 note · 👤 for whom · 📷 photo · 🧽 clear. Store and category are usually picked correctly already.
 
-## 👆 Using the list
+**In the list:**
+- ⭕ **Circle** = check off. Under “Done” once more = back on the list.
+- ⇄ = was out (stays open marked “was out”, or moves to another store).
+- **Long-press** = menu: edit, move, quantity, category, photo, barcode, info.
+- **Tap the quantity** = [−] 2x [＋].
+- ✨ = new since you last looked; the red number on a tab shows how much is new there.
+- The **shopping cart** at the top left opens a guide for the whole family – including the app link to copy.
 
-- **Long-press** an item: edit, move, quantity, category, photo, barcode, info.
-- Tap the quantity to change it with − / ＋.
-- ⇄ = was out (see above).
+**In the store:** the cart at the top right switches on **shop mode**. No connection? Keep checking off, the dot turns orange ⏳ and everything is sent later.
 
-## 🍽️ Recipes
+**Recipes:** create them in ⚙️ → Recipes (ingredients just like on the list, or paste an ingredient list or a recipe link). The **chef's hat** at the top: **Add to list** → tick what's missing → done. Also 👥 people or 🍕 trays scaling, **🔥 Cook** (step by step), **Share** (e.g. WhatsApp) and **⏲️ cooking times**. Checked recipe ingredients disappear completely.
 
-- ⚙️ → **Recipes → New recipe**. Add ingredients exactly like on the list. **Paste recipe** accepts an ingredient list or a recipe link.
-- Servings (people or trays), recipe groups, oven settings, instructions, up to 6 photos.
-- The **chef's hat** at the top: **Add to list** → tick what you need → done. **Off the list (3)** takes them off again. **🔥 Cook** = step by step in large print. **Share** = as text, e.g. via WhatsApp.
-- 🧂 **Staples** (salt, oil …) are not preselected.
+---
+
+## 🔍 Scanning barcodes
+
+The ▥ button at the top knows where you are:
+- 🏠 **At home:** scan a pack → name, brand and category are filled in → ✔. With **“📦 Scan several”** every pack goes straight onto the list. Unknown ones are added as “❓ Unknown” – rename once and the list knows the barcode.
+- 🛒 **In the store** (store with a 📍 zone): every scanned pack is checked off on the list.
+
+**Where does it work?**
+- In the **Home Assistant app** (Android/iPhone) with its scanner – works over `http://` too.
+- In the **offline app** with the phone camera. The first time, the phone asks whether the page may use the camera. Without a connection it only recognizes barcodes the list already knows; adding and checking off still work (sent later).
+- No scanner in a desktop browser.
+
+Product names come from **Open Food Facts**, **Open Beauty Facts** and **Open Products Facts** (Home Assistant needs internet for that). German store brands such as Milsani, ja! or Balea go straight to the right store; add your own per store in ⚙️ → Stores.
+
+---
+
+## 📱 Offline app
+
+The **complete card** as its own app on your home screen – with recipes, cook mode, cooking times, settings and camera scanner. It opens **without a connection** with the last state.
+
+1. Copy the address: in **⚙️ → Offline app** or in the **guide** (shopping cart at the top left) – so everyone without the gear can get it too.
+2. Paste it into the phone's **browser** (Chrome or Safari, not the HA app).
+3. Log in with your own Home Assistant user.
+4. Browser menu → **“Add to Home screen”**.
+
+**Needs a connection:** looking up new barcodes, product info, recipe links, new photos, backup.
+
+Good to know: it needs an **https** address (e.g. Nabu Casa). If two people change the same thing at once, the last change wins. iPhones sometimes clear a web app's offline storage after weeks without use – just open it once with a connection.
+
+---
 
 ## ⚙️ Settings (gear)
 
-Tiles: **Stores · Categories · Recipes · Recipe groups · People · Products · All good? · Import & backup · History · Cleanup**.
+| Tile | What's inside |
+|---|---|
+| **Stores, Categories, People, Recipe groups** | Add, rename, color, icon (just type “dog”, no “mdi:”), sort. Stores also get a 📍 zone and store brands. |
+| **Recipes** | New recipe, edit, delete. |
+| **Products** | Everything the list knows: rename, category, store (“Available at”), nicknames, photos, barcodes, learned typos, delete completely. Plus “Newly scanned” to check. |
+| **All good?** | Finds broken or incomplete entries and fixes only what you tick. |
+| **Import & backup** | Recipes from a file (.txt, .csv, .json – admins), lists from other apps (HA to-do lists, Bring!, Google Keep …), backup as .zip (admins). |
+| **Offline app** | Your app address with a copy button. |
+| **Protection** | A 4–8 digit PIN for the gear. Forgot it? Devices & services → Einkaufsliste → Configure → “Reset PIN” (admins). Honestly: protection against accidental changes, not a safe. |
+| **History** | Who did what and when, with filters – and “📈 Often not available”. |
+| **Cleanup** | When the cleanup runs. |
 
-- **Products:** all products the list knows – rename, category, default store, unit, nicknames, barcodes, photos, delete completely.
-- **All good?** finds broken or incomplete entries (no category, no store, missing photos …), lists each one and fixes only what you tick.
-- **Import & backup:**
-  - **Recipes from file** (admins): `.txt/.md` (each recipe starts with `# Name`, then “Ingredients” and “Instructions”), `.csv` (columns `recipe;quantity;unit;ingredient;note;instructions`) or `.json`.
-  - **From other apps:** pick any Home Assistant to-do list and bring its items over, or paste a list shared from Bring!, Google Keep & co. (one item per line; checked ones stay out).
-  - **Backup** (admins): download everything as a .zip, or restore one (replaces everything after a confirmation).
-- **History:** who did what, when and how – with filters, plus “📈 Often not available” (e.g. “3× butter at Aldi – maybe buy it elsewhere?”).
-- **Products → Newly scanned:** products scanned for the first time wait here for a quick check – “✔ Looks good” or tap and correct.
-- **Products → Available at:** tick all stores that sell the product.
-- **Stores:** own brands per store (comma-separated).
-- **Protection:** a 4–8 digit PIN for the gear. Forgot it? Settings → Devices & services → Einkaufsliste → Configure → “Reset PIN” (admins).
-- **Offline app:** ⚙️ → Offline app shows your address with a copy button. Open it in the phone's browser (not the HA app), log in once, “Add to Home screen”. It runs the very same card offline; barcode info, recipe links, new photos and backups need a connection, and the HA app's scanner isn't available there. Needs an https address such as Nabu Casa. Icons: [Material Design Icons](https://pictogrammers.com) (Apache 2.0).
+### 🧹 Cleanup, simply explained
+On cleanup day everything that has been open for at least 7 days (adjustable) gets **checked off**. Example Sunday: added on Tuesday → only 5 days old on the first Sunday, stays → checked off on the second Sunday. Each item shows 🧹 with its date. Nothing is deleted. Day and time: **Devices & services → Einkaufsliste → Configure**.
 
-## ⚙️ Card options
+### 📍 Nearest store first
+Create a **zone** per store (Settings → Areas, labels & zones → Zones) and pick it in ⚙️ → Stores at 📍. Whoever shares their location via the companion app lands on the right tab in the store.
+
+---
+
+## 🎛️ Card options
 
 | Option | Default | What it does |
 |---|---|---|
-| `mascot` | `false` | shopping cart with a face instead of the plain cart icon |
-| `language` | `auto` | `auto` = like Home Assistant (German, otherwise English), `de`, `en` |
-| `show_title` | `true` | `false` hides the cart icon (guide) at the top |
 | `store` | `all` | `all` = all stores with tabs, or one store only |
+| `show_title` | `true` | `false` hides the cart icon (guide) at the top |
 | `show_added_by` | `true` | show who added an item |
 | `added_by_style` | `name` | `name`, `first` or `initials` |
 | `show_checked` | `true` | show the “Done” section |
 | `show_dates` | `true` | show “since Tue” and the 🧹 date |
-| `show_recipes` | `true` | show the chef's hat button |
+| `show_recipes` | `true` | show the chef's hat |
+| `show_settings` | `true` | show the gear (e.g. off for a kids' tablet) |
 | `compact` | `false` | smaller rows without extra info |
 | `auto_store` | `true` | jump to the store you are at |
-| `show_settings` | `true` | show the gear (e.g. off for a kids' tablet) |
+| `mascot` | `false` | 🛒😊 shopping cart with a face instead of the icon |
+| `language` | `auto` | `auto` = like Home Assistant, `de` or `en` |
+
+---
 
 ## 🤖 For automations
 
@@ -152,10 +167,10 @@ Events: `einkaufsliste_item_added`, `einkaufsliste_cleanup`.
 
 ## ❓ FAQ
 
-**Where is the data stored?** Locally in Home Assistant (`/config/.storage/einkaufsliste.data`) – no cloud. Your HA backups include it; ⚙️ → Import & backup gives you an extra .zip.
+**Where is the data stored?** Locally in Home Assistant (`/config/.storage/einkaufsliste.data`, photos in `/config/einkaufsliste_fotos`). No cloud. Your HA backups include it; ⚙️ → Import & backup gives you an extra .zip.
 
-**Why are my categories German?** The integration was set up while Home Assistant was in German. Just rename them in ⚙️ → Categories – the category guessing works by keywords in the category name (e.g. “Dairy”, “Frozen”, “Drinks”).
+**Why are my categories German?** The integration was set up while Home Assistant was in German. Just rename them in ⚙️ → Categories – the guessing works by keywords in the category name (e.g. “Dairy”, “Frozen”, “Drinks”).
 
 ---
 
-License: MIT · Product data: [Open Food Facts](https://world.openfoodfacts.org) (ODbL)
+License: MIT · Product data: [Open Food Facts](https://world.openfoodfacts.org) (ODbL) · Offline app icons: [Material Design Icons](https://pictogrammers.com) (Apache 2.0) · Offline app barcode reader: [ZXing-js](https://github.com/zxing-js/library) (Apache 2.0)

@@ -2,7 +2,7 @@
  * Einkaufsliste Card – die Familien-Einkaufsliste für Home Assistant
  * Wird automatisch von der Integration "einkaufsliste" geladen.
  */
-const EL_VERSION = "2.23.0";
+const EL_VERSION = "2.24.0";
 
 // Doppelt-Finder: Wörter, die dasselbe meinen (alles klein, ohne Leer-/Sonderzeichen)
 const DUP_SYNONYMS = (() => {
@@ -1062,54 +1062,92 @@ const GAR = [
   ]],
 ];
 
+// 📋 Text kopieren – mit Ersatzweg, falls das Handy die Zwischenablage sperrt (z. B. ohne https)
+function elCopy(text, inp) {
+  const old = () => { try { inp?.select(); document.execCommand?.("copy"); } catch (_) { /* egal */ } };
+  if (navigator.clipboard?.writeText) return navigator.clipboard.writeText(text).catch(old);
+  old();
+  return Promise.resolve();
+}
+
+// Die drei Geräte = die drei Reiter. col = Spalte in GAR, hint = Hinweis oben im Reiter
+const GAR_DEV = [
+  { col: 2, icon: "🍲", de: "Herd", en: "Stove", hintDe: "Topf oder Pfanne. Zeiten ab kochendem Wasser bzw. heißer Pfanne.", hintEn: "Pot or pan. Times from boiling water or a hot pan." },
+  { col: 3, icon: "🔥", de: "Backofen", en: "Oven", hintDe: "Ober-/Unterhitze, vorgeheizt. Umluft: etwa 20 °C weniger.", hintEn: "Top/bottom heat, preheated. Fan: about 20 °C less." },
+  { col: 4, icon: "💨", de: "Heißluft\u00adfritteuse", en: "Air fryer", hintDe: "Nicht zu voll machen, zwischendurch schütteln.", hintEn: "Don't overfill, shake halfway." },
+];
+// Hinweise, die nur zum Herd passen (Pfanne, Wasser …), im Backofen/in der Fritteuse weglassen
+const GAR_STOVE_NOTE = /pfanne|\bpan\b|wasser|water|kochend|boil|brühe|stock|tasse|cup/i;
+
 function showGarTable() {
   const en = EL_LANG !== "de";
   const ov = makeOverlay();
   Object.assign(ov.style, { background: "#111", justifyContent: "flex-start", overflowY: "auto", touchAction: "pan-y",
     paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 40px)" });
   const min = en ? "min" : "Min";
-  let group = 0;
+  let dev = 0;
   ov.innerHTML = `<style>
     .gar { width:100%; max-width:560px; color:#eee; font:15px/1.4 Roboto,sans-serif; }
-    .gar h2 { font-size:20px; margin:4px 0; }
+    .gar h2 { font-size:20px; margin:4px 0 10px; }
     .gar .sub { color:#aaa; font-size:13px; margin:0 0 10px; }
     .gar input { width:100%; box-sizing:border-box; font:inherit; padding:10px 12px; border-radius:10px; border:1px solid #444; background:#1e1e1e; color:#eee; margin-bottom:10px; }
-    .gar .gtabs { display:flex; flex-wrap:wrap; gap:6px; margin-bottom:10px; }
-    .gar .gtabs button { font:inherit; font-size:14px; color:#eee; background:#1e1e1e; border:1px solid #444; border-radius:999px; padding:6px 12px; cursor:pointer; }
+    .gar .gtabs { display:grid; grid-template-columns:repeat(3, 1fr); gap:6px; margin-bottom:8px; }
+    .gar .gtabs button { font:inherit; font-size:14px; hyphens:manual; overflow-wrap:anywhere; color:#eee; background:#1e1e1e; border:1px solid #444; border-radius:12px; padding:8px 4px; cursor:pointer; line-height:1.2; }
+    .gar .gtabs button b { display:block; font-size:22px; margin-bottom:2px; }
     .gar .gtabs button.on { background:#03a9f4; border-color:#03a9f4; color:#fff; }
-    .gar .row { background:#1e1e1e; border:1px solid #2c2c2c; border-radius:12px; padding:10px 12px; margin:0 0 8px; }
-    .gar .n { font-weight:600; font-size:16px; }
+    .gar .row { background:#1e1e1e; border:1px solid #2c2c2c; border-radius:12px; padding:9px 12px; margin:0 0 6px; }
+    .gar .top { display:flex; align-items:baseline; gap:10px; }
+    .gar .n { font-weight:600; font-size:16px; flex:1; }
+    .gar .v { font-weight:700; white-space:nowrap; color:#fff; }
     .gar .note { color:#aaa; font-size:13px; margin-top:1px; }
     .gar .t { display:flex; flex-wrap:wrap; gap:6px 14px; margin-top:6px; font-size:15px; }
     .gar .t span { white-space:nowrap; }
-    .gar h3 { font-size:14px; color:#aaa; margin:12px 0 6px; }
+    .gar h3 { font-size:13px; color:#aaa; margin:12px 0 5px; font-weight:600; }
   </style>
   <div class="gar" translate="no">
     <h2>⏲️ ${en ? "Cooking times" : "Gar-Zeiten"}</h2>
-    <p class="sub">${en ? "Guide values – check the package. Oven = top/bottom heat, preheated (fan: about 20 °C less)."
-      : "Richtwerte – Packung beachten. Backofen = Ober-/Unterhitze, vorgeheizt (Umluft: etwa 20 °C weniger)."}</p>
     <input type="search" placeholder="${en ? "Search, e.g. egg" : "Suchen, z. B. Ei"}">
     <div class="gtabs"></div>
+    <p class="sub devhint"></p>
     <div class="garlist"></div>
+    <p class="sub">${en ? "Guide values – always check the package." : "Richtwerte – im Zweifel gilt die Packung."}</p>
   </div>`;
-  const list = ov.querySelector(".garlist"), inp = ov.querySelector("input"), tabs = ov.querySelector(".gtabs");
-  const rowHtml = (r) => {
-    const t = [[r[2], "🍲 " + (en ? "Pot/pan" : "Topf/Pfanne")], [r[3], "🔥 " + (en ? "Oven" : "Backofen")], [r[4], "💨 " + (en ? "Air fryer" : "Heißluft")]]
-      .filter(([v]) => v).map(([v, label]) => `<span>${label}: <b>${esc(v)} ${min}</b></span>`).join("");
+  const list = ov.querySelector(".garlist"), inp = ov.querySelector("input"), tabs = ov.querySelector(".gtabs"), hint = ov.querySelector(".devhint");
+  const name = (r) => esc(en ? r[1] : r[0]);
+  const noteOf = (r, col) => {
+    const n = en ? r[6] : r[5];
+    return n && (col === 2 || !GAR_STOVE_NOTE.test(n)) ? n : "";
+  };
+  // eine Zeile im Geräte-Reiter: Name links, Zeit rechts
+  const devRow = (r, col) => {
+    const note = noteOf(r, col);
+    return `<div class="row"><div class="top"><span class="n">${name(r)}</span><span class="v">${esc(r[col])} ${min}</span></div>${note ? `<div class="note">${esc(note)}</div>` : ""}</div>`;
+  };
+  // bei der Suche: alle Geräte auf einen Blick
+  const fullRow = (r) => {
+    const t = GAR_DEV.filter((d) => r[d.col]).map((d) => `<span>${d.icon} ${en ? d.en : d.de}: <b>${esc(r[d.col])} ${min}</b></span>`).join("");
     const note = en ? r[6] : r[5];
-    return `<div class="row"><div class="n">${esc(en ? r[1] : r[0])}</div>${note ? `<div class="note">${esc(note)}</div>` : ""}<div class="t">${t}</div></div>`;
+    return `<div class="row"><div class="n">${name(r)}</div>${note ? `<div class="note">${esc(note)}</div>` : ""}<div class="t">${t}</div></div>`;
   };
   const draw = () => {
     const q = inp.value.trim().toLowerCase();
-    tabs.hidden = !!q;
-    tabs.innerHTML = GAR.map(([icon, gde, gen], i) => `<button class="${i === group ? "on" : ""}" data-g="${i}">${icon} ${esc(en ? gen : gde)}</button>`).join("");
-    if (!q) { list.innerHTML = GAR[group][3].map(rowHtml).join(""); return; }
+    tabs.hidden = hint.hidden = !!q;
+    tabs.innerHTML = GAR_DEV.map((d, i) => `<button class="${i === dev ? "on" : ""}" data-d="${i}"><b>${d.icon}</b>${en ? d.en : d.de}</button>`).join("");
+    if (!q) {
+      const d = GAR_DEV[dev];
+      hint.textContent = en ? d.hintEn : d.hintDe;
+      list.innerHTML = GAR.map(([icon, gde, gen, rows]) => {
+        const hit = rows.filter((r) => r[d.col]);
+        return hit.length ? `<h3>${icon} ${esc(en ? gen : gde)}</h3>${hit.map((r) => devRow(r, d.col)).join("")}` : "";
+      }).join("");
+      return;
+    }
     list.innerHTML = GAR.map(([icon, gde, gen, rows]) => {
       const hit = rows.filter((r) => r[0].toLowerCase().includes(q) || r[1].toLowerCase().includes(q) || gde.toLowerCase().includes(q) || gen.toLowerCase().includes(q));
-      return hit.length ? `<h3>${icon} ${esc(en ? gen : gde)}</h3>${hit.map(rowHtml).join("")}` : "";
+      return hit.length ? `<h3>${icon} ${esc(en ? gen : gde)}</h3>${hit.map(fullRow).join("")}` : "";
     }).join("") || `<p class="sub">${en ? "Nothing found." : "Nichts gefunden."}</p>`;
   };
-  tabs.addEventListener("click", (e) => { const b = e.target.closest("[data-g]"); if (b) { group = Number(b.dataset.g); draw(); } });
+  tabs.addEventListener("click", (e) => { const b = e.target.closest("[data-d]"); if (b) { dev = Number(b.dataset.d); draw(); ov.scrollTop = 0; } });
   inp.addEventListener("input", draw);
   draw();
   const bClose = ovButton(en ? "Close" : "Schließen", true);
@@ -1180,11 +1218,21 @@ function mascotSvg(mood, deco) {
 const QUEUE_TYPES = new Set(["einkaufsliste/item/toggle", "einkaufsliste/item/add", "einkaufsliste/item/update",
   "einkaufsliste/item/remove", "einkaufsliste/item/move", "einkaufsliste/item/out",
   "einkaufsliste/recipe/add", "einkaufsliste/recipe/update", "einkaufsliste/recipe/remove",
-  "einkaufsliste/recipe/apply", "einkaufsliste/recipe/unapply"]);
+  "einkaufsliste/recipe/apply", "einkaufsliste/recipe/unapply", "einkaufsliste/barcode/assign"]);
 const QUEUE_KEY = "einkaufsliste_queue";
 const elQueue = (() => { try { return JSON.parse(localStorage.getItem(QUEUE_KEY) || "[]"); } catch (_) { return []; } })();
 const elFlush = { busy: false };
 const elQueueSave = () => { try { localStorage.setItem(QUEUE_KEY, JSON.stringify(elQueue)); } catch (_) { /* egal */ } };
+// ▥ Barcode sofort am Produkt merken (auch ohne Netz), damit der nächste Scan ihn schon kennt
+function rememberCode(data, name, note, code) {
+  const c = String(code || "").replace(/\D/g, "");
+  if (!c || !name) return;
+  const n = String(name).trim().toLowerCase(), t = String(note || "").trim().toLowerCase();
+  const key = t ? `${n}|${t}` : n;
+  data.barcodes_by_name = data.barcodes_by_name || {};
+  const list = data.barcodes_by_name[key] || (data.barcodes_by_name[key] = []);
+  if (!list.includes(c)) list.push(c);
+}
 // Gemerkte Änderungen auf die Daten legen, damit man sofort sieht, was man getan hat
 function applyQueued(data, list, hass) {
   const now = new Date().toISOString();
@@ -1192,12 +1240,25 @@ function applyQueued(data, list, hass) {
   for (const m of list) {
     const it = data.items.find((i) => i.id === m.item_id);
     switch (m.type) {
-      case "einkaufsliste/item/add":
-        if (!data.items.some((i) => i.id === m._tmp)) {
+      case "einkaufsliste/barcode/assign":
+        if (it) rememberCode(data, it.name, it.note, m.code);
+        break;
+      case "einkaufsliste/item/add": {
+        // gleicher Artikel schon da? Dann macht Home Assistant daraus keinen zweiten – hier genauso
+        const low = (x) => String(x || "").trim().toLowerCase();
+        const same = data.items.find((i) => i.id !== m._tmp && !i.recipe_id && low(i.name) === low(m.name) && low(i.note) === low(m.note)
+          && low(i.for_whom) === low(m.for_whom) && (i.store_id || null) === (m.store_id || null));
+        if (same) {
+          if (same.checked) { same.checked = false; same.added_at = now; same.added_by = me; }
+          if (m.quantity) same.quantity = m.quantity;
+          same._queued = true;
+        } else if (!data.items.some((i) => i.id === m._tmp)) {
           data.items.push({ id: m._tmp, name: String(m.name || "").replace(/^./, (c) => c.toUpperCase()), quantity: m.quantity || null, note: m.note || null, for_whom: m.for_whom || null,
             store_id: m.store_id || null, category_id: m.category_id || null, checked: false, added_by: me, added_at: now, _queued: true });
         }
+        if (m.barcode) rememberCode(data, m.name, m.note, m.barcode);
         break;
+      }
       case "einkaufsliste/item/toggle":
         if (it) { it.checked = typeof m.checked === "boolean" ? m.checked : !it.checked; it.checked_at = now; it.checked_by = me; it._queued = true; }
         break;
@@ -1413,7 +1474,7 @@ class EinkaufslisteCard extends HTMLElement {
   _ws(msg) {
     // ⏳ Funkloch im Laden? Abhaken & Co. wird gemerkt und nachgeschickt, sobald das Netz wieder da ist
     const offline = this._hass?.connected === false;
-    const isItem = msg.type.startsWith("einkaufsliste/item/");
+    const isItem = msg.type.startsWith("einkaufsliste/item/") || msg.type === "einkaufsliste/barcode/assign";
     if (QUEUE_TYPES.has(msg.type) && (offline || (isItem && elQueue.length))) return this._queueMsg(msg);
     return this._hass.callWS(msg).catch((err) => {
       if (QUEUE_TYPES.has(msg.type) && this._hass?.connected === false) return this._queueMsg(msg);
@@ -2585,7 +2646,7 @@ class EinkaufslisteCard extends HTMLElement {
           <li>Einmal mit deinem Home-Assistant-Benutzer <b>anmelden</b>.</li>
           <li>Im Browser-Menü <b>„Zum Startbildschirm hinzufügen“</b> – fertig, eigenes 🛒-Symbol.</li>
         </ol>
-        <p class="hint">In der App steckt <b>genau diese Karte</b> – mit Rezepten, Koch-Modus, Gar-Zeiten und Einstellungen. Ohne Netz kannst du alles ansehen, abhaken, eintragen und Rezepte ändern; es wird nachgeschickt. Nur mit Netz: Barcode-Infos, Rezept-Links, neue Fotos, Sicherung. Der Barcode-Scanner der HA-App fehlt in der App. Wichtig: Es braucht eine <b>https</b>-Adresse (z. B. Nabu Casa).</p>
+        <p class="hint">In der App steckt <b>genau diese Karte</b> – mit Rezepten, Koch-Modus, Gar-Zeiten und Einstellungen. Ohne Netz kannst du alles ansehen, abhaken, eintragen und Rezepte ändern; es wird nachgeschickt. Scannen geht mit der Handykamera (beim ersten Mal fragt das Handy, ob die Seite die Kamera nutzen darf); ohne Netz erkennt sie nur Barcodes, die die Liste schon kennt. Nur mit Netz: neue Barcodes nachschlagen, Produkt-Infos, Rezept-Links, neue Fotos, Sicherung. Wichtig: Es braucht eine <b>https</b>-Adresse (z. B. Nabu Casa).</p>
         ${d.settings?.app_url
           ? `<p class="hint"><b>Deine Adresse für die App:</b></p>
         <input class="full" id="appUrl" readonly value="${esc(d.settings.app_url)}" translate="no" style="width:100%;box-sizing:border-box">
@@ -3986,6 +4047,7 @@ class EinkaufslisteCard extends HTMLElement {
     Object.assign(ov.style, { background: "#111", justifyContent: "flex-start", overflowY: "auto", touchAction: "pan-y",
       paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 40px)" });
     const sec = (icon, title, body, open = false) => `<details class="elg-sec" ${open ? "open" : ""}><summary>${icon} ${title}</summary><div>${body}</div></details>`;
+    const appSec = this._guideAppSec(sec);
     ov.innerHTML = `<style>
       .elg { width:100%; max-width:640px; color:#eee; font:15px/1.5 Roboto, sans-serif; }
       .elg h2 { font-size:21px; margin:6px 0 4px; display:flex; align-items:center; gap:8px; }
@@ -3997,12 +4059,14 @@ class EinkaufslisteCard extends HTMLElement {
       .elg-sec summary::after { content:"＋"; float:right; opacity:.6; }
       .elg-sec[open] summary::after { content:"－"; }
       .elg-sec > div { padding:0 14px 12px; }
-      .elg-sec ul { margin:4px 0; padding-left:20px; }
+      .elg-sec ul, .elg-sec ol { margin:4px 0; padding-left:20px; }
       .elg-sec li { margin:4px 0; }
       .elg b { color:#fff; }
       .elg .elg-k { display:inline-block; background:#333; border-radius:6px; padding:0 6px; }
+      .elg .elg-url { width:100%; box-sizing:border-box; font:14px monospace; padding:9px 10px; border-radius:10px; border:1px solid #444; background:#111; color:#eee; margin:6px 0; }
+      .elg .elg-copy { font:inherit; font-weight:600; color:#fff; background:#03a9f4; border:0; border-radius:10px; padding:9px 16px; cursor:pointer; }
     </style>
-    ${EL_LANG !== "de" ? this._guideEn(sec) : `<div class="elg">
+    ${EL_LANG !== "de" ? this._guideEn(sec, appSec) : `<div class="elg">
       <div class="elg-top"><h2>🛒 So funktioniert die Einkaufsliste</h2></div>
       <p class="elg-sub">Tipp auf eine Überschrift klappt sie auf. Diese Anleitung findest du immer über den <b>Einkaufswagen ganz oben links</b>.</p>
       ${sec("✍️", "Etwas eintragen", `<ul>
@@ -4015,6 +4079,7 @@ class EinkaufslisteCard extends HTMLElement {
         <li>Daneben die <b>Kategorie</b> – die sucht sich die Liste meist selbst aus. Passt sie nicht, einfach ändern.</li>
         <li>Einen <b>Namen</b> tippen (z. B. von dir) zeigt, was für diese Person auf der Liste steht.</li>
         <li>Vertippt? Die Liste fragt „Meintest du …?“ 😉</li></ul>`, true)}
+      ${appSec}
       ${sec("✅", "Abhaken & wieder draufsetzen", `<ul>
         <li><b>Kreis antippen</b> = gekauft. Das Handy vibriert kurz.</li>
         <li>Gekauftes rutscht nach unten zu <b>„Erledigt – schon mal gekauft“</b>.</li>
@@ -4038,7 +4103,7 @@ class EinkaufslisteCard extends HTMLElement {
       ${sec("📷", "Fotos & Barcodes", `<ul>
         <li>Das <b>📷</b> am Artikel zeigt das Foto. Wischen = blättern, <b>„Foto dazu“</b> für weitere (bis 6).</li>
         <li>Ein neues Foto <b>ersetzt nie</b> ein altes, es kommt immer dazu.</li>
-        <li><b>▥</b> oben neben dem grünen Punkt = Barcode scannen (in der HA-App): Das Produkt wird erkannt und eingetragen.</li>
+        <li><b>▥</b> oben neben dem grünen Punkt = Barcode scannen (in der HA-App und in der Offline-App): Das Produkt wird erkannt und eingetragen.</li>
         <li>Einen Barcode nachträglich zuordnen: Artikel lange drücken → <b>Barcode</b>.</li></ul>`)}
       ${sec("👨‍🍳", "Rezepte", `<ul>
         <li>Die <b>Kochmütze</b> oben öffnet die Rezepte. Das Suchfeld findet auch Zutaten (z. B. „Zucchini“).</li>
@@ -4048,7 +4113,7 @@ class EinkaufslisteCard extends HTMLElement {
         <li><b>Von der Liste (3)</b> nimmt die Zutaten dieses Rezepts wieder runter.</li>
         <li>📷 = Rezept-Fotos · <b>🔥 Kochen</b> = Schritt für Schritt in großer Schrift · <b>Teilen</b> = z. B. per WhatsApp.</li>
         <li>Abgehakte Rezept-Zutaten verschwinden ganz (nicht bei „Erledigt“).</li>
-        <li><b>⏲️ Gar-Zeiten</b> (oben bei den Rezepten und im Koch-Modus): Spickzettel für Nudeln, Eier, Gemüse, Fleisch & Co. – Topf, Backofen und Heißluftfritteuse.</li></ul>`)}
+        <li><b>⏲️ Gar-Zeiten</b> (oben bei den Rezepten und im Koch-Modus): Spickzettel nach Gerät: 🍲 Herd, 🔥 Backofen, 💨 Heißluftfritteuse.</li></ul>`)}
       ${sec("🟢", "Was bedeuten die Zeichen oben?", `<ul>
         <li>Von links: <b>🛒 Einkaufswagen</b> = diese Anleitung · <b>🟢 Punkt</b> · <b>Zahl</b> · <b>▥ Barcode</b>.</li>
         <li><b>🟢 Grüner Punkt</b> = verbunden, alles ist live auf allen Handys. <b>🔴 Rot</b> = gerade keine Verbindung.</li>
@@ -4056,6 +4121,14 @@ class EinkaufslisteCard extends HTMLElement {
         <li>Rechts: <b>Wagen</b> = Laden-Modus · <b>Kochmütze</b> = Rezepte.</li>
         <li>Ein <b>blauer Balken</b> oben = es gibt ein Update, das muss jemand mit Admin-Zugang in Home Assistant fertig machen.</li></ul>`)}
     </div>`}`;
+    ov.querySelector(".elg-copy")?.addEventListener("click", () => {
+      const inp = ov.querySelector(".elg-url");
+      const btn = ov.querySelector(".elg-copy");
+      elCopy(inp.value, inp).then(() => {
+        btn.textContent = EL_LANG !== "de" ? "✅ Copied!" : "✅ Kopiert!";
+        setTimeout(() => { btn.textContent = EL_LANG !== "de" ? "📋 Copy" : "📋 Kopieren"; }, 2500);
+      });
+    });
     const bClose = ovButton("Schließen", true);
     Object.assign(bClose.style, { marginTop: "14px" });
     ov.append(bClose);
@@ -4066,8 +4139,28 @@ class EinkaufslisteCard extends HTMLElement {
     ov.addEventListener("click", (e) => { if (e.target === ov) close(); });
   }
 
+  // 📱 Abschnitt „Als App aufs Handy“ – mit Adresse zum Kopieren (auch für alle ohne Zahnrad)
+  _guideAppSec(sec) {
+    if (location.pathname.startsWith("/einkaufsliste/app/")) return ""; // wir sind schon in der App 😉
+    const en = EL_LANG !== "de";
+    const url = this._data?.settings?.app_url;
+    const box = url
+      ? `<input class="elg-url" readonly value="${esc(url)}"><button type="button" class="elg-copy">📋 ${en ? "Copy" : "Kopieren"}</button>`
+      : `<p>${en ? "⚠️ Home Assistant has no https address yet (e.g. Nabu Casa). Ask whoever set it up."
+        : "⚠️ Home Assistant hat noch keine https-Adresse (z. B. Nabu Casa). Frag den, der Home Assistant eingerichtet hat."}</p>`;
+    return en
+      ? sec("📱", "As an app on your phone", `<ul>
+        <li>The shopping list also comes as its <b>own app</b> on your home screen. It even opens <b>without a connection</b>.</li></ul>
+        <ol><li>Copy the address</li><li>Paste it into your phone's <b>browser</b> (Chrome/Safari, not the HA app)</li>
+        <li>Log in with your Home Assistant user</li><li>Browser menu → <b>“Add to Home screen”</b></li></ol>${box}`)
+      : sec("📱", "Als App aufs Handy", `<ul>
+        <li>Die Einkaufsliste gibt's auch als <b>eigene App</b> auf dem Startbildschirm. Die öffnet sogar <b>ohne Netz</b>.</li></ul>
+        <ol><li>Adresse kopieren</li><li>Im Handy-<b>Browser</b> einfügen (Chrome/Safari, nicht die HA-App)</li>
+        <li>Mit deinem Home-Assistant-Benutzer anmelden</li><li>Browser-Menü → <b>„Zum Startbildschirm hinzufügen“</b></li></ol>${box}`);
+  }
+
   // 📖 Die Anleitung auf Englisch (für alle, deren Home Assistant nicht auf Deutsch läuft)
-  _guideEn(sec) {
+  _guideEn(sec, appSec = "") {
     return `<div class="elg" translate="no">
       <div class="elg-top"><h2>🛒 How the shopping list works</h2></div>
       <p class="elg-sub">Tap a heading to open it. You can always find this guide via the <b>shopping cart at the top left</b>.</p>
@@ -4081,6 +4174,7 @@ class EinkaufslisteCard extends HTMLElement {
         <li>Next to it the <b>category</b> – the list usually picks it itself. If it's wrong, just change it.</li>
         <li>Typing a <b>name</b> (e.g. yours) shows what's on the list for that person.</li>
         <li>Typo? The list asks “Did you mean …?” 😉</li></ul>`, true)}
+      ${appSec}
       ${sec("✅", "Checking off & adding again", `<ul>
         <li><b>Tap the circle</b> = bought. The phone vibrates briefly.</li>
         <li>Bought things slide down to <b>“Done – bought before”</b>.</li>
@@ -4104,7 +4198,7 @@ class EinkaufslisteCard extends HTMLElement {
       ${sec("📷", "Photos & barcodes", `<ul>
         <li>The <b>📷</b> on the item shows the photo. Swipe = browse, <b>“Add photo”</b> for more (up to 6).</li>
         <li>A new photo <b>never replaces</b> an old one, it is always added.</li>
-        <li><b>▥</b> at the top next to the green dot = scan a barcode (in the HA app): the product is recognized and added.</li>
+        <li><b>▥</b> at the top next to the green dot = scan a barcode (in the HA app and the offline app): the product is recognized and added.</li>
         <li>Assign a barcode later: long-press the item → <b>Barcode</b>.</li></ul>`)}
       ${sec("👨‍🍳", "Recipes", `<ul>
         <li>The <b>chef's hat</b> at the top opens the recipes. The search also finds ingredients (e.g. “zucchini”).</li>
@@ -4114,7 +4208,7 @@ class EinkaufslisteCard extends HTMLElement {
         <li><b>Off the list (3)</b> takes this recipe's ingredients off again.</li>
         <li>📷 = recipe photos · <b>🔥 Cook</b> = step by step in large print · <b>Share</b> = e.g. via WhatsApp.</li>
         <li>Checked recipe ingredients disappear completely (not under “Done”).</li>
-        <li><b>⏲️ Cooking times</b> (at the top of the recipes and in cook mode): cheat sheet for pasta, eggs, vegetables, meat & co. – pot, oven and air fryer.</li></ul>`)}
+        <li><b>⏲️ Cooking times</b> (at the top of the recipes and in cook mode): cheat sheet by appliance: 🍲 stove, 🔥 oven, 💨 air fryer.</li></ul>`)}
       ${sec("🟢", "What do the symbols at the top mean?", `<ul>
         <li>From the left: <b>🛒 shopping cart</b> = this guide · <b>🟢 dot</b> · <b>number</b> · <b>▥ barcode</b>.</li>
         <li><b>🟢 Green dot</b> = connected, everything is live on all phones. <b>🔴 Red</b> = no connection right now.</li>
@@ -4350,11 +4444,35 @@ class EinkaufslisteCard extends HTMLElement {
   }
 
   async _lookup(code) {
+    const clean = String(code || "").replace(/\D/g, "");
+    const offline = () => this._hass?.connected === false;
+    if (offline()) return this._localLookup(clean) || { code: clean, found: false, offline: true };
     try {
       return await this._hass.callWS({ type: "einkaufsliste/barcode/lookup", code });
     } catch (_) {
-      return { code, found: false };
+      return this._localLookup(clean) || { code: clean, found: false, offline: offline() };
     }
+  }
+
+  // 📴 Ohne Netz: Barcodes, die die Liste schon kennt, direkt im Handy nachschlagen
+  _localLookup(code) {
+    const d = this._data;
+    if (!code || !d?.barcodes_by_name) return null;
+    const bare = (x) => String(x).replace(/^0+/, "");
+    const key = Object.keys(d.barcodes_by_name).find((k) => d.barcodes_by_name[k].some((c) => c === code || bare(c) === bare(code)));
+    if (!key) return null;
+    const [n, t = ""] = key.split("|");
+    const low = (x) => String(x || "").trim().toLowerCase();
+    const all = [...(d.items || []), ...(d.history || [])];
+    const src = all.find((x) => this._pk(x.name, x.note) === key) || all.find((x) => low(x.name) === n);
+    const cap = (x) => x.replace(/^./, (c) => c.toUpperCase());
+    return {
+      code, found: true, source: "gemerkt", offline: true,
+      name: src?.name || cap(n),
+      note: t ? (src && low(src.note) === t ? src.note : cap(t)) : null,
+      store_id: src?.store_id && this._store(src.store_id) ? src.store_id : null,
+      category_id: src?.category_id && this._cat(src.category_id) ? src.category_id : null,
+    };
   }
 
   // 📦 Serien-Scan am Kühlschrank: jede Packung kommt direkt auf die Liste
@@ -4389,7 +4507,7 @@ class EinkaufslisteCard extends HTMLElement {
           return res.found ? `✅ ${name} ist im Rezept` : `❓ Unbekannt – später umbenennen`;
         }
         try {
-          await this._hass.callWS({
+          await this._ws({
             type: "einkaufsliste/item/add",
             via: "scan",
             name,
@@ -4424,14 +4542,14 @@ class EinkaufslisteCard extends HTMLElement {
       series: true,
       onCode: async (code) => {
         const res = await this._lookup(code);
-        if (!res.found) return "🤔 Diesen Barcode kenne ich noch nicht";
+        if (!res.found) return res.offline ? "📴 Ohne Netz kenne ich nur schon gemerkte Barcodes" : "🤔 Diesen Barcode kenne ich noch nicht";
         const want = this._pk(res.name, res.note);
         let open = this._data.items.filter((i) => !i.checked && this._pk(i.name, i.note) === want);
         if (!open.length && !res.note) open = this._data.items.filter((i) => !i.checked && i.name.toLowerCase() === res.name.toLowerCase());
         const item = open.find((i) => i.store_id === store.id) || open[0];
         if (!item) return `ℹ️ ${res.name} steht nicht auf der Liste`;
         try {
-          await this._hass.callWS({ type: "einkaufsliste/item/toggle", item_id: item.id, checked: true, via: "scan" });
+          await this._ws({ type: "einkaufsliste/item/toggle", item_id: item.id, checked: true, via: "scan" });
           stats.checked++;
           return `✅ ${item.name} abgehakt`;
         } catch (err) {
@@ -4447,8 +4565,8 @@ class EinkaufslisteCard extends HTMLElement {
     const btn = this.$("btnScan");
     btn.classList.add("busy");
     try {
-      const res = await this._ws({ type: "einkaufsliste/barcode/lookup", code });
-      this._pendingBarcode = res.code;
+      const res = await this._lookup(code);
+      this._pendingBarcode = res.code || String(code).replace(/\D/g, "");
       const nameEl = this.$("inName");
       if (res.found) {
         nameEl.value = res.name;
@@ -4462,7 +4580,9 @@ class EinkaufslisteCard extends HTMLElement {
           : `🔍 Gefunden: „${res.name}“ – Name passt? Dann ✅ tippen${res.private_label ? ` · 🏷️ Eigenmarke von ${res.private_label}` : ""}`);
       } else {
         nameEl.value = "";
-        this._toast(`🤔 Diesen Barcode kenne ich noch nicht – tipp den Namen ein, ich merk ihn mir!`);
+        this._toast(res.offline
+          ? `📴 Ohne Netz kann ich neue Barcodes nicht nachschlagen – tipp den Namen ein, ich merk mir den Barcode!`
+          : `🤔 Diesen Barcode kenne ich noch nicht – tipp den Namen ein, ich merk ihn mir!`);
       }
       nameEl.focus();
       this._renderSuggest();
@@ -4932,9 +5052,7 @@ class EinkaufslisteCard extends HTMLElement {
       case "app-copy": {
         const inp = this.$("appUrl");
         const url = inp?.value || "";
-        const done = () => this._toast("📋 Adresse kopiert – jetzt im Handy-Browser einfügen");
-        if (navigator.clipboard?.writeText) navigator.clipboard.writeText(url).then(done).catch(() => { inp.select(); document.execCommand?.("copy"); done(); });
-        else { inp.select(); document.execCommand?.("copy"); done(); }
+        elCopy(url, inp).then(() => this._toast("📋 Adresse kopiert – jetzt im Handy-Browser einfügen"));
         break;
       }
       case "miss-ok":
