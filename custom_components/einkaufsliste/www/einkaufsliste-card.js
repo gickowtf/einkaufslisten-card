@@ -2,7 +2,7 @@
  * Einkaufsliste Card – die Familien-Einkaufsliste für Home Assistant
  * Wird automatisch von der Integration "einkaufsliste" geladen.
  */
-const EL_VERSION = "2.22.0";
+const EL_VERSION = "2.23.0";
 
 // Doppelt-Finder: Wörter, die dasselbe meinen (alles klein, ohne Leer-/Sonderzeichen)
 const DUP_SYNONYMS = (() => {
@@ -866,6 +866,9 @@ ha-card.compact .group { margin-top:4px; }
 .sechead .back { padding:6px 10px; }
 .prodrow { cursor:pointer; }
 .prodrow .pmeta { display:flex; flex-wrap:wrap; gap:2px 8px; }
+.misshint { margin:2px 0 10px; padding:10px 12px; border-radius:12px; background:color-mix(in srgb, var(--warning-color,#ffa600) 16%, transparent); }
+.misshint .dbtns { display:flex; flex-wrap:wrap; gap:6px; margin-top:8px; }
+.movewarn { flex-basis:100%; font-size:.9em; color:var(--warning-color,#ffa600); font-weight:600; }
 .alsohere { display:flex; flex-wrap:wrap; gap:6px; align-items:center; margin:2px 0 10px; padding:8px 10px; border-radius:12px; background:color-mix(in srgb, var(--primary-color,#03a9f4) 8%, transparent); font-size:.92em; }
 .pestores { display:flex; flex-wrap:wrap; gap:6px; align-items:center; font-size:.92em; }
 .pestores .stck { display:inline-flex; align-items:center; gap:4px; border-radius:999px; padding:3px 10px 3px 6px; background:color-mix(in srgb, var(--c) 16%, transparent); cursor:pointer; }
@@ -1065,37 +1068,48 @@ function showGarTable() {
   Object.assign(ov.style, { background: "#111", justifyContent: "flex-start", overflowY: "auto", touchAction: "pan-y",
     paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 40px)" });
   const min = en ? "min" : "Min";
-  const cell = (v) => (v ? esc(v) + " " + min : "–");
+  let group = 0;
   ov.innerHTML = `<style>
-    .gar { width:100%; max-width:700px; color:#eee; font:15px/1.4 Roboto,sans-serif; }
+    .gar { width:100%; max-width:560px; color:#eee; font:15px/1.4 Roboto,sans-serif; }
     .gar h2 { font-size:20px; margin:4px 0; }
-    .gar .sub { color:#aaa; font-size:13.5px; margin:0 0 10px; }
-    .gar input { width:100%; box-sizing:border-box; font:inherit; padding:10px 12px; border-radius:10px; border:1px solid #444; background:#1e1e1e; color:#eee; margin-bottom:8px; }
-    .gar h3 { font-size:15px; margin:16px 0 6px; color:#fff; }
-    .gar table { width:100%; border-collapse:collapse; font-size:14px; }
-    .gar th { text-align:left; color:#aaa; font-weight:500; padding:4px 6px; font-size:12.5px; }
-    .gar td { padding:6px; border-top:1px solid #2c2c2c; vertical-align:top; }
-    .gar td.n { font-weight:600; }
-    .gar td small { display:block; color:#aaa; font-weight:400; }
-    .gar td.t { white-space:nowrap; }
+    .gar .sub { color:#aaa; font-size:13px; margin:0 0 10px; }
+    .gar input { width:100%; box-sizing:border-box; font:inherit; padding:10px 12px; border-radius:10px; border:1px solid #444; background:#1e1e1e; color:#eee; margin-bottom:10px; }
+    .gar .gtabs { display:flex; flex-wrap:wrap; gap:6px; margin-bottom:10px; }
+    .gar .gtabs button { font:inherit; font-size:14px; color:#eee; background:#1e1e1e; border:1px solid #444; border-radius:999px; padding:6px 12px; cursor:pointer; }
+    .gar .gtabs button.on { background:#03a9f4; border-color:#03a9f4; color:#fff; }
+    .gar .row { background:#1e1e1e; border:1px solid #2c2c2c; border-radius:12px; padding:10px 12px; margin:0 0 8px; }
+    .gar .n { font-weight:600; font-size:16px; }
+    .gar .note { color:#aaa; font-size:13px; margin-top:1px; }
+    .gar .t { display:flex; flex-wrap:wrap; gap:6px 14px; margin-top:6px; font-size:15px; }
+    .gar .t span { white-space:nowrap; }
+    .gar h3 { font-size:14px; color:#aaa; margin:12px 0 6px; }
   </style>
   <div class="gar" translate="no">
     <h2>⏲️ ${en ? "Cooking times" : "Gar-Zeiten"}</h2>
     <p class="sub">${en ? "Guide values – check the package. Oven = top/bottom heat, preheated (fan: about 20 °C less)."
       : "Richtwerte – Packung beachten. Backofen = Ober-/Unterhitze, vorgeheizt (Umluft: etwa 20 °C weniger)."}</p>
     <input type="search" placeholder="${en ? "Search, e.g. egg" : "Suchen, z. B. Ei"}">
+    <div class="gtabs"></div>
     <div class="garlist"></div>
   </div>`;
-  const list = ov.querySelector(".garlist"), inp = ov.querySelector("input");
+  const list = ov.querySelector(".garlist"), inp = ov.querySelector("input"), tabs = ov.querySelector(".gtabs");
+  const rowHtml = (r) => {
+    const t = [[r[2], "🍲 " + (en ? "Pot/pan" : "Topf/Pfanne")], [r[3], "🔥 " + (en ? "Oven" : "Backofen")], [r[4], "💨 " + (en ? "Air fryer" : "Heißluft")]]
+      .filter(([v]) => v).map(([v, label]) => `<span>${label}: <b>${esc(v)} ${min}</b></span>`).join("");
+    const note = en ? r[6] : r[5];
+    return `<div class="row"><div class="n">${esc(en ? r[1] : r[0])}</div>${note ? `<div class="note">${esc(note)}</div>` : ""}<div class="t">${t}</div></div>`;
+  };
   const draw = () => {
     const q = inp.value.trim().toLowerCase();
+    tabs.hidden = !!q;
+    tabs.innerHTML = GAR.map(([icon, gde, gen], i) => `<button class="${i === group ? "on" : ""}" data-g="${i}">${icon} ${esc(en ? gen : gde)}</button>`).join("");
+    if (!q) { list.innerHTML = GAR[group][3].map(rowHtml).join(""); return; }
     list.innerHTML = GAR.map(([icon, gde, gen, rows]) => {
-      const hit = rows.filter((r) => !q || r[0].toLowerCase().includes(q) || r[1].toLowerCase().includes(q) || gde.toLowerCase().includes(q) || gen.toLowerCase().includes(q));
-      if (!hit.length) return "";
-      return `<h3>${icon} ${esc(en ? gen : gde)}</h3><table><tr><th></th><th>🍲 ${en ? "Pot/pan" : "Topf/Pfanne"}</th><th>🔥 ${en ? "Oven" : "Backofen"}</th><th>💨 ${en ? "Air fryer" : "Heißluftfr."}</th></tr>${
-        hit.map((r) => `<tr><td class="n">${esc(en ? r[1] : r[0])}${(en ? r[6] : r[5]) ? `<small>${esc(en ? r[6] : r[5])}</small>` : ""}</td><td class="t">${cell(r[2])}</td><td class="t">${cell(r[3])}</td><td class="t">${cell(r[4])}</td></tr>`).join("")}</table>`;
+      const hit = rows.filter((r) => r[0].toLowerCase().includes(q) || r[1].toLowerCase().includes(q) || gde.toLowerCase().includes(q) || gen.toLowerCase().includes(q));
+      return hit.length ? `<h3>${icon} ${esc(en ? gen : gde)}</h3>${hit.map(rowHtml).join("")}` : "";
     }).join("") || `<p class="sub">${en ? "Nothing found." : "Nichts gefunden."}</p>`;
   };
+  tabs.addEventListener("click", (e) => { const b = e.target.closest("[data-g]"); if (b) { group = Number(b.dataset.g); draw(); } });
   inp.addEventListener("input", draw);
   draw();
   const bClose = ovButton(en ? "Close" : "Schließen", true);
@@ -1164,7 +1178,9 @@ function mascotSvg(mood, deco) {
 
 // ⏳ Warteschlange für Funklöcher: wird im Handy gespeichert, damit auch ein Neustart der App nichts verliert
 const QUEUE_TYPES = new Set(["einkaufsliste/item/toggle", "einkaufsliste/item/add", "einkaufsliste/item/update",
-  "einkaufsliste/item/remove", "einkaufsliste/item/move", "einkaufsliste/item/out"]);
+  "einkaufsliste/item/remove", "einkaufsliste/item/move", "einkaufsliste/item/out",
+  "einkaufsliste/recipe/add", "einkaufsliste/recipe/update", "einkaufsliste/recipe/remove",
+  "einkaufsliste/recipe/apply", "einkaufsliste/recipe/unapply"]);
 const QUEUE_KEY = "einkaufsliste_queue";
 const elQueue = (() => { try { return JSON.parse(localStorage.getItem(QUEUE_KEY) || "[]"); } catch (_) { return []; } })();
 const elFlush = { busy: false };
@@ -1196,6 +1212,39 @@ function applyQueued(data, list, hass) {
         break;
       case "einkaufsliste/item/out":
         if (it) { it.out_at = now; it._queued = true; }
+        break;
+      case "einkaufsliste/recipe/add":
+        if (!(data.recipes || []).some((r) => r.id === m._tmp)) {
+          data.recipes = [...(data.recipes || []), { id: m._tmp, name: m.name, icon: m.icon || null, items: m.items || [], steps: m.steps || null,
+            heat: m.heat || [], servings: m.servings || null, servings_unit: m.servings_unit || "persons", group: m.group || null, _queued: true }];
+        }
+        break;
+      case "einkaufsliste/recipe/update": {
+        const r = (data.recipes || []).find((x) => x.id === m.recipe_id);
+        if (r) { for (const k of ["name", "icon", "items", "steps", "heat", "servings", "servings_unit", "group"]) if (k in m) r[k] = m[k]; r._queued = true; }
+        break;
+      }
+      case "einkaufsliste/recipe/remove":
+        data.recipes = (data.recipes || []).filter((r) => r.id !== m.recipe_id);
+        break;
+      case "einkaufsliste/recipe/apply": {
+        const r = (data.recipes || []).find((x) => x.id === m.recipe_id);
+        if (!r) break;
+        const pick = m.items || r.items.map((_, n) => n);
+        pick.forEach((n) => {
+          const ri = r.items[n];
+          if (!ri) return;
+          const tid = `tmp_${m._tmp || "r"}_${n}`;
+          if (data.items.some((i) => i.id === tid)) return;
+          const ov = (m.overrides || {})[String(n)] || {};
+          data.items.push({ id: tid, name: ri.name, quantity: "quantity" in ov ? ov.quantity : ri.quantity || null, note: ri.note || null,
+            for_whom: ri.for_whom || null, store_id: "store_id" in ov ? ov.store_id || null : ri.store_id || null, category_id: ri.category_id || null,
+            recipe_id: r.id, checked: false, added_by: me, added_at: now, _queued: true });
+        });
+        break;
+      }
+      case "einkaufsliste/recipe/unapply":
+        data.items = data.items.filter((i) => !(i.recipe_id === m.recipe_id && !i.checked));
         break;
     }
   }
@@ -1363,7 +1412,9 @@ class EinkaufslisteCard extends HTMLElement {
 
   _ws(msg) {
     // ⏳ Funkloch im Laden? Abhaken & Co. wird gemerkt und nachgeschickt, sobald das Netz wieder da ist
-    if (QUEUE_TYPES.has(msg.type) && (this._hass?.connected === false || elQueue.length)) return this._queueMsg(msg);
+    const offline = this._hass?.connected === false;
+    const isItem = msg.type.startsWith("einkaufsliste/item/");
+    if (QUEUE_TYPES.has(msg.type) && (offline || (isItem && elQueue.length))) return this._queueMsg(msg);
     return this._hass.callWS(msg).catch((err) => {
       if (QUEUE_TYPES.has(msg.type) && this._hass?.connected === false) return this._queueMsg(msg);
       this._toast(err?.message || "Da ist was schiefgelaufen 🙈");
@@ -1379,7 +1430,7 @@ class EinkaufslisteCard extends HTMLElement {
       const it = this._data?.items.find((i) => i.id === m.item_id);
       if (it) m.checked = !it.checked;
     }
-    if (m.type === "einkaufsliste/item/add") {
+    if (m.type === "einkaufsliste/item/add" || m.type === "einkaufsliste/recipe/add" || m.type === "einkaufsliste/recipe/apply") {
       m._tmp = "tmp_" + Math.random().toString(36).slice(2, 10);
       result = { id: m._tmp, name: m.name };
     }
@@ -1402,8 +1453,8 @@ class EinkaufslisteCard extends HTMLElement {
         const m = { ...elQueue[0] };
         const tmp = m._tmp;
         delete m._tmp;
-        if (m.item_id && ids[m.item_id]) m.item_id = ids[m.item_id];
-        if (String(m.item_id || "").startsWith("tmp_")) { elQueue.shift(); continue; } // Eintrag ging nicht durch
+        for (const k of ["item_id", "recipe_id"]) if (m[k] && ids[m[k]]) m[k] = ids[m[k]];
+        if (String(m.item_id || m.recipe_id || "").startsWith("tmp_")) { elQueue.shift(); continue; } // Eintrag ging nicht durch
         try {
           const res = await this._hass.callWS(m);
           if (tmp && res?.id) ids[tmp] = res.id;
@@ -2077,10 +2128,28 @@ class EinkaufslisteCard extends HTMLElement {
     return `
       <div class="moverow" data-id="${item.id}">
         <span class="movetxt">${here ? `Bei ${esc(here.name)} nicht da?` : "Wo gibt's das?"}</span>
+        ${here && this._missedAt(item.name, here.id) >= 2 ? `<span class="movewarn">⚠️ Schon ${this._missedAt(item.name, here.id) + 1}× nicht bekommen – lieber woanders?</span>` : ""}
         ${here ? `<button class="tab outbtn" data-act="move-out" title="Bleibt offen hier – alle sehen „war aus“"><ha-icon icon="mdi:refresh"></ha-icon>Nächstes Mal wieder hier</button><span class="movetxt">oder ab zu:</span>` : ""}
         ${targets.map((s) => `<button class="tab" style="--c:${esc(s.color)}" data-act="move-to" data-store="${s.id}"${known.includes(s.id) ? ` title="Gibt's da auch"` : ""}><span class="dot"></span>${esc(s.name)}${known.includes(s.id) ? " ✓" : ""}</button>`).join("")}
         <button class="iconbtn" data-act="move-cancel" title="Abbrechen"><ha-icon icon="mdi:close"></ha-icon></button>
       </div>`;
+  }
+
+  _missedAt(name, storeId) {
+    return (this._data?.missed || {})[`${String(name || "").toLowerCase()}|${storeId}`] || 0;
+  }
+
+  _missHintHtml() {
+    const h = this._missHint;
+    const item = h && this._data.items.find((i) => i.id === h.id && !i.checked && i.store_id === h.store);
+    if (!item) { this._missHint = null; return ""; }
+    const here = this._store(h.store);
+    const known = this._prodStores(item.name);
+    const others = this._data.stores.filter((st) => st.id !== h.store)
+      .sort((a, b) => (known.includes(b.id) ? 1 : 0) - (known.includes(a.id) ? 1 : 0));
+    return `<div class="misshint">⚠️ <b>${esc(item.name)}</b> gab's bei ${esc(here?.name || "")} schon <b>${h.n}×</b> nicht – lieber woanders?
+      <div class="dbtns">${others.map((st) => `<button class="tab" style="--c:${esc(st.color)}" data-act="miss-move" data-store="${esc(st.id)}"><span class="dot"></span>${esc(st.name)}${known.includes(st.id) ? " ✓" : ""}</button>`).join("")}
+      <button class="btn" data-act="miss-ok">Passt so</button></div></div>`;
   }
 
   _prodStores(name) {
@@ -2163,6 +2232,7 @@ class EinkaufslisteCard extends HTMLElement {
       html.push(`<div class="shopbar"><ha-icon icon="mdi:cart"></ha-icon><b>Laden-Modus – einfach abhaken 🛒</b><button class="btn" data-act="shopmode">Beenden</button></div>`);
     }
     if (this._conflict) html.push(this._conflictHtml());
+    if (this._missHint) html.push(this._missHintHtml());
     const dup = filter ? null : this._findDuplicate(rawOpen);
     if (dup) {
       const [a, b] = dup;
@@ -2515,8 +2585,13 @@ class EinkaufslisteCard extends HTMLElement {
           <li>Einmal mit deinem Home-Assistant-Benutzer <b>anmelden</b>.</li>
           <li>Im Browser-Menü <b>„Zum Startbildschirm hinzufügen“</b> – fertig, eigenes 🛒-Symbol.</li>
         </ol>
-        <p class="hint">Wichtig: Das klappt nur über eine <b>https</b>-Adresse (z. B. Nabu Casa). In der App gibt es die Liste, Abhaken, Eintragen, Menge, Notiz, Für wen, ⇄ und den Laden-Modus – Einstellungen, Rezepte und Scannen bleiben hier in der Karte.</p>
-        <div class="btnrow"><a class="btn primary" href="/einkaufsliste/app/" target="_blank" rel="noopener"><ha-icon icon="mdi:open-in-new"></ha-icon>App öffnen</a></div>` },
+        <p class="hint">In der App steckt <b>genau diese Karte</b> – mit Rezepten, Koch-Modus, Gar-Zeiten und Einstellungen. Ohne Netz kannst du alles ansehen, abhaken, eintragen und Rezepte ändern; es wird nachgeschickt. Nur mit Netz: Barcode-Infos, Rezept-Links, neue Fotos, Sicherung. Der Barcode-Scanner der HA-App fehlt in der App. Wichtig: Es braucht eine <b>https</b>-Adresse (z. B. Nabu Casa).</p>
+        ${d.settings?.app_url
+          ? `<p class="hint"><b>Deine Adresse für die App:</b></p>
+        <input class="full" id="appUrl" readonly value="${esc(d.settings.app_url)}" translate="no" style="width:100%;box-sizing:border-box">
+        <div class="btnrow"><button class="btn primary" data-act="app-copy"><ha-icon icon="mdi:content-copy"></ha-icon>Kopieren</button></div>
+        <p class="hint">Kopieren, im Handy-Browser einfügen, fertig. Die Adresse funktioniert zu Hause und unterwegs.</p>`
+          : `<p class="hint">⚠️ Home Assistant kennt keine https-Adresse für unterwegs. Mit <b>Nabu Casa</b> (Einstellungen → Home Assistant Cloud → Fernzugriff) oder einer eigenen https-Adresse (Einstellungen → System → Netzwerk) klappt es.</p>`}` },
       { key: "pin", icon: this._data.settings?.pin ? "mdi:lock-outline" : "mdi:lock-open-variant-outline", title: "Schutz", info: this._data.settings?.pin ? "PIN ist an" : "PIN fürs Zahnrad", html: () => this._pinHtml() },
       { key: "log", icon: "mdi:history", title: "Verlauf", info: "wer, wann, was, wie", html: () => this._logSectionHtml() },
       { key: "cleanup", icon: "mdi:broom", title: "Aufräumen", info: `${WD_SHORT[s.cleanup_weekday]} ${s.cleanup_time} Uhr`, html: () => `
@@ -4525,6 +4600,10 @@ class EinkaufslisteCard extends HTMLElement {
     const name = msg.name;
     try {
       const item = await this._ws(msg);
+      // 📈 Gab's das hier schon 3× nicht? Dann kurz Bescheid sagen
+      const sid = item?.store_id ?? msg.store_id;
+      const miss = item?.id && sid ? this._missedAt(item.name || name, sid) : 0;
+      if (miss >= 3) this._missHint = { id: item.id, name: item.name || name, store: sid, n: miss };
       if (this._newPhoto) {
         const data = this._newPhoto;
         this._newPhoto = null;
@@ -4850,6 +4929,27 @@ class EinkaufslisteCard extends HTMLElement {
       case "gar":
         showGarTable();
         break;
+      case "app-copy": {
+        const inp = this.$("appUrl");
+        const url = inp?.value || "";
+        const done = () => this._toast("📋 Adresse kopiert – jetzt im Handy-Browser einfügen");
+        if (navigator.clipboard?.writeText) navigator.clipboard.writeText(url).then(done).catch(() => { inp.select(); document.execCommand?.("copy"); done(); });
+        else { inp.select(); document.execCommand?.("copy"); done(); }
+        break;
+      }
+      case "miss-ok":
+        this._missHint = null;
+        this._renderList();
+        break;
+      case "miss-move": {
+        const h = this._missHint;
+        this._missHint = null;
+        const target = this._store(el.dataset.store);
+        if (!h || !target) { this._renderList(); break; }
+        this._ws({ type: "einkaufsliste/item/move", item_id: h.id, store_id: target.id })
+          .then(() => this._toast(`🔁 ${h.name}: jetzt bei ${target.name}`)).catch(() => this._renderList());
+        break;
+      }
       case "also-here": {
         const item = this._data.items.find((i) => i.id === el.dataset.id);
         const target = this._store(el.dataset.store);

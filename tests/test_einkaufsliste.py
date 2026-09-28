@@ -1624,6 +1624,11 @@ async def test_offline_app_pages(hass: HomeAssistant, setup, hass_client_no_auth
     assert r.status == 404
     r = await client.get("/einkaufsliste/app", allow_redirects=False)
     assert r.status == 302 and r.headers["Location"] == "/einkaufsliste/app/"
+    r = await client.get("/einkaufsliste/app/icons.json")
+    assert r.status == 200
+    icons = await r.json()
+    assert "cart" in icons and icons["cart"].startswith("M")
+    assert "einkaufsliste-card.js" in body  # 📱 in der App steckt dieselbe Karte
 
 
 async def test_scanned_stores_private_labels(hass: HomeAssistant, setup) -> None:
@@ -1654,3 +1659,15 @@ async def test_scanned_stores_private_labels(hass: HomeAssistant, setup) -> None
     assert aldi["id"] in next(p for p in m.products() if p["name"] == "H-Milch")["stores"]
     m.update_product("h-milch|weihenstephan", stores=[aldi["id"], netto["id"], "gibtsnicht"])
     assert m.history["h-milch"]["stores"] == [aldi["id"], netto["id"]]
+
+
+async def test_missed_counts(hass: HomeAssistant, setup) -> None:
+    """📈 Oft nicht bekommen: zählt „war aus“ und ⇄ weg von einem Geschäft."""
+    m = mgr(hass)
+    aldi = next(s for s in m.stores if s["name"] == "Aldi")
+    netto = next(s for s in m.stores if s["name"] == "Netto")
+    for _ in range(2):
+        it = m.add_item("Butter", store_id=aldi["id"])
+        m.mark_out(it["id"])
+    m.move_item(it["id"], netto["id"])
+    assert m.as_dict()["missed"] == {f"butter|{aldi['id']}": 3}

@@ -433,8 +433,40 @@ class EinkaufslisteManager:
                 "min_age_days": self.min_age_days,
                 "next_cleanup": self.next_cleanup().isoformat(),
                 "pin": bool(self.pin_hash),
+                "app_url": self._app_url(),
             },
+            "missed": self.missed_counts(),
         }
+
+    def _app_url(self) -> str | None:
+        """📱 Adresse der Offline-App von unterwegs (Nabu Casa bzw. externe https-Adresse)."""
+        try:
+            from homeassistant.helpers.network import NoURLAvailableError, get_url  # noqa: PLC0415
+        except ImportError:  # pragma: no cover
+            return None
+        try:
+            base = get_url(self.hass, allow_internal=False, allow_ip=False, require_ssl=True, prefer_cloud=True)
+        except NoURLAvailableError:
+            return None
+        except Exception:  # noqa: BLE001 – lieber keine Adresse als ein Fehler
+            return None
+        return base.rstrip("/") + "/einkaufsliste/app/"
+
+    def missed_counts(self) -> dict[str, int]:
+        """📈 Wie oft gab es etwas bei einem Geschäft nicht? Schlüssel „name klein|geschäft-id“."""
+        by_name = {st["name"].lower(): st["id"] for st in self.stores}
+        out: dict[str, int] = {}
+        for e in self.log:
+            if not e.get("n") or e.get("a") not in ("out", "move"):
+                continue
+            if e["a"] == "out":
+                sid = e.get("s")
+            else:
+                sid = by_name.get(str(e.get("d") or "").split(" → ")[0].strip().lower())
+            if sid:
+                key = f"{e['n'].lower()}|{sid}"
+                out[key] = out.get(key, 0) + 1
+        return {k: v for k, v in out.items() if v >= 2}
 
     def _barcodes_by_name(self) -> dict[str, list[str]]:
         out: dict[str, list[str]] = {}

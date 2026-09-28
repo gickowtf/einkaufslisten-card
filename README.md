@@ -43,7 +43,7 @@
 | 📥 **Import & Sicherung** | Rezepte aus einer Datei einlesen, Listen aus Bring!, Google Keep oder der HA-Einkaufsliste herüberholen und alles als Sicherung (.zip) herunterladen. |
 | ⚖️ **Umrechnen** | Amerikanische Rezepte? „1 cup flour“ wird zu „125 g flour“, „2 tbsp“ zu „2 EL“, „350 °F“ zu „175 °C“. |
 | 🌍 **Englisch** | Läuft Home Assistant auf Englisch (oder einer anderen Sprache), spricht die Karte Englisch. |
-| 📱 **Offline-App** | Eigene kleine App fürs Handy (über Nabu Casa oder eine andere https-Adresse): öffnet auch **ohne Netz**, Abhaken und Eintragen gehen weiter, alles wird nachgeschickt. |
+| 📱 **Offline-App** | Die komplette Karte als eigene App fürs Handy (über Nabu Casa oder eine andere https-Adresse): öffnet auch **ohne Netz**, mit Rezepten, Koch-Modus und Einstellungen – Änderungen werden nachgeschickt. |
 | ⏳ **Funkloch? Egal.** | Auch in der normalen Karte: Kurz kein Netz im Laden? Abhaken geht weiter, der Punkt oben wird orange, und alles wird nachgeschickt. |
 | 🏪 **Gibt's bei …** | Ein Produkt kann es in mehreren Geschäften geben. Die Liste lernt das beim Abhaken und zeigt im Geschäfts-Reiter „🔁 Gibt's auch hier“. |
 | 🏷️ **Eigenmarken** | Milsani, Milbona, ja!, Balea & Co. landen beim Scannen gleich beim richtigen Geschäft. |
@@ -381,13 +381,19 @@ Für den Einkauf ohne Netz gibt es eine eigene kleine App-Seite:
 2. Einmal mit dem Home-Assistant-Benutzer **anmelden**.
 3. Im Browser-Menü **„Zum Startbildschirm hinzufügen“**.
 
-Die App speichert den letzten Stand im Handy und öffnet auch **ohne Netz**. Abhaken, Eintragen, Menge, Notiz, Für wen, ⇄ und Laden-Modus gehen offline; oben steht „⏳ 2 warten“, und sobald wieder Netz da ist, wird alles nachgeschickt. Einstellungen, Rezepte und Scannen gibt es nur in der Karte. Gut zu wissen: Es braucht eine **https**-Adresse (z. B. Nabu Casa). Ändern zwei Leute gleichzeitig denselben Artikel, gewinnt die letzte Änderung. iPhones löschen den Offline-Speicher einer Web-App manchmal, wenn sie wochenlang nicht geöffnet wurde – dann einmal mit Netz öffnen.
+Die richtige Adresse steht in **⚙️ → Offline-App** – mit **„Kopieren“**-Knopf.
+
+In der App steckt **genau dieselbe Karte** wie im Dashboard: Liste, Rezepte, Koch-Modus, Gar-Zeiten, Einstellungen. Sie speichert den letzten Stand im Handy und öffnet auch **ohne Netz**. Offline kannst du alles ansehen, abhaken, eintragen, verschieben und Rezepte ändern; der Punkt oben wird orange („⏳ wartet aufs Netz“), und sobald wieder Netz da ist, wird alles nachgeschickt. Fotos, die du schon einmal angesehen hast, gehen auch offline.
+
+**Nur mit Netz:** Barcode-Infos aus der Datenbank, Rezept-Links einlesen, neue Fotos hochladen, Sicherung. Der Barcode-**Scanner** der HA-App fehlt in der Offline-App.
+
+Gut zu wissen: Es braucht eine **https**-Adresse (z. B. Nabu Casa). Ändern zwei Leute gleichzeitig dasselbe, gewinnt die letzte Änderung. iPhones löschen den Offline-Speicher einer Web-App manchmal, wenn sie wochenlang nicht geöffnet wurde – dann einmal mit Netz öffnen. Die Symbole in der App sind die [Material Design Icons](https://pictogrammers.com) (Apache 2.0).
 
 ### 📋 Verlauf: wer hat wann was wie gemacht?
 - Alles steht drin, das Neueste oben, nach Tagen sortiert: **eingetragen**, **wieder drauf**, **abgehakt**, **geändert** (mit Details wie „Menge 2x → 4x“), **verschoben** („Aldi → Netto“) und **gelöscht**.
 - Das Zeichen vorne zeigt, **wie** es passiert ist: ✍️ in der Karte · ▥ gescannt · 🍳 Rezept · 🔗 zusammengelegt · 🧹 automatisch aufgeräumt · 🤖 Automation/Dienst.
 - **Filter:** nach Person, Geschäft und Aktion, dazu eine **Suche** nach dem Artikel.
-- **📈 Oft nicht bekommen:** Oben im Verlauf steht, was öfter „war aus“ war oder weggeschoben wurde, z. B. „3× Butter bei Aldi – vielleicht woanders kaufen?“.
+- **📈 Oft nicht bekommen:** Oben im Verlauf steht, was öfter „war aus“ war oder weggeschoben wurde, z. B. „3× Butter bei Aldi – vielleicht woanders kaufen?“. Ab dem 3. Mal kommt der Hinweis auch direkt: beim **Eintragen** („⚠️ Butter gab's bei Aldi schon 3× nicht – lieber woanders?“ mit Knöpfen für die anderen Geschäfte) und bei **⇄**.
 - **Aufheben für:** 7, 30, 90 (Standard), 180 oder 365 Tage. Ältere Einträge verschwinden von selbst. Mit **„Verlauf leeren“** ist alles auf einmal weg.
 
 Rezepte stehen überall **von A bis Z** sortiert.

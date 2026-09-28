@@ -34,7 +34,7 @@
 | 🛒 **Shop mode** | Big rows, big circles, no input field – just check things off with one hand. |
 | 🏷️ **Nicknames** | “Kleenex” means tissues: give a product nicknames and whoever types one lands on the right product. |
 | 📥 **Import & backup** | Import recipes from a file, bring lists over from Bring!, Google Keep or the HA shopping list, download everything as a backup (.zip). |
-| 📱 **Offline app** | A small phone app (via Nabu Casa or another https address) that opens **without a connection**; checking off and adding keep working and are sent later. |
+| 📱 **Offline app** | The complete card as its own phone app (via Nabu Casa or another https address): opens **without a connection**, with recipes, cook mode and settings – changes are sent later. |
 | ⏳ **Dead spot? No problem.** | In the card too: checking off keeps working without a connection, the dot turns orange and everything is sent later. |
 | 🏪 **Available at …** | A product can be sold in several stores. The list learns it when you check things off and shows “🔁 Also available here” in a store's tab. |
 | 🏷️ **Own brands** | German store brands (Milsani, Milbona, ja!, Balea …) go straight to the right store when scanned; add your own per store. |
@@ -112,7 +112,7 @@ Tiles: **Stores · Categories · Recipes · Recipe groups · People · Products 
 - **Products → Available at:** tick all stores that sell the product.
 - **Stores:** own brands per store (comma-separated).
 - **Protection:** a 4–8 digit PIN for the gear. Forgot it? Settings → Devices & services → Einkaufsliste → Configure → “Reset PIN” (admins).
-- **Offline app:** open `https://your-remote-address/einkaufsliste/app/` in the phone's browser (not the HA app), log in once, “Add to Home screen”. Needs an https address such as Nabu Casa.
+- **Offline app:** ⚙️ → Offline app shows your address with a copy button. Open it in the phone's browser (not the HA app), log in once, “Add to Home screen”. It runs the very same card offline; barcode info, recipe links, new photos and backups need a connection, and the HA app's scanner isn't available there. Needs an https address such as Nabu Casa. Icons: [Material Design Icons](https://pictogrammers.com) (Apache 2.0).
 
 ## ⚙️ Card options
 

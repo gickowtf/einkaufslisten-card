@@ -25,6 +25,7 @@ _TYPES = {
     "manifest.json": "application/manifest+json",
     "icon-192.png": "image/png",
     "icon-512.png": "image/png",
+    "icons.json": "application/json",  # Material Design Icons (Apache 2.0), liegt gepackt als icons.json.gz
 }
 
 
@@ -39,9 +40,12 @@ class AppView(HomeAssistantView):
         file = file or "index.html"
         if file not in _TYPES:
             return web.Response(status=404)
-        path = APP_DIR / file
+        path = APP_DIR / (file + ".gz" if file == "icons.json" else file)
         hass = request.app["hass"]
         body = await hass.async_add_executor_job(path.read_bytes)
+        if file == "icons.json":  # schon gepackt – so muss das Handy nur ~1 MB laden
+            return web.Response(body=body, content_type="application/json",
+                                headers={"Content-Encoding": "gzip", "Cache-Control": "public, max-age=604800"})
         if file in ("index.html", "sw.js"):
             body = body.replace(b"__EL_VERSION__", VERSION.encode())
         headers = {"Cache-Control": "no-cache"}
