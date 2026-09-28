@@ -75,6 +75,8 @@ _UNITS = "|".join(sorted((re.escape(u) for u in _UNIT_MAP), key=len, reverse=Tru
 _QTY = re.compile(rf"^\s*(?P<num>{NUM})\s*(?P<unit>(?:{_UNITS})\.?)?\s*$", re.IGNORECASE)
 _START = re.compile(rf"^\s*(?P<num>{NUM})\s*(?:(?P<unit>(?:{_UNITS}))\.?(?=\s)|(?=\s))\s*(?P<rest>.+)$", re.IGNORECASE)
 _END = re.compile(rf"^(?P<rest>.+?)\s+(?P<num>{NUM})\s*(?P<unit>(?:{_UNITS}))?\.?\s*$", re.IGNORECASE)
+# „Milch (2)“ / „Mehl (500 g)“ – so schreiben es z. B. OurGroceries und andere Apps
+_PAREN = re.compile(rf"^(?P<rest>.+?)\s*\(\s*(?P<num>{NUM})\s*(?P<unit>(?:{_UNITS}))?\.?\s*\)\s*$", re.IGNORECASE)
 
 
 def _value(text: str) -> float | None:
@@ -175,7 +177,7 @@ def split_qty_ex(name: str | None) -> tuple[str | None, str | None, bool]:
     if not name:
         return name, None, False
     text = " ".join(str(name).split())
-    for rx in (_START, _END):
+    for rx in (_PAREN, _START, _END):
         m = rx.match(text)
         if not m:
             continue
@@ -183,7 +185,7 @@ def split_qty_ex(name: str | None) -> tuple[str | None, str | None, bool]:
         if not re.search(r"[A-Za-zÄÖÜäöüß]", rest):
             continue
         # „Cola 2“ ja, aber nicht „Xbox 360“: am Ende nur kleine Zahlen ohne Einheit
-        if rx is _END and not m.group("unit"):
+        if rx in (_END, _PAREN) and not m.group("unit"):
             first = _RANGE.match(m.group("num").strip())
             val = _value(first.group("a")) if first else None
             if val is None or val > 50:

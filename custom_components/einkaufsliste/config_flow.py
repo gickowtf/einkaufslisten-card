@@ -9,6 +9,7 @@ import voluptuous as vol
 from homeassistant.config_entries import ConfigEntry, ConfigFlow, ConfigFlowResult, OptionsFlow
 from homeassistant.core import callback
 from homeassistant.helpers.selector import (
+    BooleanSelector,
     NumberSelector,
     NumberSelectorConfig,
     NumberSelectorMode,
@@ -81,8 +82,14 @@ class EinkaufslisteConfigFlow(ConfigFlow, domain=DOMAIN):
 
 class EinkaufslisteOptionsFlow(OptionsFlow):
     async def async_step_init(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
+        manager = self.hass.data.get(DOMAIN, {}).get("manager")
         if user_input is not None:
+            if user_input.get("reset_pin") and manager is not None:
+                manager.clear_pin()  # 🔒 PIN vergessen? Hier setzt ein Admin sie zurück
             return self.async_create_entry(data=_normalize(user_input))
         values = {**DEFAULT_OPTIONS, **self.config_entry.options}
         values = {k: values[k] for k in DEFAULT_OPTIONS}
-        return self.async_show_form(step_id="init", data_schema=_schema(values))
+        schema = _schema(values)
+        if manager is not None and manager.pin_hash:
+            schema = schema.extend({vol.Optional("reset_pin", default=False): BooleanSelector()})
+        return self.async_show_form(step_id="init", data_schema=schema)

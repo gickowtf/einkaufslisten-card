@@ -4,6 +4,10 @@ from __future__ import annotations
 
 import base64
 import binascii
+import hashlib
+import hmac
+import re
+import secrets
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from datetime import date, datetime, timedelta
@@ -47,6 +51,8 @@ from .const import (
     STORAGE_KEY,
     STORAGE_VERSION,
 )
+
+TYPO_LEARN_AFTER = 2  # so oft „Meintest du …?“ angenommen, dann wird von selbst korrigiert
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -236,6 +242,8 @@ class EinkaufslisteManager:
         self.seen: dict[str, dict[str, str]] = {}  # Benutzer -> Geschäft -> zuletzt angeschaut
         self.barcodes: dict[str, dict[str, Any]] = {}  # Barcode -> gelernter Artikel
         self.aliases: dict[str, dict[str, Any]] = {}  # 🏷️ Spitzname (klein) -> {"name", "note"} des Produkts
+        self.typos: dict[str, dict[str, Any]] = {}  # 🧠 Tippfehler (klein) -> {"right": Name, "n": wie oft korrigiert}
+        self.pin_hash: str | None = None  # 🔒 PIN für die Einstellungen (nur als Prüfsumme gespeichert)
         self.photo_dir = Path(hass.config.path("einkaufsliste_fotos"))
         self.history: dict[str, dict[str, Any]] = {}
         self.last_cleanup: str | None = None
@@ -319,6 +327,8 @@ class EinkaufslisteManager:
             cat.setdefault("color", CATEGORY_COLORS[k % len(CATEGORY_COLORS)])
         self.barcodes = data.get("barcodes", {})
         self.aliases = data.get("aliases", {})
+        self.typos = data.get("typos", {})
+        self.pin_hash = data.get("pin")
         self.log = data.get("log", [])
         self.log_days = int(data.get("log_days", LOG_DEFAULT_DAYS))
         if "persons" in data:
@@ -358,6 +368,8 @@ class EinkaufslisteManager:
             "seen": self.seen,
             "history": self.history,
             "aliases": self.aliases,
+            "typos": self.typos,
+            "pin": self.pin_hash,
             "last_cleanup": self.last_cleanup,
             "log": self.log,
             "log_days": self.log_days,
@@ -413,11 +425,13 @@ class EinkaufslisteManager:
             "history": history[:300],
             "barcodes_by_name": self._barcodes_by_name(),
             "aliases": [{"alias": a, "name": t["name"], "note": t.get("note")} for a, t in sorted(self.aliases.items())],
+            "typos": {k: v["right"] for k, v in self.typos.items() if v.get("n", 0) >= TYPO_LEARN_AFTER},
             "settings": {
                 "cleanup_weekday": self.cleanup_weekday,
                 "cleanup_time": "%02d:%02d" % self.cleanup_time,
                 "min_age_days": self.min_age_days,
                 "next_cleanup": self.next_cleanup().isoformat(),
+                "pin": bool(self.pin_hash),
             },
         }
 
@@ -584,10 +598,62 @@ class EinkaufslisteManager:
 
     def resolve_alias(self, name: str | None, note: str | None) -> tuple[str | None, str | None]:
         """🏷️ Spitzname -> richtiges Produkt („Tempos“ -> Taschentücher). Eigene Notiz hat Vorrang."""
-        target = self.aliases.get((name or "").strip().lower())
+        low = (name or "").strip().lower()
+        target = self.aliases.get(low)
         if not target:
+            typo = self.typos.get(low)  # 🧠 gelernter Tippfehler („Mlich“ -> Milch, ab dem 2. Mal)
+            if typo and typo.get("n", 0) >= TYPO_LEARN_AFTER:
+                return typo["right"], note
             return name, note
         return target["name"], note or target.get("note")
+
+    # ------------------------------------------------------------------ 🧠 Tippfehler lernen
+    def learn_typo(self, wrong: str, right: str) -> dict[str, Any]:
+        """„Meintest du …?“ wurde angenommen: merken. Ab dem 2. Mal wird der Tippfehler von selbst korrigiert."""
+        wrong_l = " ".join((wrong or "").split()).lower()
+        right = _nice(right)
+        if not wrong_l or not right or wrong_l == right.lower():
+            return {"learned": False}
+        entry = self.typos.get(wrong_l)
+        if entry and entry.get("right", "").lower() == right.lower():
+            entry["n"] = entry.get("n", 0) + 1
+        else:
+            entry = self.typos[wrong_l] = {"right": right, "n": 1}
+        if len(self.typos) > 300:  # nicht endlos wachsen: die seltensten fliegen raus
+            for k in sorted(self.typos, key=lambda k: self.typos[k].get("n", 0))[: len(self.typos) - 300]:
+                self.typos.pop(k, None)
+        self._schedule_save()
+        return {"learned": entry["n"] >= TYPO_LEARN_AFTER, "count": entry["n"]}
+
+    def forget_typo(self, wrong: str) -> None:
+        self.typos.pop((wrong or "").strip().lower(), None)
+        self._changed()
+
+    # ------------------------------------------------------------------ 🔒 PIN für die Einstellungen
+    @staticmethod
+    def _pin_hash(pin: str, salt: str) -> str:
+        return salt + "$" + hashlib.sha256((salt + str(pin)).encode()).hexdigest()
+
+    def check_pin(self, pin: str | None) -> bool:
+        if not self.pin_hash:
+            return True
+        salt = self.pin_hash.split("$", 1)[0]
+        return hmac.compare_digest(self._pin_hash(str(pin or ""), salt), self.pin_hash)
+
+    def set_pin(self, pin: str | None, old: str | None = None) -> None:
+        """Neue PIN (4–8 Ziffern) setzen; leer = PIN aus. Gibt es schon eine, muss die alte stimmen."""
+        if self.pin_hash and not self.check_pin(old):
+            raise ValueError("Die alte PIN stimmt nicht.")
+        pin = (pin or "").strip()
+        if pin and not re.fullmatch(r"\d{4,8}", pin):
+            raise ValueError("Die PIN muss aus 4 bis 8 Ziffern bestehen.")
+        self.pin_hash = self._pin_hash(pin, secrets.token_hex(8)) if pin else None
+        self._changed()
+
+    def clear_pin(self) -> None:
+        """PIN vergessen? Admin setzt sie unter Geräte & Dienste → Einkaufsliste → Konfigurieren zurück."""
+        self.pin_hash = None
+        self._changed()
 
     def set_aliases(self, key: str, aliases: list[str]) -> None:
         """Spitznamen eines Produkts setzen (alte werden ersetzt; gehört ein Name schon woanders hin, zieht er um)."""

@@ -49,6 +49,10 @@ def async_register(hass: HomeAssistant) -> None:
         ws_product_update,
         ws_product_remove,
         ws_barcode_remove,
+        ws_typo_learn,
+        ws_typo_forget,
+        ws_pin_set,
+        ws_pin_check,
         ws_item_out,
         ws_recipe_import_file,
         ws_import_text,
@@ -538,6 +542,36 @@ def ws_item_out(hass, connection, msg):
 @callback
 def ws_barcode_remove(hass, connection, msg):
     _run(hass, connection, msg, lambda m: m.remove_barcode(msg["code"]))
+
+
+@websocket_api.websocket_command(
+    {vol.Required("type"): "einkaufsliste/typo/learn", vol.Required("wrong"): str, vol.Required("right"): str}
+)
+@callback
+def ws_typo_learn(hass, connection, msg):
+    """🧠 „Meintest du …?“ wurde angenommen – merken."""
+    _run(hass, connection, msg, lambda m: m.learn_typo(msg["wrong"], msg["right"]))
+
+
+@websocket_api.websocket_command({vol.Required("type"): "einkaufsliste/typo/forget", vol.Required("wrong"): str})
+@callback
+def ws_typo_forget(hass, connection, msg):
+    _run(hass, connection, msg, lambda m: m.forget_typo(msg["wrong"]))
+
+
+@websocket_api.websocket_command(
+    {vol.Required("type"): "einkaufsliste/pin/set", vol.Optional("pin"): vol.Any(str, None), vol.Optional("old"): vol.Any(str, None)}
+)
+@callback
+def ws_pin_set(hass, connection, msg):
+    """🔒 PIN für die Einstellungen setzen (leer = aus). Gibt es schon eine, muss die alte stimmen."""
+    _run(hass, connection, msg, lambda m: m.set_pin(msg.get("pin"), msg.get("old")))
+
+
+@websocket_api.websocket_command({vol.Required("type"): "einkaufsliste/pin/check", vol.Required("pin"): str})
+@callback
+def ws_pin_check(hass, connection, msg):
+    _run(hass, connection, msg, lambda m: {"ok": m.check_pin(msg["pin"])})
 
 
 async def _run_async(hass, connection, msg, coro_factory) -> None:

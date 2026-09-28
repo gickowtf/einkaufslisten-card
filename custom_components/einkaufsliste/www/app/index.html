@@ -1,0 +1,359 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#03a9f4">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Einkauf">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon-192.png">
+<link rel="apple-touch-icon" href="icon-192.png">
+<title>Einkaufsliste</title>
+<style>
+:root { --bg:#f3f4f6; --card:#fff; --text:#1f2328; --muted:#6b7280; --line:#e5e7eb; --primary:#03a9f4; --ok:#43a047; --warn:#ffa600; --bad:#db4437; --note:#fff4c2; }
+@media (prefers-color-scheme: dark) { :root { --bg:#111317; --card:#1c1f24; --text:#e8eaed; --muted:#9aa0a6; --line:#2c3036; --note:#4a3f12; } }
+* { box-sizing:border-box; }
+html, body { margin:0; background:var(--bg); color:var(--text); font:16px/1.4 Roboto, system-ui, -apple-system, "Segoe UI", sans-serif; -webkit-tap-highlight-color:transparent; }
+body { padding:env(safe-area-inset-top) 0 calc(env(safe-area-inset-bottom) + 24px); }
+header { position:sticky; top:0; z-index:5; background:var(--bg); padding:10px 14px 6px; display:flex; align-items:center; gap:10px; }
+header h1 { font-size:20px; margin:0; flex:1; display:flex; align-items:center; gap:8px; }
+.pill { font-size:13px; border-radius:999px; padding:3px 10px; background:color-mix(in srgb, var(--ok) 18%, transparent); color:var(--text); white-space:nowrap; }
+.pill.off { background:color-mix(in srgb, var(--bad) 18%, transparent); }
+.pill.wait { background:color-mix(in srgb, var(--warn) 25%, transparent); }
+button { font:inherit; color:inherit; background:none; border:0; cursor:pointer; }
+.ibtn { font-size:22px; padding:6px 8px; border-radius:10px; }
+.ibtn.on { background:color-mix(in srgb, var(--primary) 20%, transparent); }
+.tabs { display:flex; gap:6px; overflow-x:auto; padding:4px 14px 8px; scrollbar-width:none; }
+.tabs::-webkit-scrollbar { display:none; }
+.tab { flex:0 0 auto; border:1.5px solid color-mix(in srgb, var(--c, var(--primary)) 55%, transparent); border-radius:999px; padding:6px 13px; display:flex; gap:6px; align-items:center; }
+.tab.on { background:var(--c, var(--primary)); color:#fff; border-color:transparent; }
+.tab .n { opacity:.75; font-size:.85em; }
+.dot { width:9px; height:9px; border-radius:50%; background:var(--c); }
+form { margin:0 14px 10px; background:var(--card); border-radius:14px; padding:10px; display:grid; gap:8px; box-shadow:0 1px 2px rgba(0,0,0,.06); }
+.row { display:flex; gap:8px; }
+input, select { font:inherit; color:inherit; background:var(--bg); border:1px solid var(--line); border-radius:10px; padding:10px; min-width:0; }
+input.grow, select.grow { flex:1; }
+.add { background:var(--ok); color:#fff; border-radius:10px; padding:0 16px; font-size:22px; font-weight:700; }
+.more { display:none; gap:8px; }
+.more.open { display:flex; }
+.small { font-size:13px; color:var(--muted); }
+section { margin:0 14px 12px; }
+h2 { font-size:12px; letter-spacing:.06em; text-transform:uppercase; color:var(--muted); margin:14px 4px 6px; display:flex; justify-content:space-between; }
+.item { background:var(--card); border-radius:12px; margin-bottom:6px; display:flex; align-items:center; gap:10px; padding:10px 10px 10px 8px; border-left:4px solid var(--cc, var(--line)); }
+.item.done { opacity:.6; }
+.circle { width:30px; height:30px; flex:0 0 auto; border-radius:50%; border:2.5px solid var(--primary); display:grid; place-items:center; font-size:16px; color:#fff; }
+.item.done .circle { background:var(--ok); border-color:var(--ok); }
+.body { flex:1; min-width:0; }
+.name { font-size:17px; overflow-wrap:anywhere; }
+.meta { font-size:12.5px; color:var(--muted); display:flex; flex-wrap:wrap; gap:4px 8px; margin-top:2px; }
+.chip { border-radius:6px; padding:0 6px; background:color-mix(in srgb, var(--c, #888) 20%, transparent); color:var(--text); }
+.note { border-radius:6px; padding:0 6px; background:var(--note); color:var(--text); }
+.qty { font-size:13px; border-radius:8px; padding:1px 8px; background:color-mix(in srgb, var(--primary) 14%, transparent); margin-left:6px; }
+.wait { margin-left:4px; }
+.side { display:flex; gap:2px; }
+.side button { font-size:19px; padding:6px; border-radius:8px; opacity:.75; }
+.move { background:var(--card); border-radius:12px; margin:-2px 0 8px; padding:8px; display:flex; flex-wrap:wrap; gap:6px; }
+.move button { border:1px solid var(--line); border-radius:999px; padding:5px 11px; font-size:14px; }
+.empty { text-align:center; color:var(--muted); padding:24px 10px; }
+.banner { margin:0 14px 10px; border-radius:12px; padding:10px 12px; font-size:14px; background:color-mix(in srgb, var(--warn) 20%, transparent); }
+.login { max-width:420px; margin:18vh auto 0; text-align:center; padding:0 20px; }
+.login img { width:96px; height:96px; border-radius:22px; }
+.big { background:var(--primary); color:#fff; border-radius:12px; padding:13px 22px; font-size:17px; font-weight:600; margin-top:16px; }
+body.shop .item { padding:14px 12px 14px 10px; }
+body.shop .name { font-size:20px; }
+body.shop .circle { width:38px; height:38px; }
+body.shop form, body.shop .side .edit { display:none; }
+footer { text-align:center; margin:18px 0; }
+footer button { color:var(--muted); font-size:13px; text-decoration:underline; }
+.toast { position:fixed; left:50%; bottom:calc(env(safe-area-inset-bottom) + 20px); transform:translateX(-50%); background:#323232; color:#fff; border-radius:10px; padding:10px 16px; font-size:14px; max-width:90vw; z-index:20; }
+</style>
+</head>
+<body>
+<div id="app"></div>
+<script>
+"use strict";
+// 📱 Einkaufsliste – die Offline-App. Version __EL_VERSION__
+const BASE = "/einkaufsliste/app/";
+const CLIENT_ID = location.origin + BASE;
+const K = { auth: "elapp_auth", data: "elapp_data", queue: "elapp_queue", tab: "elapp_tab", shop: "elapp_shop" };
+const get = (k, d) => { try { const v = localStorage.getItem(k); return v == null ? d : JSON.parse(v); } catch (_) { return d; } };
+const put = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch (_) { /* voll oder privat */ } };
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
+
+// 🌍 Deutsch oder Englisch (nach Handy-Sprache)
+const EN = !String(navigator.language || "de").toLowerCase().startsWith("de");
+const TXT = {
+  title: ["Einkaufsliste", "Shopping list"], live: ["🟢 live", "🟢 live"], offline: ["📴 offline", "📴 offline"],
+  wait: ["⏳ {n} warten", "⏳ {n} waiting"], add: ["Was brauchen wir?", "What do we need?"],
+  anywhere: ["🤷 Egal wo", "🤷 Anywhere"], all: ["Alle", "All"], none: ["Ohne Kategorie", "No category"],
+  done: ["Erledigt – schon mal gekauft", "Done – bought before"], empty: ["Alles im Korb – nix mehr offen! 🎉", "Everything's in the basket! 🎉"],
+  note: ["📝 Notiz", "📝 Note"], forwhom: ["👤 Für wen?", "👤 For whom?"], qty: ["Menge (z. B. 2 L)", "Quantity (e.g. 2 L)"],
+  again: ["Nächstes Mal wieder hier", "Here again next time"], moveTo: ["oder ab zu:", "or move to:"],
+  offBanner: ["📴 Kein Netz – du siehst den letzten Stand. Abhaken und Eintragen geht trotzdem, ich schicke alles nach.", "📴 No connection – you see the last state. Checking off and adding still works, I'll send it later."],
+  sent: ["✅ Wieder online – {n} Änderung(en) nachgeschickt", "✅ Back online – {n} change(s) sent"],
+  loginText: ["Einmal mit deinem Home-Assistant-Benutzer anmelden. Danach funktioniert die Liste auch ohne Netz.", "Log in once with your Home Assistant user. After that the list also works without a connection."],
+  login: ["Anmelden", "Log in"], logout: ["Abmelden", "Log out"], shop: ["Laden-Modus", "Shop mode"],
+  noLoginOffline: ["Zum ersten Anmelden braucht es einmal Netz.", "The first login needs a connection once."],
+  install: ["Tipp: Im Browser-Menü „Zum Startbildschirm hinzufügen“ – dann hast du ein eigenes Symbol.", "Tip: Use “Add to Home screen” in the browser menu to get an app icon."],
+  notSetup: ["Die Integration „Einkaufsliste“ ist in Home Assistant nicht eingerichtet.", "The “Einkaufsliste” integration is not set up in Home Assistant."],
+  logoutQ: ["Abmelden? Noch nicht gesendete Änderungen gehen verloren.", "Log out? Changes not sent yet will be lost."],
+};
+const t = (k, n) => TXT[k][EN ? 1 : 0].replace("{n}", n);
+
+// 🔑 Anmeldung über Home Assistant (wie die HA-App selbst: Code holen, gegen Schlüssel tauschen)
+let auth = get(K.auth, null);
+async function tokenRequest(body) {
+  const r = await fetch("/auth/token", { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body: new URLSearchParams({ client_id: CLIENT_ID, ...body }) });
+  if (!r.ok) throw Object.assign(new Error("token " + r.status), { status: r.status });
+  const j = await r.json();
+  return { access: j.access_token, refresh: j.refresh_token || auth?.refresh, expires: Date.now() + (j.expires_in || 1800) * 1000 - 60000 };
+}
+function startLogin() {
+  const state = Math.random().toString(36).slice(2);
+  sessionStorage.setItem("elapp_state", state);
+  location.href = "/auth/authorize?" + new URLSearchParams({ response_type: "code", client_id: CLIENT_ID, redirect_uri: CLIENT_ID, state });
+}
+async function finishLogin() {
+  const q = new URLSearchParams(location.search);
+  if (!q.get("code")) return;
+  history.replaceState(null, "", BASE);
+  if (q.get("state") !== sessionStorage.getItem("elapp_state")) return;
+  auth = await tokenRequest({ grant_type: "authorization_code", code: q.get("code") });
+  put(K.auth, auth);
+}
+async function accessToken() {
+  if (auth && auth.expires > Date.now()) return auth.access;
+  auth = { ...(await tokenRequest({ grant_type: "refresh_token", refresh_token: auth.refresh })), refresh: auth.refresh };
+  put(K.auth, auth);
+  return auth.access;
+}
+
+// 🔌 Verbindung zu Home Assistant
+let ws = null, wsReady = false, msgId = 1, subId = null, retry = null;
+const pending = new Map();
+let data = get(K.data, null);
+let queue = get(K.queue, []);
+let flushing = false;
+
+function connect() {
+  clearTimeout(retry);
+  if (!auth || (ws && ws.readyState <= 1)) return;
+  if (navigator.onLine === false) { render(); return; }
+  try { ws = new WebSocket(location.origin.replace(/^http/, "ws") + "/api/websocket"); } catch (_) { scheduleRetry(); return; }
+  ws.onmessage = async (ev) => {
+    const m = JSON.parse(ev.data);
+    if (m.type === "auth_required") {
+      try { ws.send(JSON.stringify({ type: "auth", access_token: await accessToken() })); }
+      catch (err) { if (err.status === 400 || err.status === 401 || err.status === 403) { logout(true); } else ws.close(); }
+    } else if (m.type === "auth_invalid") {
+      auth.expires = 0; put(K.auth, auth); ws.close();
+    } else if (m.type === "auth_ok") {
+      wsReady = true;
+      subId = msgId++;
+      ws.send(JSON.stringify({ id: subId, type: "einkaufsliste/subscribe" }));
+      render();
+      flush();
+    } else if (m.type === "event" && m.id === subId) {
+      data = m.event; put(K.data, data); render();
+    } else if (m.type === "result") {
+      if (m.id === subId && !m.success) { toast(t("notSetup")); return; }
+      const p = pending.get(m.id);
+      if (p) { pending.delete(m.id); m.success ? p.ok(m.result) : p.fail(m.error || {}); }
+    }
+  };
+  ws.onclose = () => { wsReady = false; for (const p of pending.values()) p.fail({ code: "lost" }); pending.clear(); render(); scheduleRetry(); };
+  ws.onerror = () => { try { ws.close(); } catch (_) { /* egal */ } };
+}
+function scheduleRetry() { clearTimeout(retry); retry = setTimeout(connect, 5000); }
+function call(msg) {
+  return new Promise((ok, fail) => {
+    if (!wsReady) { fail({ code: "lost" }); return; }
+    const id = msgId++;
+    pending.set(id, { ok, fail });
+    ws.send(JSON.stringify({ id, ...msg }));
+  });
+}
+window.addEventListener("online", connect);
+window.addEventListener("offline", () => { try { ws?.close(); } catch (_) { /* egal */ } render(); });
+document.addEventListener("visibilitychange", () => { if (!document.hidden) connect(); });
+
+// ⏳ Änderungen: sofort anzeigen, merken, nachschicken
+const now = () => new Date().toISOString();
+function apply(d, m) {
+  const it = d.items.find((i) => i.id === m.item_id);
+  if (m.type === "einkaufsliste/item/add") {
+    if (!d.items.some((i) => i.id === m._tmp)) d.items.push({ id: m._tmp, name: m.name.replace(/^./, (c) => c.toUpperCase()), quantity: m.quantity || null, note: m.note || null, for_whom: m.for_whom || null, store_id: m.store_id || null, category_id: null, checked: false, added_at: now(), _q: 1 });
+  } else if (!it) return;
+  else if (m.type === "einkaufsliste/item/toggle") { it.checked = m.checked; it.checked_at = now(); it._q = 1; }
+  else if (m.type === "einkaufsliste/item/update") { if ("quantity" in m) it.quantity = m.quantity; it._q = 1; }
+  else if (m.type === "einkaufsliste/item/move") { it.store_id = m.store_id; it._q = 1; }
+  else if (m.type === "einkaufsliste/item/out") { it.out_at = now(); it._q = 1; }
+}
+function view() { // Serverstand + alles, was noch wartet
+  if (!data) return null;
+  const d = JSON.parse(JSON.stringify(data));
+  for (const m of queue) apply(d, m);
+  return d;
+}
+function change(msg) {
+  const m = { ...msg, via: "card" };
+  if (m.type === "einkaufsliste/item/add") m._tmp = "tmp_" + Math.random().toString(36).slice(2, 10);
+  queue.push(m); put(K.queue, queue);
+  render();
+  flush();
+}
+async function flush() {
+  if (flushing || !wsReady || !queue.length) return;
+  flushing = true;
+  const ids = {};
+  let n = 0;
+  try {
+    while (queue.length && wsReady) {
+      const m = { ...queue[0] };
+      const tmp = m._tmp; delete m._tmp;
+      if (m.item_id && ids[m.item_id]) m.item_id = ids[m.item_id];
+      if (!String(m.item_id || "").startsWith("tmp_")) {
+        try { const r = await call(m); if (tmp && r?.id) ids[tmp] = r.id; }
+        catch (err) { if (err.code === "lost") break; /* sonst: z. B. inzwischen gelöscht – überspringen */ }
+      }
+      queue.shift();
+      for (const q of queue) if (q.item_id && ids[q.item_id]) q.item_id = ids[q.item_id];
+      put(K.queue, queue);
+      n += 1;
+    }
+  } finally { flushing = false; render(); }
+  if (n && !queue.length) toast(t("sent", n));
+}
+
+// 🖼️ Anzeige
+let tab = get(K.tab, "all"), shop = get(K.shop, false), openMove = null, showMore = false, doneOpen = false;
+const $ = (s) => document.querySelector(s);
+function toast(msg) {
+  const el = document.createElement("div"); el.className = "toast"; el.textContent = msg;
+  document.body.append(el); setTimeout(() => el.remove(), 3200);
+}
+function render() {
+  const app = $("#app");
+  document.body.classList.toggle("shop", !!shop);
+  if (!auth) {
+    app.innerHTML = `<div class="login"><img src="icon-192.png" alt=""><h1>${t("title")}</h1><p>${t("loginText")}</p>
+      ${navigator.onLine === false ? `<p class="small">${t("noLoginOffline")}</p>` : `<button class="big" data-a="login">${t("login")}</button>`}
+      <p class="small">${t("install")}</p></div>`;
+    return;
+  }
+  const d = view();
+  const online = wsReady;
+  const pill = queue.length ? `<span class="pill wait">${t("wait", queue.length)}</span>` : `<span class="pill ${online ? "" : "off"}">${online ? t("live") : t("offline")}</span>`;
+  let html = `<header><h1>🛒 ${t("title")}</h1>${pill}<button class="ibtn ${shop ? "on" : ""}" data-a="shop" title="${t("shop")}">🛍️</button></header>`;
+  if (!online) html += `<div class="banner">${t("offBanner")}</div>`;
+  if (!d) { app.innerHTML = html + `<div class="empty">…</div>`; return; }
+  const stores = d.stores || [];
+  if (tab !== "all" && !stores.some((s) => s.id === tab)) tab = "all";
+  const open = d.items.filter((i) => !i.checked);
+  const inTab = (i) => tab === "all" || i.store_id === tab;
+  html += `<nav class="tabs"><button class="tab ${tab === "all" ? "on" : ""}" data-a="tab" data-v="all">${t("all")} <span class="n">${open.length}</span></button>${stores.map((s) =>
+    `<button class="tab ${tab === s.id ? "on" : ""}" style="--c:${esc(s.color || "#888")}" data-a="tab" data-v="${esc(s.id)}"><span class="dot"></span>${esc(s.name)} <span class="n">${open.filter((i) => i.store_id === s.id).length}</span></button>`).join("")}</nav>`;
+  html += `<form id="f" autocomplete="off"><div class="row"><input class="grow" id="nm" placeholder="${t("add")}" enterkeyhint="done"><button class="add" type="submit">✓</button></div>
+    <div class="row"><select class="grow" id="st"><option value="">${t("anywhere")}</option>${stores.map((s) => `<option value="${esc(s.id)}" ${tab === s.id ? "selected" : ""}>${esc(s.name)}</option>`).join("")}</select>
+    <button type="button" class="ibtn" data-a="more">${showMore ? "▴" : "▾"}</button></div>
+    <div class="more ${showMore ? "open" : ""}"><input class="grow" id="qt" placeholder="${t("qty")}"><input class="grow" id="nt" placeholder="${t("note")}">
+    ${(d.persons || []).length ? `<select id="fw"><option value="">${t("forwhom")}</option>${d.persons.map((p) => `<option>${esc(p.name)}</option>`).join("")}</select>` : ""}</div></form>`;
+  const cats = d.categories || [];
+  const catOf = (i) => cats.find((c) => c.id === i.category_id);
+  const storeOf = (id) => stores.find((s) => s.id === id);
+  const row = (i) => {
+    const st = storeOf(i.store_id), cat = catOf(i);
+    const out = i.out_at && Date.now() - new Date(i.out_at) < 3 * 86400000;
+    let r = `<div class="item ${i.checked ? "done" : ""}" style="--cc:${esc(cat?.color || "transparent")}">
+      <button class="circle" data-a="toggle" data-id="${esc(i.id)}">${i.checked ? "✓" : ""}</button>
+      <div class="body"><div class="name">${esc(i.name)}${i.quantity ? `<button class="qty" data-a="qty" data-id="${esc(i.id)}">${esc(i.quantity)}</button>` : ""}${i._q ? `<span class="wait" title="wartet aufs Netz">⏳</span>` : ""}</div>
+      <div class="meta">${st && tab === "all" ? `<span class="chip" style="--c:${esc(st.color || "#888")}">${esc(st.name)}</span>` : ""}${i.note ? `<span class="note">📝 ${esc(i.note)}</span>` : ""}${i.for_whom ? `<span>👤 ${esc(i.for_whom)}</span>` : ""}${out ? `<span>⇄ ${EN ? "was out" : "war aus"}</span>` : ""}</div></div>
+      ${i.checked ? "" : `<div class="side">${i.quantity ? "" : `<button class="edit" data-a="qty" data-id="${esc(i.id)}" title="${t("qty")}">🔢</button>`}${stores.length > 1 && !String(i.id).startsWith("tmp_") ? `<button data-a="move" data-id="${esc(i.id)}">⇄</button>` : ""}</div>`}</div>`;
+    if (openMove === i.id) {
+      r += `<div class="move"><button data-a="out" data-id="${esc(i.id)}">👍 ${t("again")}</button><span class="small" style="align-self:center">${t("moveTo")}</span>${stores.filter((s) => s.id !== i.store_id).map((s) =>
+        `<button data-a="moveto" data-id="${esc(i.id)}" data-v="${esc(s.id)}">${esc(s.name)}</button>`).join("")}</div>`;
+    }
+    return r;
+  };
+  const byCat = (list) => {
+    const groups = new Map();
+    for (const i of list) { const c = catOf(i); const k = c ? c.id : "~"; if (!groups.has(k)) groups.set(k, []); groups.get(k).push(i); }
+    const order = [...cats.map((c) => c.id), "~"];
+    return order.filter((k) => groups.has(k)).map((k) => {
+      const c = cats.find((x) => x.id === k);
+      const list2 = groups.get(k).sort((a, b) => a.name.localeCompare(b.name, "de"));
+      return `<h2><span>${esc(c ? c.name : t("none"))}</span><span>${list2.length}</span></h2>${list2.map(row).join("")}`;
+    }).join("");
+  };
+  const mine = open.filter(inTab);
+  html += `<section>${mine.length ? byCat(mine) : `<div class="empty">${t("empty")}</div>`}</section>`;
+  const done = d.items.filter((i) => i.checked && inTab(i) && !i.recipe_id);
+  if (done.length && !shop) {
+    html += `<section><h2><button data-a="done">${doneOpen ? "▾" : "▸"} ${t("done")}</button><span>${done.length}</span></h2>${doneOpen ? done.sort((a, b) => a.name.localeCompare(b.name, "de")).map(row).join("") : ""}</section>`;
+  }
+  html += `<footer><button data-a="logout">${t("logout")}</button> · <span class="small">v__EL_VERSION__</span></footer>`;
+  const focus = document.activeElement?.id, val = focus ? document.activeElement.value : null;
+  const keep = {}; for (const id of ["nm", "qt", "nt", "fw", "st"]) { const el = $("#" + id); if (el) keep[id] = el.value; }
+  app.innerHTML = html;
+  for (const [id, v] of Object.entries(keep)) { const el = $("#" + id); if (el && (id !== "st" || v)) el.value = v; }
+  if (focus && $("#" + focus)) { const el = $("#" + focus); el.focus(); if (val != null) el.value = val; }
+}
+
+document.addEventListener("click", (e) => {
+  const el = e.target.closest("[data-a]");
+  if (!el) return;
+  const a = el.dataset.a, id = el.dataset.id, d = view();
+  const it = d?.items.find((i) => i.id === id);
+  if (a === "login") startLogin();
+  else if (a === "logout") { if (!queue.length || confirm(t("logoutQ"))) logout(false); }
+  else if (a === "shop") { shop = !shop; put(K.shop, shop); render(); }
+  else if (a === "tab") { tab = el.dataset.v; put(K.tab, tab); render(); }
+  else if (a === "more") { showMore = !showMore; render(); }
+  else if (a === "done") { doneOpen = !doneOpen; render(); }
+  else if (a === "toggle" && it) { if (!it.checked) try { navigator.vibrate?.(35); } catch (_) { /* egal */ } change({ type: "einkaufsliste/item/toggle", item_id: id, checked: !it.checked }); }
+  else if (a === "move") { openMove = openMove === id ? null : id; render(); }
+  else if (a === "out") { openMove = null; change({ type: "einkaufsliste/item/out", item_id: id }); }
+  else if (a === "moveto") { openMove = null; change({ type: "einkaufsliste/item/move", item_id: id, store_id: el.dataset.v }); }
+  else if (a === "qty" && it) {
+    const q = prompt(t("qty"), it.quantity || "");
+    if (q != null) change({ type: "einkaufsliste/item/update", item_id: id, quantity: q.trim() || null });
+  }
+});
+document.addEventListener("submit", (e) => {
+  e.preventDefault();
+  const name = $("#nm").value.trim();
+  if (!name) return;
+  const msg = { type: "einkaufsliste/item/add", name, store_id: $("#st").value || null };
+  const q = $("#qt")?.value.trim(), n = $("#nt")?.value.trim(), w = $("#fw")?.value;
+  if (q) msg.quantity = q;
+  if (n) msg.note = n;
+  if (w) msg.for_whom = w;
+  change(msg);
+  for (const id of ["nm", "qt", "nt"]) { const el = $("#" + id); if (el) el.value = ""; }
+  $("#nm").focus();
+});
+function logout(silent) {
+  // silent = Anmeldung abgelaufen: Liste und Gemerktes bleiben, nach dem neuen Anmelden wird nachgeschickt
+  const refresh = auth?.refresh;
+  auth = null;
+  localStorage.removeItem(K.auth);
+  if (!silent) {
+    queue = []; data = null;
+    localStorage.removeItem(K.data); localStorage.removeItem(K.queue);
+    if (refresh) fetch("/auth/token", { method: "POST", body: new URLSearchParams({ action: "revoke", token: refresh }) }).catch(() => {});
+  }
+  try { ws?.close(); } catch (_) { /* egal */ }
+  render();
+}
+
+(async () => {
+  if ("serviceWorker" in navigator) navigator.serviceWorker.register(BASE + "sw.js", { scope: BASE }).catch(() => {});
+  try { await finishLogin(); } catch (_) { toast("Anmeldung hat nicht geklappt 🙈"); }
+  render();
+  connect();
+})();
+</script>
+</body>
+</html>

@@ -185,6 +185,7 @@ const QTY_RANGE_RX = new RegExp(`^(${QTY_N1})(?:\\s*(?:-|–|—|bis)\\s*(${QTY_
 const QTY_RX = new RegExp(`^\\s*(${QTY_NUM})\\s*(?:(${QTY_UNIT_RX})\\.?)?\\s*$`, "i");
 const QTY_START_RX = new RegExp(`^\\s*(${QTY_NUM})\\s*(?:(${QTY_UNIT_RX})\\.?(?=\\s)|(?=\\s))\\s*(.+)$`, "i");
 const QTY_END_RX = new RegExp(`^(.+?)\\s+(${QTY_NUM})\\s*(${QTY_UNIT_RX})?\\.?\\s*$`, "i");
+const QTY_PAREN_RX = new RegExp(`^(.+?)\\s*\\(\\s*(${QTY_NUM})\\s*(${QTY_UNIT_RX})?\\.?\\s*\\)\\s*$`, "i"); // „Milch (2)“ wie bei OurGroceries
 function qtyValue(text) { // „1½“ -> 1.5, „1 1/2“ -> 1.5, „1/2“ -> 0.5, „1,5“ -> 1.5
   const t = String(text).trim();
   let m;
@@ -219,8 +220,9 @@ function normQty(q) { // Unbekanntes bleibt, wie es ist
 // „3 milch“ / „milch 3x“ / „250g nudeln“ -> Name + Menge
 function splitQty(text) {
   const t = String(text || "").trim().replace(/\s+/g, " ");
-  for (const end of [false, true]) {
-    const m = t.match(end ? QTY_END_RX : QTY_START_RX);
+  for (const mode of ["paren", "start", "end"]) {
+    const end = mode !== "start";
+    const m = t.match(mode === "paren" ? QTY_PAREN_RX : end ? QTY_END_RX : QTY_START_RX);
     if (!m) continue;
     const rest = (end ? m[1] : m[3]).replace(/^[\s,-]+|[\s,-]+$/g, "");
     const num = end ? m[2] : m[1], unit = end ? m[3] : m[2];
@@ -536,6 +538,47 @@ function ovButton(label, main = false) {
   return b;
 }
 
+// 🔒 PIN-Eingabe wie am Handy: gibt die getippte PIN zurück (oder null bei „Abbrechen“)
+function askPin(title = "🔒 PIN eingeben") {
+  return new Promise((resolve) => {
+    const ov = makeOverlay();
+    let pin = "";
+    ov.innerHTML = `<div style="text-align:center;max-width:300px;width:100%">
+      <div style="font:600 19px Roboto,sans-serif;margin-bottom:6px">${esc(elT(title))}</div>
+      <div class="pdots" style="font-size:28px;letter-spacing:10px;min-height:40px;margin:10px 0 16px">&nbsp;</div>
+      <div class="ppad" style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px"></div></div>`;
+    const dots = ov.querySelector(".pdots"), pad = ov.querySelector(".ppad");
+    const show = () => { dots.innerHTML = pin ? "●".repeat(pin.length) : "&nbsp;"; };
+    const done = (v) => { ov.remove(); document.removeEventListener("keydown", onKey); resolve(v); };
+    const press = (k) => {
+      if (k === "⌫") pin = pin.slice(0, -1);
+      else if (k === "✔") { if (pin.length >= 4) done(pin); return; }
+      else if (pin.length < 8) pin += k;
+      show();
+    };
+    for (const k of ["1", "2", "3", "4", "5", "6", "7", "8", "9", "⌫", "0", "✔"]) {
+      const b = ovButton(k, k === "✔");
+      Object.assign(b.style, { fontSize: "24px", padding: "16px 0", margin: "0", width: "100%" });
+      b.onclick = () => press(k);
+      pad.append(b);
+    }
+    const cancel = ovButton(elT("Abbrechen"));
+    Object.assign(cancel.style, { marginTop: "18px" });
+    cancel.onclick = () => done(null);
+    ov.firstElementChild.append(cancel);
+    const onKey = (e) => {
+      if (/^\d$/.test(e.key)) press(e.key);
+      else if (e.key === "Backspace") press("⌫");
+      else if (e.key === "Enter") press("✔");
+      else if (e.key === "Escape") done(null);
+    };
+    document.addEventListener("keydown", onKey);
+  });
+}
+const PIN_KEY = "einkaufsliste_pin_until";
+const pinUnlocked = () => { try { return Number(localStorage.getItem(PIN_KEY) || 0) > Date.now(); } catch (_) { return false; } };
+const pinRemember = () => { try { localStorage.setItem(PIN_KEY, String(Date.now() + 10 * 60000)); } catch (_) { /* egal */ } };
+
 /**
  * ✂️ Foto drehen & zuschneiden, bevor es gespeichert wird.
  * Gibt ein verkleinertes JPEG (data-URL) zurück – oder null bei „Abbrechen“.
@@ -653,6 +696,8 @@ button { font:inherit; color:inherit; }
 .title { display:flex; align-items:center; gap:8px; font-size:1.25em; font-weight:600; flex:1; min-width:0; }
 .title span.t { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .live { width:9px; height:9px; border-radius:50%; background:var(--success-color,#43a047); flex:0 0 auto; box-shadow:0 0 0 3px color-mix(in srgb, var(--success-color,#43a047) 25%, transparent); }
+.live.wait { background:var(--warning-color,#ffa600); box-shadow:0 0 0 3px color-mix(in srgb, var(--warning-color,#ffa600) 30%, transparent); animation: pulse 1.6s infinite; }
+.qwait { font-size:.8em; margin-left:4px; }
 .live.off { background:var(--error-color,#db4437); box-shadow:0 0 0 3px color-mix(in srgb, var(--error-color,#db4437) 25%, transparent); animation: pulse 1.2s infinite; }
 .updbar { margin:0 2px 8px; padding:8px 10px; border-radius:12px; background:color-mix(in srgb, var(--primary-color,#03a9f4) 14%, transparent); font-size:.88em; display:flex; align-items:center; gap:8px; }
 .updbar b { flex:1; }
@@ -837,6 +882,13 @@ ha-card.compact .group { margin-top:4px; }
 .servtag { font-weight:400; opacity:.75; }
 .rgrouprow select { width:auto; min-width:150px; }
 #titleIcon { cursor:pointer; }
+#mascot { cursor:pointer; display:inline-flex; color:var(--primary-text-color); }
+#mascot[hidden] { display:none; }
+.mascot.full { animation: mwobble 1.6s ease-in-out infinite; transform-origin: 50% 90%; }
+.mascot.hop { animation: mhop .6s ease-out 1; }
+@keyframes mwobble { 0%,100% { transform: rotate(0); } 25% { transform: rotate(-4deg); } 75% { transform: rotate(4deg); } }
+@keyframes mhop { 0% { transform: translateY(0); } 40% { transform: translateY(-6px); } 100% { transform: translateY(0); } }
+@media (prefers-reduced-motion: reduce) { .mascot.full, .mascot.hop { animation: none; } }
 .item .meta .iout { color:var(--primary-text-color); font-weight:500; background:color-mix(in srgb, var(--error-color, #db4437) 9%, transparent); border-radius:6px; padding:0 6px; font-weight:400; }
 .moverow .outbtn { --c:var(--primary-color,#03a9f4); display:inline-flex; align-items:center; gap:4px; --mdc-icon-size:16px; }
 /* 👨‍🍳 Knöpfe unter der Kochmütze: Foto blau, Kochen rot, Teilen grün (nur das Symbol) */
@@ -857,6 +909,9 @@ ha-card.compact .group { margin-top:4px; }
 .subtabs { display:flex; gap:6px; flex-wrap:wrap; margin:2px 0 8px; }
 .subtabs .tab ha-icon { --mdc-icon-size:18px; }
 .xferfmt { margin:4px 0 10px; padding-left:20px; }
+.missed { background:color-mix(in srgb, var(--warning-color,#ffa600) 12%, transparent); border-radius:10px; padding:8px 12px; margin:4px 0 10px; }
+.missed .mrow { margin-top:4px; }
+.missed .mn { display:inline-block; min-width:2.2em; font-weight:700; color:var(--warning-color,#ffa600); }
 .xferfmt li { margin:3px 0; }
 #xferText { width:100%; box-sizing:border-box; font:inherit; padding:8px; border-radius:8px; border:1px solid var(--divider-color,#ccc); background:var(--card-background-color); color:var(--primary-text-color); margin:4px 0 6px; }
 label.btn { cursor:pointer; }
@@ -937,6 +992,101 @@ label.btn { cursor:pointer; }
 [hidden] { display:none !important; }
 `;
 
+// 🛒😊 Maskottchen: ein kleiner Einkaufswagen mit Gesicht – seine Laune hängt an der Liste
+function easterDate(y) { // Gauß'sche Osterformel
+  const a = y % 19, b = Math.floor(y / 100), c = y % 100, d = Math.floor(b / 4), e = b % 4, f = Math.floor((b + 8) / 25);
+  const g = Math.floor((b - f + 1) / 3), h = (19 * a + b - d - g + 15) % 30, i = Math.floor(c / 4), k = c % 4;
+  const l = (32 + 2 * e + 2 * i - h - k) % 7, m = Math.floor((a + 11 * h + 22 * l) / 451);
+  const month = Math.floor((h + l - 7 * m + 114) / 31), day = ((h + l - 7 * m + 114) % 31) + 1;
+  return new Date(y, month - 1, day);
+}
+function mascotMood(open, now = new Date()) {
+  const hr = now.getHours();
+  if (hr >= 23 || hr < 6) return "sleep";
+  if (open === 0) return "happy";
+  if (open <= 5) return "ok";
+  if (open <= 15) return "busy";
+  return "full";
+}
+function mascotDeco(now = new Date()) {
+  const m = now.getMonth() + 1, d = now.getDate();
+  if ((m === 12 && d === 31) || (m === 1 && d === 1)) return "party";
+  if (m === 12 && d <= 26) return "santa";
+  const e = easterDate(now.getFullYear()), diff = Math.round((startOfDay(now) - startOfDay(e)) / DAY);
+  if (diff >= -3 && diff <= 1) return "bunny";
+  if (m === 10 && d >= 29) return "pumpkin";
+  return null;
+}
+function mascotSvg(mood, deco) {
+  const eyes = mood === "sleep"
+    ? `<path d="M12.5 13.5q1.5 1.2 3 0M19.5 13.5q1.5 1.2 3 0" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>`
+    : mood === "full"
+      ? `<path d="M12.6 12.2l2.6 2.6M15.2 12.2l-2.6 2.6M19.8 12.2l2.6 2.6M22.4 12.2l-2.6 2.6" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>`
+      : `<circle cx="14" cy="13.4" r="1.3" fill="currentColor"/><circle cx="21" cy="13.4" r="1.3" fill="currentColor"/>`;
+  const mouth = {
+    happy: `<path d="M13.6 16.4q3.9 3.6 7.8 0" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>`,
+    ok: `<path d="M14.6 16.8q2.9 2 5.8 0" fill="none" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>`,
+    busy: `<path d="M14.8 17.4h5.4" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>`,
+    full: `<ellipse cx="17.5" cy="17.6" rx="1.6" ry="1.2" fill="currentColor"/>`,
+    sleep: `<path d="M15.6 17.2q1.9 1 3.8 0" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>`,
+  }[mood];
+  const extra = mood === "busy" ? `<path d="M24.6 9.4q1.4 2.2 0 3.2q-1.4-1 0-3.2z" fill="#4fc3f7"/>`
+    : mood === "sleep" ? `<text x="25" y="8" font-size="5.5" font-weight="700" fill="currentColor" opacity=".7">z</text><text x="28" y="4.6" font-size="4" font-weight="700" fill="currentColor" opacity=".5">z</text>`
+      : mood === "happy" ? `<path d="M26.5 4.5l.7 1.6 1.6.7-1.6.7-.7 1.6-.7-1.6-1.6-.7 1.6-.7z" fill="#fdd835"/>` : "";
+  const hat = {
+    santa: `<path d="M10 9.2q6-7.4 14.6-1.4l-2 1.4z" fill="#e53935"/><rect x="9.4" y="8.6" width="16" height="2" rx="1" fill="#fff"/><circle cx="25.4" cy="7.4" r="1.4" fill="#fff"/>`,
+    bunny: `<ellipse cx="14" cy="4.6" rx="1.5" ry="4" fill="#f8bbd0" stroke="currentColor" stroke-width=".7"/><ellipse cx="21" cy="4.6" rx="1.5" ry="4" fill="#f8bbd0" stroke="currentColor" stroke-width=".7"/>`,
+    party: `<path d="M15 9.4l2.6-7.2 2.6 7.2z" fill="#ab47bc"/><circle cx="17.6" cy="2" r="1" fill="#fdd835"/>`,
+    pumpkin: `<ellipse cx="29" cy="24.6" rx="2.6" ry="2.2" fill="#fb8c00"/><path d="M29 22.4v-1.2" stroke="#43a047" stroke-width=".9"/>`,
+  }[deco] || "";
+  return `<svg class="mascot ${mood}" viewBox="0 0 34 30" width="30" height="27" aria-hidden="true">
+    <path d="M2 4.5h3.6l1.6 3.2" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M7.2 7.7h23l-2.6 12.4q-.3 1.4-1.7 1.4H10.6q-1.4 0-1.7-1.4z" fill="color-mix(in srgb, var(--primary-color,#03a9f4) 18%, transparent)" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>
+    <circle cx="12" cy="25.6" r="2" fill="none" stroke="currentColor" stroke-width="1.5"/><circle cx="24.6" cy="25.6" r="2" fill="none" stroke="currentColor" stroke-width="1.5"/>
+    ${mood === "happy" || mood === "ok" ? `<circle cx="11.6" cy="15.6" r="1.3" fill="#f48fb1" opacity=".6"/><circle cx="23.4" cy="15.6" r="1.3" fill="#f48fb1" opacity=".6"/>` : ""}
+    ${eyes}${mouth}${extra}${hat}</svg>`;
+}
+
+// ⏳ Warteschlange für Funklöcher: wird im Handy gespeichert, damit auch ein Neustart der App nichts verliert
+const QUEUE_TYPES = new Set(["einkaufsliste/item/toggle", "einkaufsliste/item/add", "einkaufsliste/item/update",
+  "einkaufsliste/item/remove", "einkaufsliste/item/move", "einkaufsliste/item/out"]);
+const QUEUE_KEY = "einkaufsliste_queue";
+const elQueue = (() => { try { return JSON.parse(localStorage.getItem(QUEUE_KEY) || "[]"); } catch (_) { return []; } })();
+const elFlush = { busy: false };
+const elQueueSave = () => { try { localStorage.setItem(QUEUE_KEY, JSON.stringify(elQueue)); } catch (_) { /* egal */ } };
+// Gemerkte Änderungen auf die Daten legen, damit man sofort sieht, was man getan hat
+function applyQueued(data, list, hass) {
+  const now = new Date().toISOString();
+  const me = hass?.user?.name || "";
+  for (const m of list) {
+    const it = data.items.find((i) => i.id === m.item_id);
+    switch (m.type) {
+      case "einkaufsliste/item/add":
+        if (!data.items.some((i) => i.id === m._tmp)) {
+          data.items.push({ id: m._tmp, name: String(m.name || "").replace(/^./, (c) => c.toUpperCase()), quantity: m.quantity || null, note: m.note || null, for_whom: m.for_whom || null,
+            store_id: m.store_id || null, category_id: m.category_id || null, checked: false, added_by: me, added_at: now, _queued: true });
+        }
+        break;
+      case "einkaufsliste/item/toggle":
+        if (it) { it.checked = typeof m.checked === "boolean" ? m.checked : !it.checked; it.checked_at = now; it.checked_by = me; it._queued = true; }
+        break;
+      case "einkaufsliste/item/update":
+        if (it) { for (const k of ["name", "quantity", "note", "for_whom", "store_id", "category_id"]) if (k in m) it[k] = m[k]; it._queued = true; }
+        break;
+      case "einkaufsliste/item/remove":
+        data.items = data.items.filter((i) => i.id !== m.item_id);
+        break;
+      case "einkaufsliste/item/move":
+        if (it) { it.store_id = m.store_id; it._queued = true; }
+        break;
+      case "einkaufsliste/item/out":
+        if (it) { it.out_at = now; it._queued = true; }
+        break;
+    }
+  }
+  return data;
+}
+
 class EinkaufslisteCard extends HTMLElement {
   static getConfigElement() { return document.createElement("einkaufsliste-card-editor"); }
   static getStubConfig() { return { title: "Einkaufsliste" }; }
@@ -991,8 +1141,12 @@ class EinkaufslisteCard extends HTMLElement {
     const dot = this.$("liveDot");
     if (!dot) return;
     const ok = this._hass?.connected !== false && !!this._unsub && !this._error;
-    dot.classList.toggle("off", !ok);
-    dot.title = ok ? "Verbunden – alles ist aktuell" : "Keine Verbindung – Änderungen kommen gerade nicht an";
+    const wait = elQueue.length;
+    dot.classList.toggle("off", !ok && !wait);
+    dot.classList.toggle("wait", !!wait);
+    dot.title = wait ? `⏳ ${wait} ${wait === 1 ? "Sache wartet" : "Sachen warten"} aufs Netz`
+      : ok ? "Verbunden – alles ist aktuell" : "Keine Verbindung – Änderungen kommen gerade nicht an";
+    if (ok && wait) this._flushQueue();
   }
 
   // 🔄 Update-Hinweis: Karte (Handy-Speicher) und Integration haben verschiedene Versionen
@@ -1072,6 +1226,7 @@ class EinkaufslisteCard extends HTMLElement {
     try {
       const unsub = await this._hass.connection.subscribeMessage(
         (data) => {
+          if (elQueue.length) applyQueued(data, elQueue, this._hass); // Gemerktes gleich wieder drüberlegen
           this._data = data;
           this._error = null;
           if (!this._seenSnap && this._mySeen()) this._seenSnap = { ...this._mySeen() };
@@ -1092,10 +1247,64 @@ class EinkaufslisteCard extends HTMLElement {
   }
 
   _ws(msg) {
+    // ⏳ Funkloch im Laden? Abhaken & Co. wird gemerkt und nachgeschickt, sobald das Netz wieder da ist
+    if (QUEUE_TYPES.has(msg.type) && (this._hass?.connected === false || elQueue.length)) return this._queueMsg(msg);
     return this._hass.callWS(msg).catch((err) => {
+      if (QUEUE_TYPES.has(msg.type) && this._hass?.connected === false) return this._queueMsg(msg);
       this._toast(err?.message || "Da ist was schiefgelaufen 🙈");
       throw err;
     });
+  }
+
+  _queueMsg(msg) {
+    const m = { ...msg };
+    let result = {};
+    if (m.type === "einkaufsliste/item/toggle" && typeof m.checked !== "boolean") {
+      // gewünschten Zustand festhalten – so wird beim Nachschicken nichts doppelt umgeschaltet
+      const it = this._data?.items.find((i) => i.id === m.item_id);
+      if (it) m.checked = !it.checked;
+    }
+    if (m.type === "einkaufsliste/item/add") {
+      m._tmp = "tmp_" + Math.random().toString(36).slice(2, 10);
+      result = { id: m._tmp, name: m.name };
+    }
+    elQueue.push(m);
+    elQueueSave();
+    if (this._data) { applyQueued(this._data, [m], this._hass); this._renderAll(); }
+    this._updateLive();
+    if (this._hass?.connected !== false) setTimeout(() => this._flushQueue(), 0); // Netz da? Gleich der Reihe nach los
+    else if (elQueue.length === 1) this._toast("⏳ Kein Netz – ich merke mir das und schicke es nach");
+    return Promise.resolve(result);
+  }
+
+  async _flushQueue() {
+    if (elFlush.busy || !elQueue.length || this._hass?.connected === false) return;
+    elFlush.busy = true; // nur EINE Karte schickt nach – auch wenn mehrere auf dem Dashboard sind
+    const ids = {};
+    let sent = 0;
+    try {
+      while (elQueue.length) {
+        const m = { ...elQueue[0] };
+        const tmp = m._tmp;
+        delete m._tmp;
+        if (m.item_id && ids[m.item_id]) m.item_id = ids[m.item_id];
+        if (String(m.item_id || "").startsWith("tmp_")) { elQueue.shift(); continue; } // Eintrag ging nicht durch
+        try {
+          const res = await this._hass.callWS(m);
+          if (tmp && res?.id) ids[tmp] = res.id;
+        } catch (err) {
+          if (this._hass?.connected === false) break; // Netz wieder weg – später weiter
+          // echter Fehler (z. B. Artikel inzwischen gelöscht): diesen einen überspringen
+        }
+        elQueue.shift();
+        elQueueSave();
+        sent += 1;
+      }
+    } finally {
+      elFlush.busy = false;
+      this._updateLive();
+    }
+    if (sent && !elQueue.length) this._toast(`✅ Wieder online – ${sent} ${sent === 1 ? "Änderung" : "Änderungen"} nachgeschickt`);
   }
 
   _toast(message) {
@@ -1111,7 +1320,7 @@ class EinkaufslisteCard extends HTMLElement {
       <style>${STYLE}</style>
       <ha-card>
         <div class="head">
-          <div class="title"><ha-icon id="titleIcon" icon="mdi:cart-variant" data-act="guide" title="📖 Anleitung – antippen"></ha-icon><span class="live" id="liveDot" title="Verbindung"></span><span class="badge" id="count" hidden></span><span class="t" id="title" hidden></span><button class="iconbtn" id="btnScan" type="button" data-act="scan" title="Barcode scannen" hidden><ha-icon icon="mdi:barcode-scan"></ha-icon></button></div>
+          <div class="title"><ha-icon id="titleIcon" icon="mdi:cart-variant" data-act="guide" title="📖 Anleitung – antippen"></ha-icon><span id="mascot" data-act="guide" title="📖 Anleitung – antippen" hidden></span><span class="live" id="liveDot" title="Verbindung"></span><span class="badge" id="count" hidden></span><span class="t" id="title" hidden></span><button class="iconbtn" id="btnScan" type="button" data-act="scan" title="Barcode scannen" hidden><ha-icon icon="mdi:barcode-scan"></ha-icon></button></div>
           <button class="iconbtn" id="btnShop" data-act="shopmode" title="Laden-Modus"><ha-icon icon="mdi:cart-outline"></ha-icon></button>
           <button class="iconbtn" id="btnRecipes" data-act="view" data-view="recipes" title="Rezepte"><ha-icon icon="mdi:chef-hat"></ha-icon></button>
           <button class="iconbtn" id="btnSettings" data-act="view" data-view="settings" title="Geschäfte & Kategorien"><ha-icon icon="mdi:cog-outline"></ha-icon></button>
@@ -1318,7 +1527,7 @@ class EinkaufslisteCard extends HTMLElement {
     btnShop.title = shop ? "Laden-Modus beenden" : "Laden-Modus (große Zeilen, nur Abhaken)";
     btnShop.querySelector("ha-icon").setAttribute("icon", shop ? "mdi:cart-off" : "mdi:cart-outline");
     this.$("title").textContent = ""; // Titel-Text ist weg – der Einkaufswagen reicht
-    this.$("titleIcon").hidden = c.show_title === false;
+    this.$("titleIcon").hidden = c.show_title === false || !!c.mascot;
     this.$("titleIcon").title = `📖 Anleitung – antippen${titleText ? ` · ${titleText}` : ""}`;
     this._renderUpdateBar();
     this._updateLive();
@@ -1340,6 +1549,7 @@ class EinkaufslisteCard extends HTMLElement {
     const cnt = this.$("count");
     cnt.hidden = open.length === 0;
     cnt.textContent = open.length;
+    this._renderMascot(open.length);
 
     const isList = this._view === "list";
     if (this._view !== "recipe") this._parkForm();
@@ -1492,8 +1702,15 @@ class EinkaufslisteCard extends HTMLElement {
           item: { name: ri.name, note: ri.note || null, store_id: ri.store_id || null, category_id: ri.category_id || null, checked: true } });
       }
     }
+    // 🧠 Gelernter Tippfehler („Mlich“ wurde schon 2× zu Milch korrigiert) -> gleich als erster Vorschlag
+    const learned = this._data.typos?.[q];
+    if (learned && !names.has(learned.toLowerCase())) {
+      const hist = (this._data.history || []).find((h) => h.name.toLowerCase() === learned.toLowerCase());
+      names.add(learned.toLowerCase());
+      cands.push({ sc: -1, name: learned, hist, learned: true });
+    }
     // 🤓 Tippfehler-Hilfe: „Mlich“ -> „Meintest du Milch?“
-    if (q.length >= 4 && !cands.some((c) => c.sc === 0)) {
+    if (q.length >= 4 && !cands.some((c) => c.sc <= 0)) {
       const maxD = q.length > 6 ? 2 : 1;
       const pool = new Map();
       for (const h of this._data.history || []) pool.set(h.name.toLowerCase(), { name: h.name, hist: h });
@@ -1624,7 +1841,7 @@ class EinkaufslisteCard extends HTMLElement {
       <div class="item ${item.checked ? "done" : ""} ${this._pending.has(item.id) ? "pending" : ""} ${isNew ? "new" : ""} ${item.name.startsWith("❓") ? "unknown" : ""}" data-id="${item.id}" style="--cc:${esc(cat?.color || "transparent")}${recipe && this._rgroup(recipe.group)?.color ? `;--rc:${esc(this._rgroup(recipe.group).color)}` : ""}">
         <button class="iconbtn check" data-act="toggle" title="${item.checked ? "Wieder auf die Liste" : "Abhaken"}"><ha-icon icon="${icon}"></ha-icon></button>
         <div class="txt">
-          <div class="line">${isNew ? `<span class="newbadge" title="Neu seit deinem letzten Blick">✨</span>` : ""}<span class="name">${esc(item.name)}</span>${qty}${who}${this._hasPhoto(pk) ? `<button class="photobtn" data-act="photo-view" data-name="${esc(pk)}" title="Foto ansehen"><ha-icon icon="mdi:camera"></ha-icon>${this._data.photo_counts?.[pk] > 1 ? `<small class="pcount">${this._data.photo_counts[pk]}</small>` : ""}</button>` : ""}</div>
+          <div class="line">${isNew ? `<span class="newbadge" title="Neu seit deinem letzten Blick">✨</span>` : ""}<span class="name">${esc(item.name)}</span>${item._queued ? `<span class="qwait" title="Wartet aufs Netz">⏳</span>` : ""}${qty}${who}${this._hasPhoto(pk) ? `<button class="photobtn" data-act="photo-view" data-name="${esc(pk)}" title="Foto ansehen"><ha-icon icon="mdi:camera"></ha-icon>${this._data.photo_counts?.[pk] > 1 ? `<small class="pcount">${this._data.photo_counts[pk]}</small>` : ""}</button>` : ""}</div>
           ${meta.length ? `<div class="meta">${meta.join("")}</div>` : ""}
         </div>
         ${!item.checked && this._data.stores.length > 1 ? `<div class="acts"><button class="iconbtn" data-act="move" title="War aus – in anderes Geschäft"><ha-icon icon="mdi:swap-horizontal"></ha-icon></button></div>` : ""}
@@ -1980,6 +2197,22 @@ class EinkaufslisteCard extends HTMLElement {
       .finally(() => { this._pending.delete(id); this._renderAll(); });
   }
 
+  _renderMascot(open) {
+    const box = this.$("mascot");
+    if (!box) return;
+    const on = !!this._config.mascot && this._config.show_title !== false;
+    box.hidden = !on;
+    this.$("titleIcon").hidden = on || this._config.show_title === false;
+    if (!on) return;
+    const mood = mascotMood(open), deco = mascotDeco();
+    const key = mood + "|" + deco;
+    if (box.dataset.k === key) return;
+    const was = box.dataset.k;
+    box.dataset.k = key;
+    box.innerHTML = mascotSvg(mood, deco);
+    if (was && mood === "happy") box.firstElementChild.classList.add("hop"); // Liste leer? Einmal kurz hüpfen 🎉
+  }
+
   _renderFooter() {
     const f = this.$("footer");
     const s = this._data?.settings;
@@ -2133,6 +2366,16 @@ class EinkaufslisteCard extends HTMLElement {
         <div class="btnrow"><button class="btn primary" data-act="check-run"><ha-icon icon="mdi:magnify"></ha-icon>Jetzt prüfen</button></div>
         <div id="checkRes"></div>` },
       { key: "transfer", icon: "mdi:database-import-outline", title: "Import & Sicherung", info: "Rezepte, andere Apps, Backup", html: () => this._xferHtml() },
+      { key: "app", icon: "mdi:cellphone-arrow-down", title: "Offline-App", info: "Liste auch ohne Netz", html: () => `
+        <p class="hint">Eine eigene kleine App nur für die Einkaufsliste. Sie öffnet sich auch <b>ohne Netz</b> (z. B. im Funkloch im Laden), zeigt den letzten Stand, lässt dich abhaken und eintragen und schickt alles nach, sobald wieder Netz da ist.</p>
+        <ol class="hint xferfmt">
+          <li>Auf dem Handy im <b>Browser</b> (Chrome oder Safari, nicht in der HA-App) deine Home-Assistant-Adresse von unterwegs öffnen, z. B. die Nabu-Casa-Adresse, und <code>/einkaufsliste/app/</code> anhängen.</li>
+          <li>Einmal mit deinem Home-Assistant-Benutzer <b>anmelden</b>.</li>
+          <li>Im Browser-Menü <b>„Zum Startbildschirm hinzufügen“</b> – fertig, eigenes 🛒-Symbol.</li>
+        </ol>
+        <p class="hint">Wichtig: Das klappt nur über eine <b>https</b>-Adresse (z. B. Nabu Casa). In der App gibt es die Liste, Abhaken, Eintragen, Menge, Notiz, Für wen, ⇄ und den Laden-Modus – Einstellungen, Rezepte und Scannen bleiben hier in der Karte.</p>
+        <div class="btnrow"><a class="btn primary" href="/einkaufsliste/app/" target="_blank" rel="noopener"><ha-icon icon="mdi:open-in-new"></ha-icon>App öffnen</a></div>` },
+      { key: "pin", icon: this._data.settings?.pin ? "mdi:lock-outline" : "mdi:lock-open-variant-outline", title: "Schutz", info: this._data.settings?.pin ? "PIN ist an" : "PIN fürs Zahnrad", html: () => this._pinHtml() },
       { key: "log", icon: "mdi:history", title: "Verlauf", info: "wer, wann, was, wie", html: () => this._logSectionHtml() },
       { key: "cleanup", icon: "mdi:broom", title: "Aufräumen", info: `${WD_SHORT[s.cleanup_weekday]} ${s.cleanup_time} Uhr`, html: () => `
         <p>Jeden <b>${WD_LONG[s.cleanup_weekday]}</b> um <b>${s.cleanup_time} Uhr</b> werden alle offenen Artikel <b>abgehakt</b>, die mindestens <b>${s.min_age_days} Tage</b> auf der Liste stehen. Gelöscht wird nichts – so kannst du sie später mit einem Tipp wieder auf die Liste nehmen.</p>
@@ -2169,6 +2412,51 @@ class EinkaufslisteCard extends HTMLElement {
     if (cur.key === "recipes") this._renderSetRecipeList();
     if (cur.key === "transfer" && this._xferTab === "apps") this._loadTodoLists();
     this._renderDelList();
+  }
+
+  // 🔒 PIN fürs Zahnrad
+  async _unlockSettings() {
+    const pin = await askPin();
+    if (pin == null) return;
+    const res = await this._ws({ type: "einkaufsliste/pin/check", pin }).catch(() => null);
+    if (!res?.ok) { this._toast("🔒 Falsche PIN"); return; }
+    pinRemember();
+    this._view = "settings";
+    this._setSec = null;
+    this._draft = null;
+    this._renderAll();
+  }
+
+  _pinHtml() {
+    const on = !!this._data.settings?.pin;
+    return `
+      <p class="hint">Mit einer PIN geht das ⚙️-Zahnrad nur noch nach Eingabe der PIN auf. Die Liste selbst (eintragen, abhaken, Rezepte, Laden-Modus) bleibt für alle offen. Nach der Eingabe bleibt das Zahnrad auf diesem Gerät 10 Minuten offen.</p>
+      <p><b>${on ? "🔒 PIN ist an." : "🔓 Keine PIN – das Zahnrad ist für alle offen."}</b></p>
+      <div class="btnrow">
+        <button class="btn primary" data-act="pin-set"><ha-icon icon="mdi:lock-outline"></ha-icon>${on ? "PIN ändern" : "PIN festlegen"}</button>
+        ${on ? `<button class="btn" data-act="pin-off"><ha-icon icon="mdi:lock-open-variant-outline"></ha-icon>PIN ausschalten</button>` : ""}
+      </div>
+      <p class="hint">PIN vergessen? Ein Admin setzt sie in Home Assistant zurück: Einstellungen → Geräte & Dienste → Einkaufsliste → Konfigurieren → „PIN zurücksetzen“.<br>Ehrlich gesagt: Die PIN schützt vor versehentlichem Verstellen und neugierigen Kinderaugen – ein Tresor ist sie nicht.</p>`;
+  }
+
+  async _pinChange(off) {
+    const on = !!this._data.settings?.pin;
+    let old = null;
+    if (on) { old = await askPin("🔒 Aktuelle PIN"); if (old == null) return; }
+    let pin = null;
+    if (!off) {
+      pin = await askPin("🔢 Neue PIN (4–8 Ziffern)");
+      if (pin == null) return;
+      const again = await askPin("🔁 Neue PIN nochmal");
+      if (again == null) return;
+      if (again !== pin) { this._toast("Die beiden PINs sind unterschiedlich 🙈"); return; }
+    }
+    try {
+      await this._ws({ type: "einkaufsliste/pin/set", pin, old });
+      if (pin) pinRemember();
+      this._toast(pin ? "🔒 PIN gespeichert" : "🔓 PIN ausgeschaltet");
+      setTimeout(() => this._renderSettings(), 300);
+    } catch (_) { /* Meldung kam schon */ }
   }
 
   // 📥 Import & Sicherung: Rezepte aus Datei, andere Apps, Backup
@@ -2294,6 +2582,7 @@ class EinkaufslisteCard extends HTMLElement {
         <select id="logAct" title="Aktion">${opt("", "⚡ Alles", f.act)}${Object.entries(LOG_ACT).map(([k, v]) => opt(k, v.label, f.act)).join("")}</select>
       </div>
       <div class="srow"><ha-icon class="prev" icon="mdi:magnify"></ha-icon><input class="grow" id="logSearch" placeholder="Artikel suchen …" value="${esc(f.q)}"></div>
+      <div id="logMissed"></div>
       <div id="logList"><p class="hint">Lade Verlauf …</p></div>
       <div class="srow" style="margin-top:12px">
         <ha-icon class="prev" icon="mdi:calendar-clock"></ha-icon>
@@ -2322,9 +2611,28 @@ class EinkaufslisteCard extends HTMLElement {
     this._renderLogList();
   }
 
+  // 📈 Vergessen-Statistik: was gab's öfter nicht? („Butter 3× war aus bei Aldi – vielleicht woanders kaufen?“)
+  _renderMissed() {
+    const box = this.$("logMissed");
+    if (!box || !this._logData) return;
+    const count = new Map();
+    for (const e of this._logData.entries) {
+      if (!e.n || (e.a !== "out" && e.a !== "move")) continue;
+      const from = e.a === "out" ? (this._store(e.s)?.name || "") : String(e.d || "").split(" → ")[0];
+      const key = e.n.toLowerCase() + "|" + from;
+      const c = count.get(key) || { name: e.n, from, n: 0 };
+      c.n += 1;
+      count.set(key, c);
+    }
+    const top = [...count.values()].filter((c) => c.n >= 2).sort((a, b) => b.n - a.n).slice(0, 5);
+    box.innerHTML = top.length ? `<div class="missed"><b>📈 Oft nicht bekommen</b>${top.map((c) =>
+      `<div class="mrow"><span class="mn">${c.n}×</span> <b>${esc(c.name)}</b>${c.from ? ` bei ${esc(c.from)}` : ""} – vielleicht woanders kaufen?</div>`).join("")}</div>` : "";
+  }
+
   _renderLogList() {
     const box = this.$("logList");
     if (!box || !this._logData) return;
+    this._renderMissed();
     const f = this._logF;
     const q = f.q.trim().toLowerCase();
     const list = this._logData.entries.filter((e) =>
@@ -2393,6 +2701,8 @@ class EinkaufslisteCard extends HTMLElement {
           <input id="peAliases" value="${esc((p.aliases || []).join(", "))}" data-orig="${esc((p.aliases || []).join(", "))}" placeholder="🏷️ Spitznamen, z. B. Tempos, Tempo (mit Komma)" title="Wer so etwas eintippt, landet bei diesem Produkt">
           <select id="peCat">${this._selectOptions(this._data.categories, p.category_id, "📦 Ohne Kategorie")}</select>
           <select id="peStore">${this._selectOptions(this._data.stores, p.store_id, "🛒 Kein Standard-Geschäft")}</select>
+          ${(() => { const t = Object.entries(this._data.typos || {}).filter(([, r]) => r.toLowerCase() === p.name.toLowerCase()).map(([w]) => w);
+            return t.length ? `<div class="bclist" title="Diese Tippfehler korrigiert die Liste von selbst">${t.map((w) => `<span class="bcchip">🧠 ${esc(w)}<button type="button" class="iconbtn" data-act="typo-forget" data-w="${esc(w)}" title="Vergessen"><ha-icon icon="mdi:close"></ha-icon></button></span>`).join("")}</div>` : ""; })()}
           ${p.barcodes.length ? `<div class="bclist">${p.barcodes.map((code) => `<span class="bcchip">▥ ${esc(code)}<button type="button" class="iconbtn" data-act="bc-remove" data-code="${esc(code)}" title="Diesen Barcode löschen"><ha-icon icon="mdi:delete-outline"></ha-icon></button></span>`).join("")}</div>` : ""}
           <div class="btnrow">
             ${p.photos ? `<button class="btn" data-act="prod-photos"><ha-icon icon="mdi:image-multiple-outline"></ha-icon>Fotos</button>` : ""}
@@ -4117,6 +4427,10 @@ class EinkaufslisteCard extends HTMLElement {
       case "view": {
         const v = el.dataset.view;
         const current = this._view === "recipe" ? "settings" : this._view;
+        if (v === "settings" && current !== "settings" && this._data?.settings?.pin && !pinUnlocked()) {
+          this._unlockSettings(); // 🔒 erst die PIN, dann das Zahnrad
+          break;
+        }
         this._view = current === v ? "list" : v;
         if (this._view === "settings" && current !== "settings") this._setSec = null;
         this._draft = null;
@@ -4427,6 +4741,10 @@ class EinkaufslisteCard extends HTMLElement {
         const inp = this.$("inName");
         const c = this._suggMap?.get(el.dataset.n);
         if (!c) break;
+        if (c.fuzzy) { // 🧠 Tippfehler merken – ab dem 2. Mal korrigiert die Liste von selbst
+          const wrong = splitQty(inp.value).name;
+          if (wrong) this._hass.callWS({ type: "einkaufsliste/typo/learn", wrong, right: c.name }).catch(() => {});
+        }
         this._applySuggest(c);
         this.$("sugg").hidden = true;
         this._updateTools();
@@ -4479,6 +4797,10 @@ class EinkaufslisteCard extends HTMLElement {
           .then(() => { this._toast(`🗑️ „${label}“ gelöscht`); this._prodEdit = null; this._loadProducts(); }).catch(() => {});
         break;
       }
+      case "typo-forget":
+        this._ws({ type: "einkaufsliste/typo/forget", wrong: el.dataset.w })
+          .then(() => { this._toast("🧠 Tippfehler vergessen"); setTimeout(() => this._renderProducts(), 300); }).catch(() => {});
+        break;
       case "bc-remove": {
         const code = el.dataset.code;
         if (!elConfirm(`Barcode ${code} löschen? Das Produkt bleibt.`)) break;
@@ -4576,6 +4898,10 @@ class EinkaufslisteCard extends HTMLElement {
       case "prod-tab":
         this._prodTab = el.dataset.tab;
         this._renderSettings();
+        break;
+      case "pin-set":
+      case "pin-off":
+        this._pinChange(act === "pin-off");
         break;
       case "xfer-tab":
         this._xferTab = el.dataset.tab;
@@ -4841,6 +5167,7 @@ const EDITOR_LABELS = {
   compact: "📱 Kompakt-Modus (kleinere Zeilen, ohne Zusatz-Infos)",
   show_settings: "Zahnrad für Einstellungen anzeigen",
   language: "🌍 Sprache / Language",
+  mascot: "🛒😊 Maskottchen (Einkaufswagen mit Gesicht)",
 };
 
 class EinkaufslisteCardEditor extends HTMLElement {
@@ -4876,6 +5203,7 @@ class EinkaufslisteCardEditor extends HTMLElement {
       { name: "auto_store", selector: { boolean: {} } },
       { name: "compact", selector: { boolean: {} } },
       { name: "show_settings", selector: { boolean: {} } },
+      { name: "mascot", selector: { boolean: {} } },
       { name: "language", selector: { select: { mode: "dropdown", options: [
         { value: "auto", label: elT("Automatisch") + " (Home Assistant)" }, { value: "de", label: "Deutsch" }, { value: "en", label: "English" },
       ] } } },

@@ -26,7 +26,7 @@ from .manager import EinkaufslisteManager, person_name_for_user
 _LOGGER = logging.getLogger(__name__)
 
 CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
-PLATFORMS = [Platform.SENSOR]
+PLATFORMS = [Platform.SENSOR, Platform.BINARY_SENSOR]
 
 SCHEMA_ADD = vol.Schema(
     {

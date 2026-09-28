@@ -1548,3 +1548,79 @@ async def test_english_defaults(hass: HomeAssistant, setup) -> None:
     assert (item["name"], item["quantity"]) == ("Tomatoes", "2 Dosen")
     from custom_components.einkaufsliste.quantity import norm_qty
     assert norm_qty("3 tbsp") == "3 EL"
+
+
+async def test_more_sensors(hass: HomeAssistant, setup) -> None:
+    """📊 Sensor pro Geschäft, Ja/Nein „Etwas zu kaufen“ und „Zuletzt eingetragen“."""
+    m = mgr(hass)
+    aldi = next(s for s in m.stores if s["name"] == "Aldi")
+    assert hass.states.get("binary_sensor.einkaufsliste_etwas_zu_kaufen").state == "off"
+    assert hass.states.get("sensor.einkaufsliste_aldi").state == "0"
+    with m.acting("Anna", None, "card"):
+        m.add_item("Milch", store_id=aldi["id"], quantity="2 L", note="Laktosefrei")
+    await hass.async_block_till_done()
+    st = hass.states.get("sensor.einkaufsliste_aldi")
+    assert st.state == "1" and st.attributes["artikel"] == ["Milch (2 L) · Laktosefrei"]
+    assert hass.states.get("binary_sensor.einkaufsliste_etwas_zu_kaufen").state == "on"
+    last = hass.states.get("sensor.einkaufsliste_zuletzt_eingetragen")
+    assert last.state == "Milch"
+    assert last.attributes["von"] == "Anna" and last.attributes["geschaeft"] == "Aldi" and last.attributes["menge"] == "2 L"
+    # neues Geschäft -> neuer Sensor, gelöscht -> weg
+    kl = m.add_group("stores", "Kaufland")
+    await hass.async_block_till_done()
+    assert hass.states.get("sensor.einkaufsliste_kaufland").state == "0"
+    m.remove_group("stores", kl["id"])
+    await hass.async_block_till_done()
+    assert hass.states.get("sensor.einkaufsliste_kaufland") is None
+
+
+async def test_pin_typos_and_brackets(hass: HomeAssistant, setup, hass_ws_client) -> None:
+    """🔒 PIN, 🧠 Tippfehler lernen, „Milch (2)“ erkennen."""
+    m = mgr(hass)
+    client = await hass_ws_client(hass)
+    # PIN
+    assert m.as_dict()["settings"]["pin"] is False
+    await client.send_json({"id": 1, "type": "einkaufsliste/pin/set", "pin": "12a4"})
+    assert not (await client.receive_json())["success"]
+    await client.send_json({"id": 2, "type": "einkaufsliste/pin/set", "pin": "2310"})
+    assert (await client.receive_json())["success"]
+    assert m.as_dict()["settings"]["pin"] is True and "2310" not in (m.pin_hash or "")
+    await client.send_json({"id": 3, "type": "einkaufsliste/pin/check", "pin": "0000"})
+    assert (await client.receive_json())["result"] == {"ok": False}
+    await client.send_json({"id": 4, "type": "einkaufsliste/pin/check", "pin": "2310"})
+    assert (await client.receive_json())["result"] == {"ok": True}
+    await client.send_json({"id": 5, "type": "einkaufsliste/pin/set", "pin": "9999", "old": "1111"})
+    assert not (await client.receive_json())["success"]
+    m.clear_pin()
+    assert m.as_dict()["settings"]["pin"] is False
+    # Tippfehler: erst beim 2. Mal
+    assert m.learn_typo("Mlich", "Milch") == {"learned": False, "count": 1}
+    assert m.add_item("Mlich")["name"] == "Mlich"
+    assert m.learn_typo("mlich", "Milch")["learned"] is True
+    assert m.as_dict()["typos"] == {"mlich": "Milch"}
+    item = m.add_item("Mlich", store_id=m.stores[0]["id"])
+    assert item["name"] == "Milch"
+    m.forget_typo("mlich")
+    assert m.as_dict()["typos"] == {}
+    # Mengen in Klammern
+    it = m.add_item("Joghurt (4)", store_id=m.stores[0]["id"])
+    assert (it["name"], it["quantity"]) == ("Joghurt", "4x")
+    it = m.add_item("Kinder (Oma)")
+    assert it["name"] == "Kinder (Oma)" and not it.get("quantity")
+
+
+async def test_offline_app_pages(hass: HomeAssistant, setup, hass_client_no_auth) -> None:
+    """📱 Die Offline-App ist ohne Anmeldung erreichbar (enthält keine Daten), mit Offline-Speicher."""
+    client = await hass_client_no_auth()
+    r = await client.get("/einkaufsliste/app/")
+    assert r.status == 200 and "text/html" in r.headers["Content-Type"]
+    body = await r.text()
+    assert "__EL_VERSION__" not in body and "/auth/authorize" in body
+    r = await client.get("/einkaufsliste/app/sw.js")
+    assert r.status == 200 and r.headers.get("Service-Worker-Allowed") == "/einkaufsliste/app/"
+    r = await client.get("/einkaufsliste/app/manifest.json")
+    assert r.status == 200 and (await r.json())["start_url"] == "/einkaufsliste/app/"
+    r = await client.get("/einkaufsliste/app/../manifest.json")
+    assert r.status == 404
+    r = await client.get("/einkaufsliste/app", allow_redirects=False)
+    assert r.status == 302 and r.headers["Location"] == "/einkaufsliste/app/"
