@@ -10,6 +10,7 @@ import re
 import secrets
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
+from contextvars import ContextVar
 from datetime import date, datetime, timedelta
 import logging
 from pathlib import Path
@@ -54,6 +55,7 @@ from .const import (
 
 TYPO_LEARN_AFTER = 2  # so oft „Meintest du …?“ angenommen, dann wird von selbst korrigiert
 
+_ACTOR: ContextVar[dict] = ContextVar("einkaufsliste_actor", default={})
 _LOGGER = logging.getLogger(__name__)
 
 
@@ -252,7 +254,7 @@ class EinkaufslisteManager:
         self.last_cleanup: str | None = None
         self.log: list[dict[str, Any]] = []  # 📋 Verlauf, das Neueste hinten
         self.log_days: int = LOG_DEFAULT_DAYS
-        self._actor: dict[str, Any] = {}
+        self._actor = {}
         self._unsub_time: Callable[[], None] | None = None
 
     # ------------------------------------------------------------------ Optionen
@@ -878,6 +880,15 @@ class EinkaufslisteManager:
         self._changed()
 
     # ------------------------------------------------------------------ Verlauf
+    # 👤 Wer gerade etwas tut – pro Befehl getrennt (ContextVar), damit sich gleichzeitige Befehle nicht vermischen
+    @property
+    def _actor(self) -> dict[str, Any]:
+        return _ACTOR.get()
+
+    @_actor.setter
+    def _actor(self, value: dict[str, Any]) -> None:
+        _ACTOR.set(value)
+
     @contextmanager
     def acting(self, who: str | None, who_id: str | None, via: str | None) -> Iterator[None]:
         """Merkt sich für die Dauer eines Befehls, wer ihn wie ausgelöst hat (für den Verlauf)."""

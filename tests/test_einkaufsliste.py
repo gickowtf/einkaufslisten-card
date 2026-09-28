@@ -1924,3 +1924,15 @@ async def test_mail_glued_text_and_fetch_part(hass: HomeAssistant, setup) -> Non
     assert next(i for i in m.items if i["name"] == "Kakao")["store_id"] == netto["id"]
     assert next(i for i in m.items if i["name"] == "Butter")["store_id"] == netto["id"]
     assert not any("Grüße" in i["name"] or i["name"] == "Max" for i in m.items)
+
+
+async def test_product_remove_logs_user(hass: HomeAssistant, setup, hass_ws_client, hass_admin_user) -> None:
+    """👤 „Ganz löschen“ im Verlauf mit Namen statt „Automatisch“."""
+    m = mgr(hass)
+    m.add_item("Gurke")
+    client = await hass_ws_client(hass)
+    await client.send_json({"id": 1, "type": "einkaufsliste/product/remove", "key": "gurke"})
+    assert (await client.receive_json())["success"]
+    entry = next(e for e in reversed(m.log) if e["a"] == "remove" and e["n"] == "Gurke")
+    assert entry["w"]  # ein Name, nicht leer
+    assert m._actor == {}  # danach wieder niemand

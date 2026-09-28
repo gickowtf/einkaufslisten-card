@@ -638,7 +638,12 @@ async def _run_async(hass, connection, msg, coro_factory) -> None:
         )
         return
     try:
-        result = await coro_factory(manager)
+        with manager.acting(  # 👤 damit im Verlauf der richtige Name steht (nicht „Automatisch“)
+            _user_name(hass, connection),
+            connection.user.id if connection.user else None,
+            msg.get("via") or "card",
+        ):
+            result = await coro_factory(manager)
     except ValueError as err:
         connection.send_error(msg["id"], "invalid", str(err))
         return
