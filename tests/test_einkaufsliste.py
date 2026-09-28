@@ -1889,3 +1889,38 @@ async def test_move_from_anywhere_relocates(hass: HomeAssistant, setup) -> None:
     m.move_item(new["id"], aldi)
     brote = [i for i in m.items if i["name"] == "Brot"]
     assert len(brote) == 2 and {i["checked"] for i in brote} == {True, False}
+
+
+async def test_mail_glued_text_and_fetch_part(hass: HomeAssistant, setup) -> None:
+    """📧 Mail ohne Zeilenumbrüche (Samsung-Mail): Teil selbst holen, Gruß/Signatur weg, „Netto: Milch, Brot“."""
+    import base64
+    from custom_components.einkaufsliste.mail_import import mail_groups, mail_text
+    m = mgr(hass)
+    netto = next(s for s in m.stores if s["name"] == "Netto")
+    dm = next(s for s in m.stores if s["name"] == "DM")
+    assert mail_text("Netto:MilchMit freundlichen Grüßen / Best regardsMax MusterHinweis: vertraulich …") == "Netto:Milch"
+    assert mail_text("Hallo Schatz,\nMilch.\nEinen schönen Tag noch!\nLG Max\nMobil 0123") == "Milch"
+    assert mail_groups(m, "Netto: Milch, Brot\nDM: Zahnpasta; Seife\n1,5 % Milch", None, None) == [
+        (netto["id"], "Milch\nBrot"), (dm["id"], "Zahnpasta\nSeife\n1,5 % Milch")]
+    imap = MockConfigEntry(domain="imap", title="liste@example.com")
+    imap.add_to_hass(hass)
+    asked = []
+
+    async def _part(call):
+        asked.append(call.data["part"])
+        if call.data["part"] == "0":
+            return {"part_data": base64.b64encode("Netto:\nKakao\nButter\n\nViele Grüße\nMax".encode()).decode(),
+                    "content_transfer_encoding": "base64", "content_type": "text/plain", "uid": call.data["uid"], "part": "0"}
+        return {"part_data": "", "content_transfer_encoding": "7bit"}
+
+    from homeassistant.core import SupportsResponse
+    hass.services.async_register("imap", "fetch_part", _part, supports_response=SupportsResponse.ONLY)
+    m.set_mail_import(imap.entry_id, None, ["ich@example.com"], "keep")
+    hass.bus.async_fire("imap_content", {
+        "entry_id": imap.entry_id, "initial": True, "uid": "2", "date": "d", "subject": "", "sender": '"ich" <ich@example.com>',
+        "text": "Netto:KakaoButterViele GrüßeMax", "parts": {"0": {"content_type": "text/plain"}, "1": {"content_type": "text/html"}}})
+    await hass.async_block_till_done()
+    assert "0" in asked
+    assert next(i for i in m.items if i["name"] == "Kakao")["store_id"] == netto["id"]
+    assert next(i for i in m.items if i["name"] == "Butter")["store_id"] == netto["id"]
+    assert not any("Grüße" in i["name"] or i["name"] == "Max" for i in m.items)

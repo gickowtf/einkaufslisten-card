@@ -1021,5 +1021,10 @@
 "🤷 „Egal wo“": "🤷 “Anywhere”",
 "= kein festes Geschäft: steht in jedem Geschäfts-Reiter mit drin. Mit ⇄ in ein Geschäft schieben = zieht einfach um.": "= no fixed store: shows up in every store tab. Push it to a store with ⇄ = it simply moves there.",
 "🔁 Gibt's auch hier": "🔁 Also available here",
-"(im Reiter eines Geschäfts): Sachen, die bei einem anderen Geschäft stehen, die es aber auch hier gibt. Antippen holt sie her.": "(in a store's tab): things listed for another store that this store also has. Tap to bring them here."
+"(im Reiter eines Geschäfts): Sachen, die bei einem anderen Geschäft stehen, die es aber auch hier gibt. Antippen holt sie her.": "(in a store's tab): things listed for another store that this store also has. Tap to bring them here.",
+"📷 Kamera": "📷 Camera",
+"🖼️ Galerie": "🖼️ Gallery",
+"📋 Einfügen (Zwischenablage)": "📋 Paste (clipboard)",
+"📋 In der Zwischenablage ist kein Bild (oder das Einfügen wurde nicht erlaubt)": "📋 There's no picture on the clipboard (or pasting wasn't allowed)",
+"Foto – woher?": "Photo – from where?"
 }

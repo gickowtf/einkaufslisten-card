@@ -61,7 +61,7 @@ Copy `custom_components/einkaufsliste` to `/config/custom_components/einkaufslis
 
 ## 👆 How to use it
 
-**Adding:** type a name, tap the green ✔. The buttons below: 🔢 quantity · 📝 note · 👤 for whom · 📷 photo · 🧽 clear. Store and category are usually picked correctly already. A store is missing? Pick **“➕ New store …”** in the list – just type the name, the rest later in ⚙️.
+**Adding:** type a name, tap the green ✔. The buttons below: 🔢 quantity · 📝 note · 👤 for whom · 📷 photo (📷 camera · 🖼️ gallery · 📋 paste – on a PC, Ctrl + V into the input field works too) · 🧽 clear. Store and category are usually picked correctly already. A store is missing? Pick **“➕ New store …”** in the list – just type the name, the rest later in ⚙️.
 
 **In the list:**
 - ⭕ **Circle** = check off. Under “Done” once more = back on the list.
@@ -149,8 +149,8 @@ This works with any to-do list in HA (Google Tasks, Bring!, Todoist, the HA shop
 ### 📧 Onto the list by email
 1. Create a **separate email address** just for the shopping list and set up the **“IMAP”** integration in Home Assistant with it.
 2. In the card: **⚙️ → Tools → Import & backup → 📧 Email**: pick the mailbox, a store if you like, what happens to the email afterwards (📬 leave · 👁️ mark as read · 🗑️ delete), enter the **allowed senders** (at least one), **Turn on**.
-3. Send an email to that address – **one item per line** (“milk”, “6 eggs” …). Quotes, signatures and “Sent from my iPhone” are skipped, quantities are recognized. The history shows 📧.
-4. **Send the store along:** a store in the **subject** (“Aldi”, “Shopping at Aldi”) puts everything there. Or use a **heading** in the email: `Aldi:` – the things below – then `DM:` … Unknown names go to the chosen store.
+3. Send an email to that address – **one item per line** (“milk”, “6 eggs” …). Several in one line work too: “milk, butter, bread”. Greetings (“Hi …”, “Best regards”), signatures, quotes, “Sent from my iPhone” and whole sentences are skipped, quantities are recognized. If the email arrives without line breaks (some phone mail apps), the list fetches it again properly from the mailbox. The history shows 📧.
+4. **Send the store along:** a store in the **subject** (“Aldi”, “Shopping at Aldi”) puts everything there. Or use a **heading** in the email: `Aldi:` – the things below – then `DM:` … Also in one line: `Netto: milk, bread`. Unknown names go to the chosen store.
 
 Honestly: senders can be faked – so use an address that isn't public. Depending on the mailbox it takes a few seconds to minutes until an email arrives. Only emails that actually put something on the list are marked as read or deleted – others stay. With Gmail, “delete” may mean “archive” depending on your settings.
 

@@ -2,7 +2,7 @@
  * Einkaufsliste Card – die Familien-Einkaufsliste für Home Assistant
  * Wird automatisch von der Integration "einkaufsliste" geladen.
  */
-const EL_VERSION = "2.30.0";
+const EL_VERSION = "2.31.0";
 const EGAL_CHIP = `<span class="chip" style="--c:#888">🤷 Egal wo</span>`; // Artikel ohne Geschäft: überall kaufen
 
 // Doppelt-Finder: Wörter, die dasselbe meinen (alles klein, ohne Leer-/Sonderzeichen)
@@ -518,13 +518,24 @@ function heatText(h) {
 const OV_BTN = "background:rgba(255,255,255,.14);color:#fff;border:0;border-radius:12px;padding:10px 14px;font:500 15px Roboto,sans-serif;cursor:pointer;";
 const OV_BTN_MAIN = "background:#43a047;color:#fff;border:0;border-radius:12px;padding:10px 16px;font:600 15px Roboto,sans-serif;cursor:pointer;";
 
+// „#fff“, „#1c1c1c“, „rgb(225, 225, 225)“ -> [r, g, b]
+function elRgb(c) {
+  const s = String(c || "").trim();
+  let m = s.match(/^#([0-9a-f]{3})$/i);
+  if (m) return [...m[1]].map((h) => parseInt(h + h, 16));
+  m = s.match(/^#([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})/i);
+  if (m) return m.slice(1, 4).map((h) => parseInt(h, 16));
+  m = s.match(/^rgba?\(\s*(\d+)[\s,]+(\d+)[\s,]+(\d+)/i);
+  return m ? m.slice(1, 4).map(Number) : null;
+}
+
 function makeOverlay() {
   const ov = document.createElement("div");
   Object.assign(ov.style, {
     position: "fixed", inset: "0", background: "rgba(0,0,0,.9)", zIndex: "10000",
     display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center",
     padding: "16px", boxSizing: "border-box", color: "#fff", font: "15px Roboto, sans-serif",
-    touchAction: "none",
+    touchAction: "none", colorScheme: "dark",
   });
   ov.dataset.elov = "1"; // ↩️ für die Zurück-Taste der Offline-App
   document.body.appendChild(ov);
@@ -538,6 +549,50 @@ function ovButton(label, main = false) {
   b.textContent = label;
   b.style.cssText = main ? OV_BTN_MAIN : OV_BTN;
   return b;
+}
+
+// 📷 Woher kommt das Foto? Kamera · Galerie · Einfügen (Zwischenablage) – gibt "camera" | "gallery" | "paste" | null
+const elCanPaste = () => !!(window.isSecureContext && navigator.clipboard?.read);
+function askPhotoSource() {
+  return new Promise((resolve) => {
+    const ov = makeOverlay();
+    ov.style.justifyContent = "flex-end";
+    ov.style.background = "rgba(0,0,0,.7)";
+    const box = document.createElement("div");
+    box.style.cssText = "width:100%;max-width:420px;display:flex;flex-direction:column;gap:10px;padding:16px;margin-bottom:10px;background:#222;border-radius:18px;box-shadow:0 4px 24px rgba(0,0,0,.5)";
+    const title = document.createElement("div");
+    title.textContent = "Foto – woher?";
+    title.style.cssText = "font:600 16px Roboto,sans-serif;text-align:center;opacity:.85";
+    box.appendChild(title);
+    const done = (v) => { ov.remove(); resolve(v); };
+    const opts = [["camera", "📷 Kamera"], ["gallery", "🖼️ Galerie"]];
+    if (elCanPaste()) opts.push(["paste", "📋 Einfügen (Zwischenablage)"]);
+    for (const [v, label] of opts) {
+      const b = ovButton(label, v === "camera");
+      b.style.width = "100%";
+      b.onclick = (e) => { e.stopPropagation(); done(v); };
+      box.appendChild(b);
+    }
+    const cancel = ovButton("Abbrechen");
+    cancel.style.width = "100%";
+    cancel.onclick = (e) => { e.stopPropagation(); done(null); };
+    box.appendChild(cancel);
+    ov.appendChild(box);
+    ov.onclick = (e) => { if (e.target === ov) done(null); };
+  });
+}
+
+// 📋 Bild aus der Zwischenablage holen (null = keins drin / nicht erlaubt)
+async function elClipboardImage() {
+  const items = await navigator.clipboard.read();
+  for (const it of items) {
+    const type = it.types.find((t) => t.startsWith("image/"));
+    if (type) {
+      const blob = await it.getType(type);
+      return new File([blob], "eingefuegt." + (type.split("/")[1] || "png"), { type });
+    }
+  }
+  return null;
 }
 
 // 🔒 PIN-Eingabe wie am Handy: gibt die getippte PIN zurück (oder null bei „Abbrechen“)
@@ -709,6 +764,8 @@ async function editImage(file, max = 900, quality = 0.8) {
 
 const STYLE = `
 :host { display:block; }
+:host([dark]) { color-scheme:dark; }
+:host([dark]) option, :host([dark]) optgroup { background-color:var(--card-background-color, #1c1c1c); color:var(--primary-text-color, #e1e1e1); }
 ha-card { display:block; padding:12px 12px 8px; overflow:hidden; }
 * { box-sizing:border-box; }
 button { font:inherit; color:inherit; }
@@ -1406,6 +1463,21 @@ class EinkaufslisteCard extends HTMLElement {
     if (!this._unsub && !this._subscribing && this.isConnected) this._subscribe();
     this._autoStore();
     this._updateLive();
+    this._applyScheme(hass);
+  }
+
+  // 🌙 Dunkles Design: auch die Aufklapp-Listen (select) dunkel – der Browser malt sie sonst hell
+  _applyScheme(hass) {
+    const key = `${hass?.themes?.darkMode}|${hass?.themes?.theme}|${hass?.selectedTheme?.theme || ""}`;
+    if (key === this._schemeKey) return;
+    this._schemeKey = key;
+    requestAnimationFrame(() => {
+      let dark = hass?.themes?.darkMode;
+      const col = getComputedStyle(this).getPropertyValue("--primary-text-color").trim();
+      const rgb = elRgb(col);
+      if (rgb) dark = (rgb[0] * 299 + rgb[1] * 587 + rgb[2] * 114) / 1000 > 128; // helle Schrift = dunkler Hintergrund
+      this.toggleAttribute("dark", !!dark);
+    });
   }
 
   // 🟢 Live-Anzeige: verbunden und Liste abonniert = grün, sonst rot
@@ -1668,6 +1740,7 @@ class EinkaufslisteCard extends HTMLElement {
       this.$(id).addEventListener("change", () => this._updateTools());
     }
     this.$("photoFile").addEventListener("change", (e) => this._onPhotoFile(e));
+    this.shadowRoot.addEventListener("paste", (e) => this._onPaste(e));
     this.$("inName").addEventListener("input", () => { if (!this.$("inName").value.trim()) this._pendingBarcode = null; this._onNameInput(); this._renderSuggest(); this._updateTools(); if (!this._editing) this._renderList(); });
     root.addEventListener("click", (e) => this._onClick(e), true);
     this._setupTabScroll(this.$("tabs"));
@@ -3925,9 +3998,43 @@ class EinkaufslisteCard extends HTMLElement {
     return !!(name && this._data?.photos && this._data.photos[String(name).toLowerCase()]);
   }
 
-  _pickFile(id) {
-    this.$(id).value = "";
-    this.$(id).click();
+  // 📷 Foto holen: erst fragen woher (Kamera, Galerie, Einfügen), dann wie gewohnt weiter
+  async _pickFile(id) {
+    const input = this.$(id);
+    const how = await askPhotoSource();
+    if (!how) return;
+    if (how === "paste") {
+      let file = null;
+      try { file = await elClipboardImage(); } catch (_) { /* nicht erlaubt */ }
+      if (!file) { this._toast("📋 In der Zwischenablage ist kein Bild (oder das Einfügen wurde nicht erlaubt)"); return; }
+      this._photoFromFile(id, file);
+      return;
+    }
+    if (how === "camera") input.setAttribute("capture", "environment");
+    else input.removeAttribute("capture");
+    input.value = "";
+    input.click();
+  }
+
+  _photoFromFile(id, file) {
+    const e = { target: { files: [file] } };
+    if (id === "newPhotoFile") this._onNewPhotoFile(e);
+    else this._onPhotoFile(e);
+  }
+
+  // ⌨️ Strg + V mit einem Bild: in der Liste = Foto fürs Eintragen, im Rezept-Editor = Rezept-Foto
+  _onPaste(e) {
+    const item = [...(e.clipboardData?.items || [])].find((i) => i.kind === "file" && i.type.startsWith("image/"));
+    const file = item?.getAsFile();
+    if (!file) return;
+    if (this._view === "recipe" && this._draft) {
+      e.preventDefault();
+      this._photoTarget = { recipeDraft: true };
+      this._photoFromFile("photoFile", file);
+    } else if (this._view === "list" && !this.$("listView").hidden) {
+      e.preventDefault();
+      this._photoFromFile("newPhotoFile", file);
+    }
   }
 
   _takePhoto(name, button) {

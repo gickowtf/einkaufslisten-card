@@ -7,8 +7,11 @@ das gewählte Postfach, wird jede Zeile ein Artikel – genau wie beim „Text e
 
 from __future__ import annotations
 
+import base64
+import binascii
 import html
 import logging
+import quopri
 import re
 from email.utils import parseaddr
 from typing import Any
@@ -27,6 +30,56 @@ _STOP = re.compile(
 )
 
 
+# jede Art Zeilenumbruch (manche Mail-Apps schicken \r, \u2028 & Co.)
+_LINES = re.compile(r"\r\n|[\r\n\v\f\x85\u2028\u2029]")
+# 👋 A) Grußformel mitten im (zusammengeklebten) Text: ab hier ist Schluss
+_GREET_INLINE = re.compile(
+    r"(mit\s+)?(freundliche[mn]?|herzliche[mn]?|liebe[n]?|viele[n]?|beste[n]?|schöne[n]?|sonnige[n]?)\s+gr(ü|ue)(ß|ss)(e|en)?\b"
+    r"|\b(best|kind|warm)\s+regards\b|\bmfg\b",
+    re.I,
+)
+# 👋 A) kurzer Gruß als ganze Zeile („LG“, „Danke!“, „Tschüss Marco“)
+_GREET_LINE = re.compile(
+    r"^(lg|vg|glg|gruß|gruss|grüße|gruesse|danke(schön)?|vielen dank|tschüss|tschüs|ciao|bye|cheers|bis (dann|später|bald)"
+    r"|thanks|thank you|regards)\b[\s,!.:]*([\w\u00c0-\u017f-]+[\s,!.]*){0,2}$",
+    re.I,
+)
+# 👋 Anrede oben („Hallo Schatz,“) – wird übersprungen
+_HELLO = re.compile(r"^(hallo|hi|hey|moin|servus|guten (morgen|tag|abend)|liebe[rs]?|hello|dear)\b.{0,40}$", re.I)
+
+
+def _is_sentence(line: str) -> bool:
+    """✂️ B) Sieht aus wie ein Satz statt wie ein Artikel? („Einen schönen Tag noch!“)"""
+    words = line.split()
+    return len(words) >= 9 or (len(words) >= 4 and line.rstrip()[-1:] in ".!?")
+
+
+def decode_part(data: Any, encoding: str | None) -> str:
+    """Teil einer Mail (aus imap.fetch_part) in lesbaren Text verwandeln."""
+    if data is None:
+        return ""
+    raw: bytes
+    enc = (encoding or "").lower()
+    text = data if isinstance(data, str) else None
+    try:
+        if enc == "base64":
+            raw = base64.b64decode(data if isinstance(data, (bytes, str)) else b"", validate=False)
+        elif enc == "quoted-printable":
+            raw = quopri.decodestring(data.encode("latin-1", "replace") if isinstance(data, str) else data)
+        elif isinstance(data, bytes):
+            raw = data
+        else:
+            return text or ""
+    except (binascii.Error, ValueError):
+        return text or ""
+    for cs in ("utf-8", "cp1252"):
+        try:
+            return raw.decode(cs)
+        except UnicodeDecodeError:
+            continue
+    return raw.decode("utf-8", "replace")
+
+
 def mail_sources(hass: HomeAssistant) -> list[dict[str, Any]]:
     """Alle eingerichteten IMAP-Postfächer."""
     return [
@@ -43,15 +96,21 @@ def mail_text(text: str | None, subject: str | None = None) -> str:
         raw = re.sub(r"<(style|script)[^>]*>.*?</\1>", "", raw, flags=re.I | re.S)
         raw = html.unescape(_TAG.sub("", raw))
     lines: list[str] = []
-    for line in raw.replace("\r", "").split("\n"):
-        stripped = line.strip()
+    for line in _LINES.split(raw):
+        stripped = line.strip().replace("\u00a0", " ")
         if _STOP.match(stripped):
             break
-        if not stripped or stripped.startswith(">"):
-            continue
-        lines.append(stripped)
+        cut = _GREET_INLINE.search(stripped)
+        if cut:  # „Milch Mit freundlichen Grüßen …“ -> nur „Milch“
+            stripped = stripped[: cut.start()].strip()
+        if stripped and not stripped.startswith(">") and not (cut is None and _GREET_LINE.match(stripped)):
+            if not (not lines and _HELLO.match(stripped) and (stripped.endswith(",") or len(stripped.split()) <= 3)):
+                if not _is_sentence(stripped) and stripped.rstrip(" .!"):
+                    lines.append(stripped.rstrip(" .!"))
+        if cut or (stripped and _GREET_LINE.match(stripped)):
+            break
     if not lines and subject:  # nur der Betreff? Dann eben der
-        lines = [s.strip() for s in re.split(r"[,;]", subject) if s.strip()]
+        lines = [s.strip() for s in re.split(r"[,;]", subject) if s.strip() and not _HELLO.match(s.strip())]
     return "\n".join(lines[:60])
 
 
@@ -76,7 +135,13 @@ def mail_groups(manager: Any, text: str, subject: str | None, default_store: str
         if head:
             groups.append((head, []))
             continue
-        groups[-1][1].append(line)
+        m = re.match(r"^([^:]{1,40}):\s*(.+)$", line)  # „Netto: Milch, Brot“ in einer Zeile
+        head = _find_store(manager, m.group(1), whole=True) if m else None
+        if head:
+            groups.append((head, []))
+            line = m.group(2)
+        # „Milch, Butter; Brot“ = drei Artikel (aber „1,5 %“ bleibt zusammen)
+        groups[-1][1].extend(p.strip() for p in re.split(r",\s+|;", line) if p.strip())
     return [(sid, "\n".join(lines)) for sid, lines in groups if lines]
 
 
@@ -117,10 +182,56 @@ class MailImport:
         if address not in allowed:
             _LOGGER.info("📧 Mail von %s ignoriert – steht nicht bei den erlaubten Absendern", address or "?")
             return
+        self.hass.async_create_task(self._import(data, cfg, name, address))
+
+    async def _body(self, data: dict[str, Any], entry_id: str) -> str | None:
+        """📬 Mailtext selbst holen, wenn er fehlt oder ohne Zeilenumbrüche ankommt (z. B. Samsung-Mail-App)."""
+        text = data.get("text") or ""
+        if text.strip() and _LINES.search(text.strip()):
+            return text
+        uid = data.get("uid")
+        if not uid:
+            return text
+        found: dict[str, str] = {}
+        for idx, info in (data.get("parts") or {}).items():
+            ctype = str((info or {}).get("content_type") or "").lower()
+            if ctype not in ("text/plain", "text/html") or ctype in found:
+                continue
+            try:
+                resp = await self.hass.services.async_call(
+                    "imap", "fetch_part", {"entry": entry_id, "uid": str(uid), "part": str(idx)},
+                    blocking=True, return_response=True,
+                )
+            except Exception as err:  # noqa: BLE001 – ältere HA-Version / Postfach weg: mit dem Ereignis-Text weiter
+                _LOGGER.debug("📧 Teil %s der Mail %s nicht abholbar: %s", idx, uid, err)
+                break
+            found[ctype] = decode_part((resp or {}).get("part_data"), (resp or {}).get("content_transfer_encoding"))
+        plain, page = found.get("text/plain", ""), found.get("text/html", "")
+        if plain.strip() and _LINES.search(plain.strip()):
+            return plain
+        if page.strip():
+            return page
+        if plain.strip():
+            return plain
+        if not text.strip():  # gar kein Text im Ereignis (Häkchen „text“ in den IMAP-Optionen fehlt)
+            try:
+                resp = await self.hass.services.async_call(
+                    "imap", "fetch", {"entry": entry_id, "uid": str(uid)}, blocking=True, return_response=True
+                )
+                return (resp or {}).get("text") or ""
+            except Exception as err:  # noqa: BLE001
+                _LOGGER.debug("📧 Mail %s nicht abholbar: %s", uid, err)
+        return text
+
+    async def _import(self, data: dict[str, Any], cfg: dict[str, Any], name: str, address: str) -> None:
         subject = data.get("subject")
+        body = await self._body(data, cfg["entry_id"])
+        if self.manager.mail_import is not cfg:
+            return
         # Nur der Betreff ist ein Geschäft? Dann ist er keine Einkaufszeile
-        text = mail_text(data.get("text"), None if _find_store(self.manager, subject or "", whole=False) else subject)
+        text = mail_text(body, None if _find_store(self.manager, subject or "", whole=False) else subject)
         if not text:
+            _LOGGER.info("📧 Mail von %s: keine Einkaufszeilen gefunden", address)
             return
         from .transfer import import_text  # noqa: PLC0415 – erst hier, sonst Kreis-Import
 
@@ -134,7 +245,7 @@ class MailImport:
             self.manager._changed()
             after = cfg.get("after", "keep")
             if after in ("seen", "delete") and data.get("uid"):  # 📬 Mail danach als gelesen markieren oder löschen
-                self.hass.async_create_task(self._after(after, cfg["entry_id"], str(data["uid"])))
+                await self._after(after, cfg["entry_id"], str(data["uid"]))
 
     async def _after(self, what: str, entry_id: str, uid: str) -> None:
         try:
