@@ -61,7 +61,7 @@ Copy `custom_components/einkaufsliste` to `/config/custom_components/einkaufslis
 
 ## 👆 How to use it
 
-**Adding:** type a name, tap the green ✔. The buttons below: 🔢 quantity · 📝 note · 👤 for whom · 📷 photo (📷 camera · 🖼️ gallery · 📋 paste – on a PC, Ctrl + V into the input field works too) · 🧽 clear. Store and category are usually picked correctly already. A store is missing? Pick **“➕ New store …”** in the list – just type the name, the rest later in ⚙️.
+**Adding:** type a name, tap the green ✔. The buttons below: 🔢 quantity · 📝 note · 👤 for whom · 📷 photo (📷 camera · 🖼️ gallery · 📋 paste – on a PC, Ctrl + V into the input field works too; over https the camera opens right inside the card, otherwise the phone decides) · 🧽 clear. Store and category are usually picked correctly already. A store is missing? Pick **“➕ New store …”** in the list – just type the name, the rest later in ⚙️.
 
 **In the list:**
 - ⭕ **Circle** = check off. Under “Done” once more = back on the list.
@@ -122,7 +122,7 @@ Good to know: it needs an **https** address (e.g. Nabu Casa). If two people chan
 | 🗂️ **Categories** · 👥 **People** | Add, rename, color, icon (just type “dog”, no “mdi:”), sort. |
 | 👨‍🍳 **Recipes** | Two tabs: **Recipes** (new, edit, delete) and **Recipe groups**. |
 | 📦 **Products** | Everything the list knows: rename, category, store (“Available at”), nicknames, photos, barcodes, learned typos, delete completely. Plus “Newly scanned” to check. |
-| 🧰 **Tools** | **All good?** (finds broken entries, fixes only what you tick) · **Import & backup** (recipes from a file, lists from other apps – once or 🔁 automatically –, backup as .zip; file import and backup for admins) · **History** (who did what and when, “📈 Often not available”) · **Cleanup** |
+| 🧰 **Tools** | **All good?** (finds broken entries, fixes only what you tick) · **Import & backup** (recipes from a file, lists from other apps – once or 🔁 automatically –, backup as .zip; file import and backup for admins) · **History** (who did what and when, “📈 Often not available”, hide with ✖) · **Cleanup** |
 | 📱 **App & look** | **Offline app** (your address with a copy button) · **Mascot** 🛒😊 (the switch applies to everyone) · **Protection** (4–8 digit PIN for the gear; forgot it? Devices & services → Einkaufsliste → Configure → “Reset PIN”, admins – honestly: protection against accidental changes, not a safe) |
 
 ### 🧹 Cleanup, simply explained

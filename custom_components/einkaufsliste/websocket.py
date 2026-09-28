@@ -72,6 +72,7 @@ def async_register(hass: HomeAssistant) -> None:
         ws_log_get,
         ws_log_settings,
         ws_log_clear,
+        ws_missed_hide,
     ):
         websocket_api.async_register_command(hass, handler)
 
@@ -763,6 +764,14 @@ def ws_log_get(hass, connection, msg):
 @callback
 def ws_log_settings(hass, connection, msg):
     _run(hass, connection, msg, lambda m: m.set_log_days(msg["days"]))
+
+
+@websocket_api.websocket_command(
+    {vol.Required("type"): "einkaufsliste/missed/hide", vol.Required("name"): str, vol.Required("store_id"): str}
+)
+@callback
+def ws_missed_hide(hass, connection, msg):
+    _run(hass, connection, msg, lambda m: m.hide_missed(msg["name"], msg["store_id"]))
 
 
 @websocket_api.websocket_command({vol.Required("type"): "einkaufsliste/log/clear"})

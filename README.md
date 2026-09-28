@@ -66,7 +66,7 @@ Den Ordner `custom_components/einkaufsliste` nach `/config/custom_components/ein
 
 ## 👆 So wird's benutzt
 
-**Eintragen:** Name tippen, grüner Haken ✔. Die Knöpfe darunter: 🔢 Menge · 📝 Notiz · 👤 Für wen · 📷 Foto (📷 Kamera · 🖼️ Galerie · 📋 Einfügen – am PC geht auch Strg + V ins Eingabefeld) · 🧽 alles leeren. Geschäft und Kategorie sind meist schon richtig ausgewählt. Ein Geschäft fehlt? In der Auswahl **„➕ Neues Geschäft …“** – nur den Namen tippen, den Rest später in ⚙️.
+**Eintragen:** Name tippen, grüner Haken ✔. Die Knöpfe darunter: 🔢 Menge · 📝 Notiz · 👤 Für wen · 📷 Foto (📷 Kamera · 🖼️ Galerie · 📋 Einfügen – am PC geht auch Strg + V ins Eingabefeld; die Kamera öffnet sich über https direkt in der Karte, sonst fragt das Handy) · 🧽 alles leeren. Geschäft und Kategorie sind meist schon richtig ausgewählt. Ein Geschäft fehlt? In der Auswahl **„➕ Neues Geschäft …“** – nur den Namen tippen, den Rest später in ⚙️.
 
 **In der Liste:**
 - ⭕ **Kreis** = abhaken. Unten bei „Erledigt“ nochmal = wieder drauf.
@@ -127,7 +127,7 @@ Gut zu wissen: Es braucht eine **https**-Adresse (z. B. Nabu Casa). Ändern zwei
 | 🗂️ **Kategorien** · 👥 **Personen** | Anlegen, umbenennen, Farbe, Icon (einfach „hund“ tippen, ohne „mdi:“), sortieren. |
 | 👨‍🍳 **Rezepte** | Zwei Reiter: **Rezepte** (neu, bearbeiten, löschen) und **Rezept-Gruppen**. |
 | 📦 **Produkte** | Alles, was die Liste kennt: umbenennen, Kategorie, Geschäft („Gibt's bei“), Spitznamen, Fotos, Barcodes, gelernte Tippfehler, ganz löschen. Dazu „Neu gescannt“ zum Prüfen. |
-| 🧰 **Werkzeuge** | **Alles ok?** (findet kaputte Einträge, repariert nur, was du anhakst) · **Import & Sicherung** (Rezepte aus Datei, Listen aus anderen Apps – einmal oder 🔁 automatisch –, Sicherung als .zip; Datei-Import und Sicherung nur Admins) · **Verlauf** (wer hat wann was gemacht, „📈 Oft nicht bekommen“) · **Aufräumen** |
+| 🧰 **Werkzeuge** | **Alles ok?** (findet kaputte Einträge, repariert nur, was du anhakst) · **Import & Sicherung** (Rezepte aus Datei, Listen aus anderen Apps – einmal oder 🔁 automatisch –, Sicherung als .zip; Datei-Import und Sicherung nur Admins) · **Verlauf** (wer hat wann was gemacht, „📈 Oft nicht bekommen“, per ✖ ausblendbar) · **Aufräumen** |
 | 📱 **App & Aussehen** | **Offline-App** (deine Adresse mit „Kopieren“) · **Maskottchen** 🛒😊 (Schalter gilt für alle) · **Schutz** (PIN 4–8 Ziffern fürs Zahnrad; vergessen? Geräte & Dienste → Einkaufsliste → Konfigurieren → „PIN zurücksetzen“, nur Admins – ehrlich gesagt: Schutz vor Verstellen, kein Tresor) |
 
 ### 🧹 Aufräumen, einfach erklärt

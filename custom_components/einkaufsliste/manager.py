@@ -254,6 +254,7 @@ class EinkaufslisteManager:
         self.last_cleanup: str | None = None
         self.log: list[dict[str, Any]] = []  # 📋 Verlauf, das Neueste hinten
         self.log_days: int = LOG_DEFAULT_DAYS
+        self.missed_hidden: dict[str, str] = {}  # 📈 „Oft nicht bekommen“ weggeklickt: "name|geschäft" -> seit wann
         self._actor = {}
         self._unsub_time: Callable[[], None] | None = None
 
@@ -343,6 +344,7 @@ class EinkaufslisteManager:
             store["zone"] = store["zones"][0] if store["zones"] else None
         self.log = data.get("log", [])
         self.log_days = int(data.get("log_days", LOG_DEFAULT_DAYS))
+        self.missed_hidden = dict(data.get("missed_hidden") or {})
         if "persons" in data:
             self.persons = data["persons"]
         else:
@@ -388,6 +390,7 @@ class EinkaufslisteManager:
             "last_cleanup": self.last_cleanup,
             "log": self.log,
             "log_days": self.log_days,
+            "missed_hidden": self.missed_hidden,
         }
 
     def _schedule_save(self) -> None:
@@ -454,6 +457,7 @@ class EinkaufslisteManager:
                 "mail_import": self._mail_import_info(),
             },
             "missed": self.missed_counts(),
+            "missed_hidden": self.missed_hidden,
         }
 
     def _todo_sync_info(self) -> dict[str, Any] | None:
@@ -549,12 +553,26 @@ class EinkaufslisteManager:
                 continue
             if e["a"] == "out":
                 sid = e.get("s")
-            else:
+            else:  # ⇄ verschoben – aus „Egal wo“ ist nur ein Umzug, kein „nicht bekommen“
                 sid = by_name.get(str(e.get("d") or "").split(" → ")[0].strip().lower())
             if sid:
                 key = f"{e['n'].lower()}|{sid}"
+                if e.get("t", "") <= self.missed_hidden.get(key, ""):
+                    continue  # ✖ weggeklickt: zählt erst ab da neu
                 out[key] = out.get(key, 0) + 1
         return {k: v for k, v in out.items() if v >= 2}
+
+    def hide_missed(self, name: str, store_id: str) -> None:
+        """✖ „Oft nicht bekommen“ ausblenden („hab ich geregelt“) – der Verlauf bleibt, es zählt ab jetzt neu."""
+        key = f"{(name or '').strip().lower()}|{store_id}"
+        if not name or not self.store_by_id(store_id):
+            raise ValueError("Diesen Eintrag gibt es nicht.")
+        self.missed_hidden[key] = _now_iso()
+        stores = {st["id"] for st in self.stores}
+        if len(self.missed_hidden) > 300:  # nicht endlos wachsen
+            self.missed_hidden = dict(sorted(self.missed_hidden.items(), key=lambda kv: kv[1])[-300:])
+        self.missed_hidden = {k: v for k, v in self.missed_hidden.items() if k.rsplit("|", 1)[-1] in stores}
+        self._changed()
 
     def _barcodes_by_name(self) -> dict[str, list[str]]:
         out: dict[str, list[str]] = {}

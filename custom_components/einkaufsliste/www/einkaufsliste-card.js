@@ -2,7 +2,7 @@
  * Einkaufsliste Card – die Familien-Einkaufsliste für Home Assistant
  * Wird automatisch von der Integration "einkaufsliste" geladen.
  */
-const EL_VERSION = "2.31.1";
+const EL_VERSION = "2.32.0";
 const EGAL_CHIP = `<span class="chip" style="--c:#888">🤷 Egal wo</span>`; // Artikel ohne Geschäft: überall kaufen
 
 // Doppelt-Finder: Wörter, die dasselbe meinen (alles klein, ohne Leer-/Sonderzeichen)
@@ -582,6 +582,62 @@ function askPhotoSource() {
   });
 }
 
+// 📷 Eigene Kamera mitten in der Karte (Live-Bild + Auslöser). Gibt eine Datei zurück,
+// null = abgebrochen, undefined = Kamera geht hier nicht (kein https / nicht erlaubt) -> Galerie nehmen
+async function elCameraShot() {
+  if (!window.isSecureContext || !navigator.mediaDevices?.getUserMedia) return undefined;
+  let stream;
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: { ideal: "environment" }, width: { ideal: 1920 }, height: { ideal: 1080 } }, audio: false,
+    });
+  } catch (_) {
+    return undefined;
+  }
+  return new Promise((resolve) => {
+    const ov = makeOverlay();
+    Object.assign(ov.style, { background: "#000", padding: "0", justifyContent: "space-between" });
+    const video = document.createElement("video");
+    Object.assign(video, { playsInline: true, muted: true, autoplay: true, srcObject: stream });
+    video.setAttribute("playsinline", "");
+    video.style.cssText = "flex:1;width:100%;min-height:0;object-fit:contain;background:#000";
+    const bar = document.createElement("div");
+    bar.style.cssText = "width:100%;display:flex;align-items:center;justify-content:space-around;padding:18px 16px calc(22px + env(safe-area-inset-bottom));box-sizing:border-box";
+    const cancel = ovButton("✖");
+    cancel.title = "Abbrechen";
+    cancel.style.minWidth = "56px";
+    const shot = document.createElement("button");
+    shot.type = "button";
+    shot.title = "Foto machen";
+    shot.style.cssText = "width:74px;height:74px;border-radius:50%;border:5px solid #fff;background:rgba(255,255,255,.35);cursor:pointer;padding:0";
+    const spacer = document.createElement("span");
+    spacer.style.minWidth = "56px";
+    bar.append(cancel, shot, spacer);
+    ov.append(video, bar);
+    let over = false;
+    const finish = (file) => {
+      if (over) return;
+      over = true;
+      clearInterval(watch);
+      stream.getTracks().forEach((t) => t.stop());
+      ov.remove();
+      resolve(file);
+    };
+    const watch = setInterval(() => { if (!ov.isConnected) finish(null); }, 300); // ↩️ Zurück-Taste hat es geschlossen
+    cancel.onclick = () => finish(null);
+    shot.onclick = () => {
+      const w = video.videoWidth, h = video.videoHeight;
+      if (!w || !h) return;
+      navigator.vibrate?.(20);
+      const cv = document.createElement("canvas");
+      cv.width = w;
+      cv.height = h;
+      cv.getContext("2d").drawImage(video, 0, 0, w, h);
+      cv.toBlob((blob) => finish(blob ? new File([blob], "kamera.jpg", { type: "image/jpeg" }) : null), "image/jpeg", 0.92);
+    };
+  });
+}
+
 // 📋 Bild aus der Zwischenablage holen (null = keins drin / nicht erlaubt)
 async function elClipboardImage() {
   const items = await navigator.clipboard.read();
@@ -994,7 +1050,9 @@ ha-card.compact .group { margin-top:4px; }
 .subtabs .tab ha-icon { --mdc-icon-size:18px; }
 .xferfmt { margin:4px 0 10px; padding-left:20px; }
 .missed { background:color-mix(in srgb, var(--warning-color,#ffa600) 12%, transparent); border-radius:10px; padding:8px 12px; margin:4px 0 10px; }
-.missed .mrow { margin-top:4px; }
+.missed .mrow { margin-top:4px; display:flex; align-items:center; gap:6px; }
+.missed .mtxt { flex:1; min-width:0; }
+.missed .mx { flex:none; opacity:.6; --mdc-icon-size:18px; }
 .missed .mn { display:inline-block; min-width:2.2em; font-weight:700; color:var(--warning-color,#ffa600); }
 .xferfmt li { margin:3px 0; }
 #xferText { width:100%; box-sizing:border-box; font:inherit; padding:8px; border-radius:8px; border:1px solid var(--divider-color,#ccc); background:var(--card-background-color); color:var(--primary-text-color); margin:4px 0 6px; }
@@ -3217,17 +3275,22 @@ class EinkaufslisteCard extends HTMLElement {
     const box = this.$("logMissed");
     if (!box || !this._logData) return;
     const count = new Map();
+    const hidden = this._data?.missed_hidden || {};
+    const byName = new Map(this._data.stores.map((st) => [st.name.trim().toLowerCase(), st]));
     for (const e of this._logData.entries) {
       if (!e.n || (e.a !== "out" && e.a !== "move")) continue;
-      const from = e.a === "out" ? (this._store(e.s)?.name || "") : String(e.d || "").split(" → ")[0];
-      const key = e.n.toLowerCase() + "|" + from;
-      const c = count.get(key) || { name: e.n, from, n: 0 };
+      // ⇄ aus „Egal wo“ ist nur ein Umzug – das war nicht „nicht bekommen“
+      const st = e.a === "out" ? this._store(e.s) : byName.get(String(e.d || "").split(" → ")[0].trim().toLowerCase());
+      if (!st) continue;
+      const key = e.n.toLowerCase() + "|" + st.id;
+      if ((e.t || "") <= (hidden[key] || "")) continue; // ✖ weggeklickt: zählt ab da neu
+      const c = count.get(key) || { name: e.n, st, n: 0 };
       c.n += 1;
       count.set(key, c);
     }
     const top = [...count.values()].filter((c) => c.n >= 2).sort((a, b) => b.n - a.n).slice(0, 5);
     box.innerHTML = top.length ? `<div class="missed"><b>📈 Oft nicht bekommen</b>${top.map((c) =>
-      `<div class="mrow"><span class="mn">${c.n}×</span> <b>${esc(c.name)}</b>${c.from ? ` bei ${esc(c.from)}` : ""} – vielleicht woanders kaufen?</div>`).join("")}</div>` : "";
+      `<div class="mrow"><span class="mtxt"><span class="mn">${c.n}×</span> <b translate="no">${esc(c.name)}</b> <span>bei</span> <span translate="no">${esc(c.st.name)}</span> <span>– vielleicht woanders kaufen?</span></span><button type="button" class="iconbtn mx" data-act="missed-hide" data-name="${esc(c.name)}" data-store="${esc(c.st.id)}" title="Ausblenden – hab ich geregelt"><ha-icon icon="mdi:close"></ha-icon></button></div>`).join("")}</div>` : "";
   }
 
   _renderLogList() {
@@ -4010,8 +4073,12 @@ class EinkaufslisteCard extends HTMLElement {
       this._photoFromFile(id, file);
       return;
     }
-    if (how === "camera") input.setAttribute("capture", "environment");
-    else input.removeAttribute("capture");
+    if (how === "camera") {
+      const file = await elCameraShot(); // 📷 eigene Kamera (geht nur über https)
+      if (file) { this._photoFromFile(id, file); return; }
+      if (file === null) return; // abgebrochen
+      input.setAttribute("capture", "environment"); // sonst: das Handy fragen (HA-App: meist Galerie)
+    } else input.removeAttribute("capture");
     input.value = "";
     input.click();
   }
@@ -5576,6 +5643,11 @@ class EinkaufslisteCard extends HTMLElement {
       case "log-more":
         this._logMax = (this._logMax || 150) + 150;
         this._renderLogList();
+        break;
+      case "missed-hide":
+        this._ws({ type: "einkaufsliste/missed/hide", name: el.dataset.name, store_id: el.dataset.store })
+          .then(() => { this._toast("✖ Ausgeblendet – kommt nur wieder, wenn es erneut fehlt"); setTimeout(() => this._renderMissed(), 150); })
+          .catch(() => {});
         break;
       case "log-clear":
         if (!elConfirm("Den ganzen Verlauf löschen? Das geht nicht rückgängig.")) break;

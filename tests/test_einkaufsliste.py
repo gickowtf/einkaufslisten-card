@@ -1936,3 +1936,24 @@ async def test_product_remove_logs_user(hass: HomeAssistant, setup, hass_ws_clie
     entry = next(e for e in reversed(m.log) if e["a"] == "remove" and e["n"] == "Gurke")
     assert entry["w"]  # ein Name, nicht leer
     assert m._actor == {}  # danach wieder niemand
+
+
+async def test_missed_ignores_anywhere_and_hide(hass: HomeAssistant, setup) -> None:
+    """📈 Umzug aus „Egal wo“ zählt nicht; ✖ ausgeblendet zählt ab da neu."""
+    m = mgr(hass)
+    aldi, netto = m.find_store("Aldi"), m.find_store("Netto")
+    for _ in range(2):  # 2× aus „Egal wo“ umgezogen
+        it = m.add_item("Kakao")
+        m.move_item(it["id"], netto)
+        m.set_checked(it["id"], True)
+    assert not any(k.startswith("kakao|") for k in m.missed_counts())
+    for _ in range(2):  # 2× bei Aldi nicht bekommen
+        it = m.add_item("Butter", store_id=aldi)
+        m.move_item(it["id"], netto)
+        m.set_checked(next(i for i in m.items if i["name"] == "Butter" and not i["checked"])["id"], True)
+    assert m.missed_counts().get(f"butter|{aldi}") == 2
+    m.hide_missed("Butter", aldi)
+    assert f"butter|{aldi}" not in m.missed_counts()
+    assert f"butter|{aldi}" in m.as_dict()["missed_hidden"]
+    with pytest.raises(ValueError):
+        m.hide_missed("Butter", "gibtsnicht")
