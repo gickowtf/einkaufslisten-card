@@ -996,5 +996,17 @@
 "Dieses Postfach gibt es nicht. Erst in Home Assistant die Integration „IMAP“ einrichten.": "This mailbox doesn't exist. Set up the “IMAP” integration in Home Assistant first.",
 "Bitte mindestens einen erlaubten Absender eintragen – sonst dürfte jeder etwas auf die Liste schicken.": "Please enter at least one allowed sender – otherwise anyone could send things onto the list.",
 "„{}“ ist keine E-Mail-Adresse.": "“{0}” isn't an email address.",
-"OK": "OK"
+"OK": "OK",
+"E-Mail": "Email",
+"Geschäft im Betreff": "Store in the subject",
+"(z. B. „Aldi“ oder „Einkauf bei Aldi“) → alles aus der Mail kommt dorthin.": "(e.g. “Aldi” or “Shopping at Aldi”) → everything from the email goes there.",
+"Geschäft als Überschrift": "Store as a heading",
+"in der Mail (z. B. „Aldi:“, darunter die Sachen, dann „DM:“ …) → gilt bis zur nächsten Überschrift.": "in the email (e.g. “Aldi:”, the things below it, then “DM:” …) → applies until the next heading.",
+"Sonst gilt das Geschäft unten. Mengen wie „6 Eier“ oder „2 L Milch“ werden erkannt.": "Otherwise the store below applies. Quantities like “6 eggs” or “2 L milk” are recognized.",
+"Als gelesen markiert oder gelöscht werden nur Mails, aus denen wirklich etwas auf die Liste kam.": "Only emails that actually put something on the list are marked as read or deleted.",
+"Was danach mit der Mail passiert": "What happens to the email afterwards",
+"📬 Mail danach liegen lassen": "📬 Leave the email afterwards",
+"👁️ Mail danach als gelesen markieren": "👁️ Mark the email as read afterwards",
+"🗑️ Mail danach löschen": "🗑️ Delete the email afterwards",
+"Unbekannte Auswahl, was mit der Mail passieren soll.": "Unknown choice for what should happen to the email."
 }

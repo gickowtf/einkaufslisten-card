@@ -466,7 +466,8 @@ class EinkaufslisteManager:
         entry = self.hass.config_entries.async_get_entry(self.mail_import["entry_id"])
         return {**self.mail_import, "name": (entry.title if entry else None) or "IMAP", "ok": entry is not None}
 
-    def set_mail_import(self, entry_id: str | None, store_id: str | None = None, senders: list[str] | None = None) -> None:
+    def set_mail_import(self, entry_id: str | None, store_id: str | None = None, senders: list[str] | None = None,
+                        after: str | None = None) -> None:
         """📧 Postfach (IMAP) für „per E-Mail auf die Liste“ wählen (None = aus)."""
         if entry_id:
             entry = self.hass.config_entries.async_get_entry(entry_id)
@@ -486,7 +487,10 @@ class EinkaufslisteManager:
                 raise ValueError("Bitte mindestens einen erlaubten Absender eintragen – sonst dürfte jeder etwas auf die Liste schicken.")
             store_id = self._check_store(store_id)
             count = self.mail_import.get("count", 0) if self.mail_import and self.mail_import.get("entry_id") == entry_id else 0
-            self.mail_import = {"entry_id": entry_id, "store_id": store_id, "senders": clean[:20], "count": count}
+            if after not in (None, "keep", "seen", "delete"):
+                raise ValueError("Unbekannte Auswahl, was mit der Mail passieren soll.")
+            self.mail_import = {"entry_id": entry_id, "store_id": store_id, "senders": clean[:20], "count": count,
+                                "after": after or "keep"}
         else:
             self.mail_import = None
         self._changed()

@@ -432,8 +432,26 @@ function scanClose(quiet) {
 let ignorePop = false;
 window.addEventListener("popstate", () => {
   if (ignorePop) { ignorePop = false; return; }
-  if (scan) { scanClose(true); toCard("bar_code/aborted", { reason: "canceled" }); }
+  if (scan) { scanClose(true); toCard("bar_code/aborted", { reason: "canceled" }); return; }
+  if (history.state?.elGuard || history.state?.elScan) return;
+  // ↩️ Zurück gedrückt: einen Schritt zurück in der Karte (Fenster zu, Einstellungen hoch, Laden-Modus aus …)
+  if (card?.einkaufslisteBack?.()) setTimeout(syncGuard, 60);
 });
+
+// ↩️ Zurück-Taste am Handy: Solange in der Karte etwas „offen“ ist, liegt ein Merkzettel im Verlauf.
+// Zurück nimmt den Merkzettel weg und geht einen Schritt zurück. Ist nichts mehr offen, geht die App zu.
+let guardTimer = null;
+function syncGuard() {
+  guardTimer = null;
+  if (!card || scan || !card.einkaufslisteIsRoot) return;
+  const open = !card.einkaufslisteIsRoot();
+  const st = history.state;
+  if (open && !st?.elGuard && !st?.elScan) history.pushState({ elGuard: 1 }, "");
+  else if (!open && st?.elGuard) { ignorePop = true; history.back(); }
+}
+const scheduleGuard = () => { if (!guardTimer) guardTimer = setTimeout(syncGuard, 80); };
+window.addEventListener("einkaufsliste-nav", scheduleGuard);
+new MutationObserver(scheduleGuard).observe(document.body, { childList: true });
 
 // ---------------------------------------------------------------- 🏠 „Home Assistant“ für die Karte
 function makeHass() {

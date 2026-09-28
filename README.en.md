@@ -101,6 +101,8 @@ The **complete card** as its own app on your home screen – with recipes, cook 
 3. Log in with your own Home Assistant user.
 4. Browser menu → **“Add to Home screen”**.
 
+**↩️ Back button:** goes back step by step inside the app (closes windows, one level up in the settings, ends shop mode). Only on the plain list does the app close.
+
 **📱 Quick menu (Android):** long-press the app icon → ✍️ Add · 🛍️ Shop mode · 📷 Scan – the app opens right at that spot. (iPhones don't offer this for web apps.)
 
 **Needs a connection:** looking up new barcodes, product info, recipe links, new photos, backup.
@@ -139,10 +141,11 @@ This works with any to-do list in HA (Google Tasks, Bring!, Todoist, the HA shop
 
 ### 📧 Onto the list by email
 1. Create a **separate email address** just for the shopping list and set up the **“IMAP”** integration in Home Assistant with it.
-2. In the card: **⚙️ → Tools → Import & backup → From other apps → 📧 By email**: pick the mailbox, a store if you like, enter the **allowed senders** (at least one), **Turn on**.
+2. In the card: **⚙️ → Tools → Import & backup → 📧 Email**: pick the mailbox, a store if you like, what happens to the email afterwards (📬 leave · 👁️ mark as read · 🗑️ delete), enter the **allowed senders** (at least one), **Turn on**.
 3. Send an email to that address – **one item per line** (“milk”, “6 eggs” …). Quotes, signatures and “Sent from my iPhone” are skipped, quantities are recognized. The history shows 📧.
+4. **Send the store along:** a store in the **subject** (“Aldi”, “Shopping at Aldi”) puts everything there. Or use a **heading** in the email: `Aldi:` – the things below – then `DM:` … Unknown names go to the chosen store.
 
-Honestly: senders can be faked – so use an address that isn't public. Depending on the mailbox it takes a few seconds to minutes until an email arrives. The emails stay in the mailbox.
+Honestly: senders can be faked – so use an address that isn't public. Depending on the mailbox it takes a few seconds to minutes until an email arrives. Only emails that actually put something on the list are marked as read or deleted – others stay. With Gmail, “delete” may mean “archive” depending on your settings.
 
 ---
 

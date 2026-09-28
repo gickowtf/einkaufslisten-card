@@ -1781,3 +1781,38 @@ async def test_mail_import_and_store_icon(hass: HomeAssistant, setup, hass_ws_cl
     assert aldi["icon"] == "mdi:baguette"
     m.update_group("stores", aldi["id"], icon="")
     assert aldi["icon"] is None
+
+
+async def test_mail_stores_and_after(hass: HomeAssistant, setup) -> None:
+    """📧 Geschäft aus Betreff/Überschrift, danach Mail löschen."""
+    m = mgr(hass)
+    aldi = next(s for s in m.stores if s["name"] == "Aldi")
+    dm = next(s for s in m.stores if s["name"] == "DM")
+    netto = next(s for s in m.stores if s["name"] == "Netto")
+    imap = MockConfigEntry(domain="imap", title="liste@example.com")
+    imap.add_to_hass(hass)
+    calls = []
+
+    async def _delete(call):
+        calls.append(dict(call.data))
+
+    hass.services.async_register("imap", "delete", _delete)
+    m.set_mail_import(imap.entry_id, netto["id"], ["ich@example.com"], "delete")
+    fire = lambda uid, subject, text: hass.bus.async_fire("imap_content", {  # noqa: E731
+        "entry_id": imap.entry_id, "initial": True, "uid": uid, "date": uid, "subject": subject, "sender": "ich@example.com", "text": text})
+    fire("10", "Einkauf bei Aldi", "Milch\n2 Brot")
+    await hass.async_block_till_done()
+    assert next(i for i in m.items if i["name"] == "Milch")["store_id"] == aldi["id"]
+    assert not any(i["name"] == "Einkauf bei Aldi" for i in m.items)
+    fire("11", "Einkauf", "Butter\nDM:\nZahnpasta\naldi\n6 Eier")
+    await hass.async_block_till_done()
+    assert next(i for i in m.items if i["name"] == "Butter")["store_id"] == netto["id"]  # eingestelltes Geschäft
+    assert next(i for i in m.items if i["name"] == "Zahnpasta")["store_id"] == dm["id"]
+    eier = next(i for i in m.items if i["name"] == "Eier")
+    assert eier["store_id"] == aldi["id"] and eier["quantity"] == "6x"
+    assert [c["uid"] for c in calls] == ["10", "11"] and calls[0]["entry"] == imap.entry_id
+    fire("12", "Hallo", "")  # nichts eingetragen -> nicht löschen
+    await hass.async_block_till_done()
+    assert len(calls) == 2 or calls[-1]["uid"] != "12" or any(i["name"] == "Hallo" for i in m.items)
+    with pytest.raises(ValueError):
+        m.set_mail_import(imap.entry_id, None, ["ich@example.com"], "weg")

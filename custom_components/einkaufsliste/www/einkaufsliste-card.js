@@ -2,7 +2,7 @@
  * Einkaufsliste Card – die Familien-Einkaufsliste für Home Assistant
  * Wird automatisch von der Integration "einkaufsliste" geladen.
  */
-const EL_VERSION = "2.27.0";
+const EL_VERSION = "2.28.0";
 
 // Doppelt-Finder: Wörter, die dasselbe meinen (alles klein, ohne Leer-/Sonderzeichen)
 const DUP_SYNONYMS = (() => {
@@ -525,6 +525,7 @@ function makeOverlay() {
     padding: "16px", boxSizing: "border-box", color: "#fff", font: "15px Roboto, sans-serif",
     touchAction: "none",
   });
+  ov.dataset.elov = "1"; // ↩️ für die Zurück-Taste der Offline-App
   document.body.appendChild(ov);
   elWatch(ov, false);
   return ov;
@@ -1823,8 +1824,57 @@ class EinkaufslisteCard extends HTMLElement {
   }
 
   // ---------------------------------------------------------------- Rendern
+  // ↩️ Zurück-Taste (Offline-App): Ist die Karte ganz „oben“ (normale Liste, nichts offen)?
+  einkaufslisteIsRoot() {
+    return !document.querySelector("[data-elov]") && this._view === "list" && !this._shopMode
+      && !this._menuId && !this._editing && !this._moving;
+  }
+
+  // ↩️ Einen Schritt zurück. Gibt false zurück, wenn es nichts mehr zurückzugehen gibt.
+  einkaufslisteBack() {
+    const ovs = document.querySelectorAll("[data-elov]");
+    if (ovs.length) {
+      const ov = ovs[ovs.length - 1];
+      document.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
+      if (ov.isConnected) {
+        const btn = [...ov.querySelectorAll("button")].find((b) => /^\s*(✕|×)?\s*(Schließen|Abbrechen|Fertig|Beenden|Close|Cancel|Done|Finish)\b/i.test(b.textContent || ""));
+        if (btn) btn.click(); else ov.remove();
+      }
+      return true;
+    }
+    if (this._menuId || this._editing || this._moving) {
+      this._menuId = this._editing = this._moving = null;
+      this._renderList();
+      this._emitNav();
+      return true;
+    }
+    if (this._view === "recipe") { this._draft = null; this._view = "settings"; this._renderAll(); return true; }
+    if (this._view === "settings") {
+      if (this._storeSel) this._storeSel = null;
+      else if (this._setSec) {
+        const parents = { check: "tools", transfer: "tools", log: "tools", cleanup: "tools", app: "appx", mascot: "appx", pin: "appx" };
+        this._setSec = parents[this._setSec] || null;
+      } else this._view = "list";
+      this._renderAll();
+      return true;
+    }
+    if (this._view !== "list") { this._view = "list"; this._renderAll(); return true; }
+    if (this._shopMode) {
+      this._shopMode = false;
+      try { localStorage.setItem("einkaufsliste_shopmode", "0"); } catch (_) { /* egal */ }
+      this._renderAll();
+      return true;
+    }
+    return false;
+  }
+
+  _emitNav() {
+    try { window.dispatchEvent(new CustomEvent("einkaufsliste-nav")); } catch (_) { /* egal */ }
+  }
+
   _renderAll() {
     if (!this._built || !this._config) return;
+    queueMicrotask(() => this._emitNav());
     if (this._shopMode === undefined) {
       try { this._shopMode = localStorage.getItem("einkaufsliste_shopmode") === "1"; } catch (_) { this._shopMode = false; }
       try { this._dupIgnore = new Set(JSON.parse(localStorage.getItem("einkaufsliste_dup_ignore") || "[]")); } catch (_) { this._dupIgnore = new Set(); }
@@ -2354,6 +2404,7 @@ class EinkaufslisteCard extends HTMLElement {
   }
 
   _renderList() {
+    queueMicrotask(() => this._emitNav());
     const d = this._data;
     if (!d) return;
     const list = this.$("list");
@@ -2828,7 +2879,8 @@ class EinkaufslisteCard extends HTMLElement {
     if (cur.key === "log") { this._renderLogList(); this._loadLog(); }
     if (cur.key === "products" && this._prodTab !== "delete") { this._renderProducts(); this._loadProducts(); }
     if (cur.key === "recipes" && this._recTab !== "groups") this._renderSetRecipeList();
-    if (cur.key === "transfer" && this._xferTab === "apps") { this._loadTodoLists(); this._loadMailSources(); }
+    if (cur.key === "transfer" && this._xferTab === "apps") this._loadTodoLists();
+    if (cur.key === "transfer" && this._xferTab === "mail") this._loadMailSources();
     this._renderDelList();
   }
 
@@ -2905,7 +2957,6 @@ class EinkaufslisteCard extends HTMLElement {
         <div class="srow"><ha-icon class="prev" icon="mdi:store-outline"></ha-icon><select class="grow" id="syncStore">${this._selectOptions(this._data.stores, sync?.store_id || null, "🛒 Egal wo")}</select></div>
         <div class="btnrow"><button class="btn primary" data-act="sync-on"><ha-icon icon="mdi:sync"></ha-icon>${sync ? "Ändern" : "Einschalten"}</button>${sync ? `<button class="btn" data-act="sync-off"><ha-icon icon="mdi:sync-off"></ha-icon>Ausschalten</button>` : ""}</div>
         </div>
-        ${this._mailHtml()}
         <p class="hint" style="margin-top:14px"><b>Einmal herüberholen</b>: Die Artikel einer anderen HA-Liste (z. B. der eingebauten Einkaufsliste oder einer Google-/Bring!-Liste, die in HA eingebunden ist) herüberholen. Die alte Liste bleibt, wie sie ist.</p>
         <div class="srow"><ha-icon class="prev" icon="mdi:format-list-checks"></ha-icon><select class="grow" id="xferTodo"><option value="">Lade Listen …</option></select></div>
         <div class="srow"><ha-icon class="prev" icon="mdi:store-outline"></ha-icon><select class="grow" id="xferTodoStore">${stores}</select></div>
@@ -2915,6 +2966,8 @@ class EinkaufslisteCard extends HTMLElement {
         <div class="srow"><ha-icon class="prev" icon="mdi:store-outline"></ha-icon><select class="grow" id="xferTextStore">${stores}</select></div>
         <div class="btnrow"><button class="btn primary" data-act="xfer-text"><ha-icon icon="mdi:playlist-plus"></ha-icon>Auf die Liste</button></div>
         <div id="xferRes"></div>`;
+    } else if (tab === "mail") {
+      body = this._mailHtml();
     } else {
       body = admin ? `
         <p class="hint"><b>Sicherung herunterladen</b>: Alles in einer Datei (.zip) – Liste, Rezepte, Produkte, Barcodes, Fotos, Geschäfte, Personen, Verlauf. Gut für vor einem Umzug oder einfach so.</p>
@@ -2923,7 +2976,7 @@ class EinkaufslisteCard extends HTMLElement {
         <div class="btnrow"><label class="btn" style="--c:var(--error-color,#db4437)"><ha-icon icon="mdi:backup-restore"></ha-icon>Sicherung einspielen …<input type="file" id="xferRestore" accept=".zip,application/zip" hidden></label></div>
         <div id="xferRes"></div>` : `<p class="hint">🔒 Sicherungen darf nur ein Admin herunterladen oder einspielen.</p>`;
     }
-    return `<div class="subtabs">${t("recipes", "mdi:file-document-outline", "Rezepte aus Datei")}${t("apps", "mdi:swap-horizontal-circle-outline", "Aus anderen Apps")}${t("backup", "mdi:content-save-outline", "Sicherung")}</div>${body}`;
+    return `<div class="subtabs">${t("recipes", "mdi:file-document-outline", "Rezepte aus Datei")}${t("apps", "mdi:swap-horizontal-circle-outline", "Aus anderen Apps")}${t("mail", "mdi:email-outline", "E-Mail")}${t("backup", "mdi:content-save-outline", "Sicherung")}</div>${body}`;
   }
 
   // 📧 Per E-Mail auf die Liste (über die IMAP-Integration von Home Assistant)
@@ -2931,11 +2984,21 @@ class EinkaufslisteCard extends HTMLElement {
     const mail = this._data.settings?.mail_import;
     const store = mail?.store_id ? this._store(mail.store_id)?.name : null;
     return `
-        <div class="syncbox" style="margin-top:14px">
+        <div class="syncbox">
         <p class="hint"><b>📧 Per E-Mail</b>: Eine Mail an dein Einkaufs-Postfach – jede Zeile wird ein Artikel. Dafür in Home Assistant die Integration „IMAP“ mit einer eigenen Mail-Adresse einrichten. Nur Mails von den <b>erlaubten Absendern</b> zählen.</p>
+        <ul class="hint xferfmt">
+          <li><b>Geschäft im Betreff</b> (z. B. „Aldi“ oder „Einkauf bei Aldi“) → alles aus der Mail kommt dorthin.</li>
+          <li><b>Geschäft als Überschrift</b> in der Mail (z. B. „Aldi:“, darunter die Sachen, dann „DM:“ …) → gilt bis zur nächsten Überschrift.</li>
+          <li>Sonst gilt das Geschäft unten. Mengen wie „6 Eier“ oder „2 L Milch“ werden erkannt.</li>
+          <li>Als gelesen markiert oder gelöscht werden nur Mails, aus denen wirklich etwas auf die Liste kam.</li>
+        </ul>
         ${mail ? `<p><b>✅ An:</b> <span translate="no">${esc(mail.name)}</span> → ${store ? `<span translate="no">${esc(store)}</span>` : "<span>Egal wo</span>"}${mail.count ? `<span> · schon ${mail.count}× eingetragen</span>` : ""}${mail.ok === false ? `<br><span>⚠️ Das Postfach gibt es nicht mehr – bitte neu wählen.</span>` : ""}</p>` : ""}
         <div class="srow"><ha-icon class="prev" icon="mdi:email-outline"></ha-icon><select class="grow" id="mailSrc"><option value="">Lade Postfächer …</option></select></div>
         <div class="srow"><ha-icon class="prev" icon="mdi:store-outline"></ha-icon><select class="grow" id="mailStore">${this._selectOptions(this._data.stores, mail?.store_id || null, "🛒 Egal wo")}</select></div>
+        <div class="srow"><ha-icon class="prev" icon="mdi:email-sync-outline"></ha-icon><select class="grow" id="mailAfter" title="Was danach mit der Mail passiert">
+          ${[["keep", "📬 Mail danach liegen lassen"], ["seen", "👁️ Mail danach als gelesen markieren"], ["delete", "🗑️ Mail danach löschen"]]
+            .map(([v, l]) => `<option value="${v}" ${(mail?.after || "keep") === v ? "selected" : ""}>${l}</option>`).join("")}
+        </select></div>
         <div class="srow"><ha-icon class="prev" icon="mdi:account-check-outline"></ha-icon><input class="grow" id="mailSenders" value="${esc((mail?.senders || []).join(", "))}" placeholder="Erlaubte Absender, z. B. ich@mail.de, oma@mail.de" translate="no"></div>
         <div class="btnrow"><button class="btn primary" data-act="mail-on"><ha-icon icon="mdi:email-check-outline"></ha-icon>${mail ? "Ändern" : "Einschalten"}</button>${mail ? `<button class="btn" data-act="mail-off"><ha-icon icon="mdi:email-off-outline"></ha-icon>Ausschalten</button>` : ""}</div>
         </div>`;
@@ -5507,7 +5570,7 @@ class EinkaufslisteCard extends HTMLElement {
         const entry_id = this.$("mailSrc")?.value;
         if (!entry_id) { this._toast("Erst ein Postfach auswählen 😉"); break; }
         const senders = (this.$("mailSenders")?.value || "").split(/[,;\s]+/).filter(Boolean);
-        this._ws({ type: "einkaufsliste/mail/set", entry_id, store_id: this._xferStore("mailStore"), senders })
+        this._ws({ type: "einkaufsliste/mail/set", entry_id, store_id: this._xferStore("mailStore"), senders, after: this.$("mailAfter")?.value || "keep" })
           .then(() => { this._toast("📧 Ab jetzt kommen Mails auf die Liste"); setTimeout(() => this._renderSettings(), 300); }).catch(() => {});
         break;
       }

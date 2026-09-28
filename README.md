@@ -106,6 +106,8 @@ Die **komplette Karte** als eigene App auf dem Startbildschirm – mit Rezepten,
 3. Mit dem eigenen Home-Assistant-Benutzer anmelden.
 4. Browser-Menü → **„Zum Startbildschirm hinzufügen“**.
 
+**↩️ Zurück-Taste:** geht in der App Schritt für Schritt zurück (Fenster zu, Einstellungen eine Stufe hoch, Laden-Modus aus). Erst auf der normalen Liste geht die App zu.
+
 **📱 Schnellmenü (Android):** Lange aufs App-Symbol drücken → ✍️ Eintragen · 🛍️ Laden-Modus · 📷 Scannen – die App geht gleich an der richtigen Stelle auf. (Auf dem iPhone gibt es das für Web-Apps nicht.)
 
 **Nur mit Netz:** neue Barcodes nachschlagen, Produkt-Infos, Rezept-Links, neue Fotos, Sicherung.
@@ -144,10 +146,11 @@ Das geht mit jeder To-do-Liste in HA (Google Tasks, Bring!, Todoist, die HA-Eink
 
 ### 📧 Per E-Mail auf die Liste
 1. Eine **eigene Mail-Adresse** nur für die Einkaufsliste anlegen und in Home Assistant die Integration **„IMAP“** damit einrichten.
-2. In der Karte **⚙️ → Werkzeuge → Import & Sicherung → Aus anderen Apps → 📧 Per E-Mail**: Postfach wählen, auf Wunsch ein Geschäft, **erlaubte Absender** eintragen (mindestens einer), **Einschalten**.
+2. In der Karte **⚙️ → Werkzeuge → Import & Sicherung → 📧 E-Mail**: Postfach wählen, auf Wunsch ein Geschäft, was danach mit der Mail passiert (📬 liegen lassen · 👁️ als gelesen markieren · 🗑️ löschen), **erlaubte Absender** eintragen (mindestens einer), **Einschalten**.
 3. Mail an die Adresse schicken – **jede Zeile ein Artikel** („Milch“, „6 Eier“ …). Zitate, Signatur und „Gesendet von meinem iPhone“ werden übersprungen, Mengen erkannt. Im Verlauf steht 📧.
+4. **Geschäft gleich mitschicken:** Steht ein Geschäft im **Betreff** („Aldi“, „Einkauf bei Aldi“), kommt alles dorthin. Oder als **Überschrift** in der Mail: `Aldi:` – darunter die Sachen – dann `DM:` … Unbekannte Namen landen beim eingestellten Geschäft.
 
-Ehrlich gesagt: Absender lassen sich fälschen – deshalb eine Adresse nehmen, die nicht öffentlich ist. Je nach Postfach dauert es ein paar Sekunden bis Minuten, bis eine Mail ankommt. Die Mails bleiben im Postfach liegen.
+Ehrlich gesagt: Absender lassen sich fälschen – deshalb eine Adresse nehmen, die nicht öffentlich ist. Je nach Postfach dauert es ein paar Sekunden bis Minuten, bis eine Mail ankommt. Gelesen markiert oder gelöscht werden nur Mails, aus denen wirklich etwas auf die Liste kam – fremde Mails bleiben liegen. Bei Gmail heißt „löschen“ je nach Einstellung „archivieren“.
 
 ---
 

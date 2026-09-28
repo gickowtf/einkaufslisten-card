@@ -559,12 +559,14 @@ def ws_mail_sources(hass, connection, msg):
         vol.Optional("entry_id"): OPT_STR,
         vol.Optional("store_id"): OPT_STR,
         vol.Optional("senders"): [str],
+        vol.Optional("after"): vol.In(["keep", "seen", "delete"]),
     }
 )
 @callback
 def ws_mail_import(hass, connection, msg):
     """📧 „Per E-Mail auf die Liste“ einstellen (ohne entry_id = aus)."""
-    _run(hass, connection, msg, lambda m: m.set_mail_import(msg.get("entry_id") or None, msg.get("store_id") or None, msg.get("senders")))
+    _run(hass, connection, msg, lambda m: m.set_mail_import(msg.get("entry_id") or None, msg.get("store_id") or None,
+                                                         msg.get("senders"), msg.get("after")))
 
 
 @websocket_api.websocket_command({vol.Required("type"): "einkaufsliste/mascot/set", vol.Required("on"): bool})
