@@ -1618,6 +1618,7 @@ async def test_offline_app_pages(hass: HomeAssistant, setup, hass_client_no_auth
     assert "__EL_VERSION__" not in body and "/auth/authorize" in body
     r = await client.get("/einkaufsliste/app/sw.js")
     assert r.status == 200 and r.headers.get("Service-Worker-Allowed") == "/einkaufsliste/app/"
+    assert "el-queue" in await r.text()  # 🔄 im Hintergrund nachschicken
     r = await client.get("/einkaufsliste/app/manifest.json")
     assert r.status == 200 and (await r.json())["start_url"] == "/einkaufsliste/app/"
     r = await client.get("/einkaufsliste/app/../manifest.json")

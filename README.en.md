@@ -96,12 +96,14 @@ Product names come from **Open Food Facts**, **Open Beauty Facts** and **Open Pr
 
 The **complete card** as its own app on your home screen – with recipes, cook mode, cooking times, settings and camera scanner. It opens **without a connection** with the last state.
 
-1. Copy the address: in **⚙️ → Offline app** or in the **guide** (shopping cart at the top left) – so everyone without the gear can get it too.
+1. Copy the address: in **⚙️ → App & look → Offline app** or in the **guide** (shopping cart at the top left) – so everyone without the gear can get it too.
 2. Paste it into the phone's **browser** (Chrome or Safari, not the HA app).
 3. Log in with your own Home Assistant user.
 4. Browser menu → **“Add to Home screen”**.
 
 **Needs a connection:** looking up new barcodes, product info, recipe links, new photos, backup.
+
+**🔄 Sending while the app is closed:** on **Android with Chrome** the app sends remembered changes even when it's closed – Android wakes it up briefly once there's a connection again (Android decides exactly when; with strict battery saving it can take a while). **iPhones** can't do this; there it's sent the next time you open the app. Each app has its own queue: what the offline app remembered is only sent by the offline app.
 
 Good to know: it needs an **https** address (e.g. Nabu Casa). If two people change the same thing at once, the last change wins. iPhones sometimes clear a web app's offline storage after weeks without use – just open it once with a connection.
 
@@ -111,28 +113,24 @@ Good to know: it needs an **https** address (e.g. Nabu Casa). If two people chan
 
 | Tile | What's inside |
 |---|---|
-| **Stores, Categories, People, Recipe groups** | Add, rename, color, icon (just type “dog”, no “mdi:”), sort. Stores also get 📍 zones (several, e.g. for several branches) and store brands. |
-| **Recipes** | New recipe, edit, delete. |
-| **Products** | Everything the list knows: rename, category, store (“Available at”), nicknames, photos, barcodes, learned typos, delete completely. Plus “Newly scanned” to check. |
-| **All good?** | Finds broken or incomplete entries and fixes only what you tick. |
-| **Import & backup** | Recipes from a file (.txt, .csv, .json – admins), lists from other apps (HA to-do lists, Bring!, Google Keep …) – once or **🔁 automatically** –, backup as .zip (admins). |
-| **Mascot** | 🛒😊 shopping cart with a face instead of the icon at the top left – beams when the list is empty, sweats when it's full, sleeps at night. The switch applies to everyone. |
-| **Offline app** | Your app address with a copy button. |
-| **Protection** | A 4–8 digit PIN for the gear. Forgot it? Devices & services → Einkaufsliste → Configure → “Reset PIN” (admins). Honestly: protection against accidental changes, not a safe. |
-| **History** | Who did what and when, with filters – and “📈 Often not available”. |
-| **Cleanup** | When the cleanup runs. |
+| 🏪 **Stores** | Every store as its own tile. Tap = name, color, order, 📍 zones (several, e.g. for several branches) and 🏷️ store brands. |
+| 🗂️ **Categories** · 👥 **People** | Add, rename, color, icon (just type “dog”, no “mdi:”), sort. |
+| 👨‍🍳 **Recipes** | Two tabs: **Recipes** (new, edit, delete) and **Recipe groups**. |
+| 📦 **Products** | Everything the list knows: rename, category, store (“Available at”), nicknames, photos, barcodes, learned typos, delete completely. Plus “Newly scanned” to check. |
+| 🧰 **Tools** | **All good?** (finds broken entries, fixes only what you tick) · **Import & backup** (recipes from a file, lists from other apps – once or 🔁 automatically –, backup as .zip; file import and backup for admins) · **History** (who did what and when, “📈 Often not available”) · **Cleanup** |
+| 📱 **App & look** | **Offline app** (your address with a copy button) · **Mascot** 🛒😊 (the switch applies to everyone) · **Protection** (4–8 digit PIN for the gear; forgot it? Devices & services → Einkaufsliste → Configure → “Reset PIN”, admins – honestly: protection against accidental changes, not a safe) |
 
 ### 🧹 Cleanup, simply explained
 On cleanup day everything that has been open for at least 7 days (adjustable) gets **checked off**. Example Sunday: added on Tuesday → only 5 days old on the first Sunday, stays → checked off on the second Sunday. Each item shows 🧹 with its date. Nothing is deleted. Day and time: **Devices & services → Einkaufsliste → Configure**.
 
 ### 📍 Nearest store first
-Create a **zone** per store (Settings → Areas, labels & zones → Zones) and pick it in ⚙️ → Stores at 📍. Several branches? Just pick several zones for the same store. Whoever shares their location via the companion app lands on the right tab in the store.
+Create a **zone** per store (Settings → Areas, labels & zones → Zones) and pick it in ⚙️ → Stores → tap the store → 📍. Several branches? Just pick several zones for the same store. Whoever shares their location via the companion app lands on the right tab in the store.
 
 ### 🗣️ Alexa & other lists
 The shopping list can **empty another Home Assistant to-do list automatically**: everything that lands there moves over right away and is deleted there.
 
 1. Set up the **“Alexa Devices”** integration in Home Assistant. The Alexa shopping list then shows up as a to-do list in HA.
-2. In the card: **⚙️ → Import & backup → From other apps → 🔁 Bring over automatically**, pick the Alexa list (and a store if you like), **Turn on**.
+2. In the card: **⚙️ → Tools → Import & backup → From other apps → 🔁 Bring over automatically**, pick the Alexa list (and a store if you like), **Turn on**.
 3. From now on: “Alexa, add milk to my shopping list” → milk is on the list, with “🔁 Alexa” as the one who added it.
 
 This works with any to-do list in HA (Google Tasks, Bring!, Todoist, the HA shopping list …). Honestly: “Hey Google, …” writes to Google Keep, which has no official Home Assistant connection – so it doesn't work that way with Google.
@@ -178,7 +176,7 @@ Events: `einkaufsliste_item_added`, `einkaufsliste_cleanup`.
 
 ## ❓ FAQ
 
-**Where is the data stored?** Locally in Home Assistant (`/config/.storage/einkaufsliste.data`, photos in `/config/einkaufsliste_fotos`). No cloud. Your HA backups include it; ⚙️ → Import & backup gives you an extra .zip.
+**Where is the data stored?** Locally in Home Assistant (`/config/.storage/einkaufsliste.data`, photos in `/config/einkaufsliste_fotos`). No cloud. Your HA backups include it; ⚙️ → Tools → Import & backup gives you an extra .zip.
 
 **Why are my categories German?** The integration was set up while Home Assistant was in German. Just rename them in ⚙️ → Categories – the guessing works by keywords in the category name (e.g. “Dairy”, “Frozen”, “Drinks”).
 

@@ -101,12 +101,14 @@ Die Produktnamen kommen aus **Open Food Facts**, **Open Beauty Facts** und **Ope
 
 Die **komplette Karte** als eigene App auf dem Startbildschirm – mit Rezepten, Koch-Modus, Gar-Zeiten, Einstellungen und Kamera-Scanner. Sie öffnet auch **ohne Netz** mit dem letzten Stand.
 
-1. Die Adresse kopieren: in **⚙️ → Offline-App** oder in der **Anleitung** (Einkaufswagen oben links) – so kommen auch alle ohne Zahnrad dran.
+1. Die Adresse kopieren: in **⚙️ → App & Aussehen → Offline-App** oder in der **Anleitung** (Einkaufswagen oben links) – so kommen auch alle ohne Zahnrad dran.
 2. Im Handy-**Browser** einfügen (Chrome oder Safari, nicht die HA-App).
 3. Mit dem eigenen Home-Assistant-Benutzer anmelden.
 4. Browser-Menü → **„Zum Startbildschirm hinzufügen“**.
 
 **Nur mit Netz:** neue Barcodes nachschlagen, Produkt-Infos, Rezept-Links, neue Fotos, Sicherung.
+
+**🔄 Nachschicken bei geschlossener App:** Unter **Android mit Chrome** schickt die App gemerkte Änderungen auch dann nach, wenn sie zu ist – Android weckt sie kurz auf, sobald wieder Netz da ist (wann genau, entscheidet Android; bei strengem Akkusparen kann es dauern). Auf dem **iPhone** geht das nicht, dort wird beim nächsten Öffnen nachgeschickt. Jede App hat ihre eigene Warteschlange: Was in der Offline-App gemerkt ist, schickt auch nur die Offline-App nach.
 
 Gut zu wissen: Es braucht eine **https**-Adresse (z. B. Nabu Casa). Ändern zwei Leute gleichzeitig dasselbe, gewinnt die letzte Änderung. iPhones löschen den Offline-Speicher manchmal, wenn die App wochenlang nicht geöffnet wurde – dann einmal mit Netz öffnen.
 
@@ -116,28 +118,24 @@ Gut zu wissen: Es braucht eine **https**-Adresse (z. B. Nabu Casa). Ändern zwei
 
 | Kachel | Was drin ist |
 |---|---|
-| **Geschäfte, Kategorien, Personen, Rezept-Gruppen** | Anlegen, umbenennen, Farbe, Icon (einfach „hund“ tippen, ohne „mdi:“), sortieren. Bei Geschäften auch 📍 Zonen (mehrere, z. B. für mehrere Filialen) und Eigenmarken. |
-| **Rezepte** | Neues Rezept, bearbeiten, löschen. |
-| **Produkte** | Alles, was die Liste kennt: umbenennen, Kategorie, Geschäft („Gibt's bei“), Spitznamen, Fotos, Barcodes, gelernte Tippfehler, ganz löschen. Dazu „Neu gescannt“ zum Prüfen. |
-| **Alles ok?** | Findet kaputte oder unvollständige Einträge und repariert nur, was du anhakst. |
-| **Import & Sicherung** | Rezepte aus Datei (.txt, .csv, .json – nur Admins), Listen aus anderen Apps (HA-To-do-Listen, Bring!, Google Keep …) – einmal oder **🔁 automatisch** –, Sicherung als .zip (nur Admins). |
-| **Maskottchen** | 🛒😊 Einkaufswagen mit Gesicht statt des Symbols oben links – strahlt bei leerer Liste, schwitzt bei vollem Wagen, schläft nachts. Der Schalter gilt für alle. |
-| **Offline-App** | Deine App-Adresse mit „Kopieren“-Knopf. |
-| **Schutz** | PIN (4–8 Ziffern) fürs Zahnrad. Vergessen? Geräte & Dienste → Einkaufsliste → Konfigurieren → „PIN zurücksetzen“ (nur Admins). Ehrlich gesagt: Schutz vor Verstellen, kein Tresor. |
-| **Verlauf** | Wer hat wann was gemacht, mit Filtern – und „📈 Oft nicht bekommen“. |
-| **Aufräumen** | Wann aufgeräumt wird. |
+| 🏪 **Geschäfte** | Jedes Geschäft als eigene Kachel. Antippen = Name, Farbe, Reihenfolge, 📍 Zonen (mehrere, z. B. für mehrere Filialen) und 🏷️ Eigenmarken. |
+| 🗂️ **Kategorien** · 👥 **Personen** | Anlegen, umbenennen, Farbe, Icon (einfach „hund“ tippen, ohne „mdi:“), sortieren. |
+| 👨‍🍳 **Rezepte** | Zwei Reiter: **Rezepte** (neu, bearbeiten, löschen) und **Rezept-Gruppen**. |
+| 📦 **Produkte** | Alles, was die Liste kennt: umbenennen, Kategorie, Geschäft („Gibt's bei“), Spitznamen, Fotos, Barcodes, gelernte Tippfehler, ganz löschen. Dazu „Neu gescannt“ zum Prüfen. |
+| 🧰 **Werkzeuge** | **Alles ok?** (findet kaputte Einträge, repariert nur, was du anhakst) · **Import & Sicherung** (Rezepte aus Datei, Listen aus anderen Apps – einmal oder 🔁 automatisch –, Sicherung als .zip; Datei-Import und Sicherung nur Admins) · **Verlauf** (wer hat wann was gemacht, „📈 Oft nicht bekommen“) · **Aufräumen** |
+| 📱 **App & Aussehen** | **Offline-App** (deine Adresse mit „Kopieren“) · **Maskottchen** 🛒😊 (Schalter gilt für alle) · **Schutz** (PIN 4–8 Ziffern fürs Zahnrad; vergessen? Geräte & Dienste → Einkaufsliste → Konfigurieren → „PIN zurücksetzen“, nur Admins – ehrlich gesagt: Schutz vor Verstellen, kein Tresor) |
 
 ### 🧹 Aufräumen, einfach erklärt
 Am Aufräum-Tag wird alles **abgehakt**, was mindestens 7 Tage (einstellbar) offen ist. Beispiel Sonntag: Am Dienstag eingetragen → am ersten Sonntag erst 5 Tage alt, bleibt → am zweiten Sonntag abgehakt. Unter jedem Artikel steht mit 🧹, wann es so weit ist. Gelöscht wird nichts. Tag und Uhrzeit: **Geräte & Dienste → Einkaufsliste → Konfigurieren**.
 
 ### 📍 Nächstes Geschäft zuerst
-Für jedes Geschäft eine **Zone** anlegen (Einstellungen → Bereiche, Beschriftungen & Zonen → Zonen) und sie in ⚙️ → Geschäfte bei 📍 auswählen. Mehrere Filialen? Einfach mehrere Zonen beim selben Geschäft wählen. Wer seinen Standort über die Companion-App sendet, landet im Laden automatisch im richtigen Reiter.
+Für jedes Geschäft eine **Zone** anlegen (Einstellungen → Bereiche, Beschriftungen & Zonen → Zonen) und sie in ⚙️ → Geschäfte → Geschäft antippen → 📍 auswählen. Mehrere Filialen? Einfach mehrere Zonen beim selben Geschäft wählen. Wer seinen Standort über die Companion-App sendet, landet im Laden automatisch im richtigen Reiter.
 
 ### 🗣️ Alexa & andere Listen
 Die Einkaufsliste kann eine andere To-do-Liste aus Home Assistant **automatisch leer räumen**: Alles, was dort landet, wandert sofort herüber und wird dort gelöscht.
 
 1. In Home Assistant die Integration **„Alexa Devices“** einrichten. Dann taucht die Alexa-Einkaufsliste als To-do-Liste in HA auf.
-2. In der Karte **⚙️ → Import & Sicherung → Aus anderen Apps → 🔁 Automatisch herüberholen**: die Alexa-Liste wählen (und auf Wunsch ein Geschäft), **Einschalten**.
+2. In der Karte **⚙️ → Werkzeuge → Import & Sicherung → Aus anderen Apps → 🔁 Automatisch herüberholen**: die Alexa-Liste wählen (und auf Wunsch ein Geschäft), **Einschalten**.
 3. Ab jetzt: „Alexa, setz Milch auf die Einkaufsliste“ → Milch steht drauf, mit „🔁 Alexa“ als Eintrager.
 
 Das geht mit jeder To-do-Liste in HA (Google Tasks, Bring!, Todoist, die HA-Einkaufsliste …). Ehrlich gesagt: „Hey Google, …“ schreibt in Google Keep, und Keep hat keine offizielle Verbindung zu Home Assistant – mit Google klappt es deshalb so nicht.
@@ -204,7 +202,7 @@ actions:
 
 ## ❓ Häufige Fragen
 
-**Wo liegen die Daten?** Lokal in Home Assistant (`/config/.storage/einkaufsliste.data`, Fotos in `/config/einkaufsliste_fotos`). Keine Cloud. Deine HA-Backups sichern alles mit, dazu gibt's ⚙️ → Import & Sicherung.
+**Wo liegen die Daten?** Lokal in Home Assistant (`/config/.storage/einkaufsliste.data`, Fotos in `/config/einkaufsliste_fotos`). Keine Cloud. Deine HA-Backups sichern alles mit, dazu gibt's ⚙️ → Werkzeuge → Import & Sicherung.
 
 **Die Karte sagt „Integration nicht eingerichtet“.** Dann fehlt Schritt 4 der Installation.
 

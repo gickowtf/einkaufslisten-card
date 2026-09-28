@@ -2,7 +2,7 @@
  * Einkaufsliste Card – die Familien-Einkaufsliste für Home Assistant
  * Wird automatisch von der Integration "einkaufsliste" geladen.
  */
-const EL_VERSION = "2.25.0";
+const EL_VERSION = "2.26.0";
 
 // Doppelt-Finder: Wörter, die dasselbe meinen (alles klein, ohne Leer-/Sonderzeichen)
 const DUP_SYNONYMS = (() => {
@@ -996,6 +996,10 @@ label.btn { cursor:pointer; }
 .redithint { font-size:.85em; padding:6px 10px; border-radius:10px; background:color-mix(in srgb, var(--primary-color,#03a9f4) 12%, transparent); margin:4px 2px; }
 .rrow .iconbtn { align-self:center; }
 .rrow.editing { outline:2px solid var(--primary-color,#03a9f4); }
+.storetile { border-left:6px solid var(--sc); }
+.storetile ha-icon { color:var(--sc); }
+.storehead { display:flex; align-items:center; gap:8px; font-size:1.1em; margin:4px 2px 8px; }
+.storehead ha-icon { color:var(--sc); }
 .zonechips { display:flex; flex-wrap:wrap; gap:6px; align-items:center; }
 .zchip { display:inline-flex; align-items:center; gap:2px; border-radius:999px; padding:2px 4px 2px 10px; font-size:.9em;
   background:color-mix(in srgb, var(--primary-color,#03a9f4) 14%, transparent); }
@@ -1232,7 +1236,20 @@ const QUEUE_TYPES = new Set(["einkaufsliste/item/toggle", "einkaufsliste/item/ad
 const QUEUE_KEY = "einkaufsliste_queue";
 const elQueue = (() => { try { return JSON.parse(localStorage.getItem(QUEUE_KEY) || "[]"); } catch (_) { return []; } })();
 const elFlush = { busy: false };
-const elQueueSave = () => { try { localStorage.setItem(QUEUE_KEY, JSON.stringify(elQueue)); } catch (_) { /* egal */ } };
+const elQueueSave = () => {
+  try { localStorage.setItem(QUEUE_KEY, JSON.stringify(elQueue)); } catch (_) { /* egal */ }
+  try { window.dispatchEvent(new CustomEvent("einkaufsliste-queue", { detail: elQueue.slice() })); } catch (_) { /* egal */ }
+};
+// 📱 Für die Offline-App: Warteschlange von außen abgleichen (die App kann im Hintergrund nachschicken)
+window.einkaufslisteQueue = {
+  get: () => elQueue.slice(),
+  replace(list) {
+    if (!Array.isArray(list)) return;
+    elQueue.length = 0;
+    elQueue.push(...list);
+    try { localStorage.setItem(QUEUE_KEY, JSON.stringify(elQueue)); } catch (_) { /* egal */ }
+  },
+};
 // ▥ Barcode sofort am Produkt merken (auch ohne Netz), damit der nächste Scan ihn schon kennt
 function rememberCode(data, name, note, code) {
   const c = String(code || "").replace(/\D/g, "");
@@ -1519,6 +1536,17 @@ class EinkaufslisteCard extends HTMLElement {
   async _flushQueue() {
     if (elFlush.busy || !elQueue.length || this._hass?.connected === false) return;
     elFlush.busy = true; // nur EINE Karte schickt nach – auch wenn mehrere auf dem Dashboard sind
+    const gate = window.einkaufslisteFlushGate; // 📱 Offline-App: schickt vielleicht gerade im Hintergrund nach
+    if (gate) {
+      let ok = false;
+      try { ok = await gate.acquire(); } catch (_) { ok = false; }
+      if (!ok || !elQueue.length) {
+        elFlush.busy = false;
+        if (!ok) setTimeout(() => this._updateLive(), 5000); // später nochmal versuchen
+        else { this._renderAll(); this._updateLive(); }
+        return;
+      }
+    }
     const ids = {};
     let sent = 0;
     try {
@@ -1541,6 +1569,7 @@ class EinkaufslisteCard extends HTMLElement {
       }
     } finally {
       elFlush.busy = false;
+      try { gate?.release(); } catch (_) { /* egal */ }
       this._updateLive();
     }
     if (sent && !elQueue.length) this._toast(`✅ Wieder online – ${sent} ${sent === 1 ? "Änderung" : "Änderungen"} nachgeschickt`);
@@ -2597,14 +2626,31 @@ class EinkaufslisteCard extends HTMLElement {
     const persons = d.persons || [];
     const recipes = [...(d.recipes || [])].sort((a, b) => a.name.localeCompare(b.name, "de", { sensitivity: "base" }));
     const sections = [
-      { key: "stores", icon: "mdi:store-outline", title: "Geschäfte", info: d.stores.length === 1 ? "1 Geschäft" : `${d.stores.length} Geschäfte`, html: () => `
-        ${d.stores.map((e, i) => row("stores", e, i, d.stores.length)).join("")}
+      { key: "stores", icon: "mdi:store-outline", title: "Geschäfte", info: d.stores.length === 1 ? "1 Geschäft" : `${d.stores.length} Geschäfte`, html: () => {
+        // 🏪 Ein Geschäft angetippt? Dann nur dessen Einstellungen
+        const k = d.stores.findIndex((x) => x.id === this._storeSel);
+        if (k >= 0) {
+          const e = d.stores[k];
+          return `
+        <div class="storehead" style="--sc:${esc(e.color || "#607d8b")}"><ha-icon icon="${esc(e.icon || "mdi:cart")}"></ha-icon><b translate="no">${esc(e.name)}</b></div>
+        ${row("stores", e, k, d.stores.length)}
+        ${zones.length ? "" : `<p class="hint">📍 Noch keine Zonen in Home Assistant angelegt (Einstellungen → Bereiche, Beschriftungen & Zonen → Zonen).</p>`}
+        <p class="hint">📍 Zonen: Bist du in einer davon, springt die Liste auf dieses Geschäft – mehrere gehen, z. B. für mehrere Filialen. 🏷️ Eigenmarken: Beim Scannen landen diese Marken gleich hier.</p>`;
+        }
+        return `
+        <div class="tiles storetiles">${d.stores.map((e) => {
+          const nz = storeZones(e).length, nb = (e.brands || []).length;
+          const info = [nz ? `📍 ${nz} ${nz === 1 ? "Zone" : "Zonen"}` : "", nb ? `🏷️ ${nb} ${nb === 1 ? "Marke" : "Marken"}` : ""].filter(Boolean).join(" · ") || "antippen zum Einstellen";
+          return `<button class="tile storetile" data-act="store-sel" data-id="${e.id}" style="--sc:${esc(e.color || "#607d8b")}">
+            <ha-icon icon="${esc(e.icon || "mdi:cart")}"></ha-icon><b translate="no">${esc(e.name)}</b><small>${esc(info)}</small></button>`;
+        }).join("")}</div>
         <form class="srow" data-addkind="stores">
           <input type="color" value="#607d8b" name="color" title="Farbe">
           <input class="grow" name="name" placeholder="Neues Geschäft, z. B. Kaufland">
           <button class="primary" type="submit" title="Hinzufügen"><ha-icon icon="mdi:plus"></ha-icon></button>
         </form>
-        <p class="hint">📍 Hat ein Geschäft eine <b>Zone</b>, springt die Liste automatisch auf dieses Geschäft, sobald du dort bist. Zonen legst du unter Einstellungen → Bereiche & Zonen an.</p>` },
+        <p class="hint">Geschäft antippen = Name, Farbe, Reihenfolge, 📍 Zonen und 🏷️ Eigenmarken einstellen.</p>`;
+      } },
       { key: "categories", icon: "mdi:shape-outline", title: "Kategorien", info: d.categories.length === 1 ? "1 Kategorie" : `${d.categories.length} Kategorien`, html: () => `
         ${d.categories.map((e, i) => row("categories", e, i, d.categories.length)).join("")}
         <form class="srow" data-addkind="categories">
@@ -2615,11 +2661,12 @@ class EinkaufslisteCard extends HTMLElement {
         </form>
         <div class="picker" hidden></div>
         <p class="hint">Icon: einfach den Namen tippen (z. B. <b>hund</b>, <b>dog</b> oder <b>fish</b>) und aus der Vorschau antippen.</p>` },
-      { key: "recipes", icon: "mdi:chef-hat", title: "Rezepte", info: recipes.length ? (recipes.length === 1 ? "1 Rezept" : `${recipes.length} Rezepte`) : "noch keine", html: () => `
-        ${recipes.length ? this._recipeSearchHtml("recipeSearchS") : ""}
-        <div id="setRecipeList"></div>
-        <div class="btnrow"><button class="btn" data-act="recipe-new"><ha-icon icon="mdi:plus"></ha-icon>Neues Rezept</button></div>` },
-      { key: "recipe_groups", icon: "mdi:tag-multiple-outline", title: "Rezept-Gruppen", info: (d.recipe_groups || []).length === 1 ? "1 Gruppe" : `${(d.recipe_groups || []).length} Gruppen`, html: () => `
+      { key: "recipes", icon: "mdi:chef-hat", title: "Rezepte", info: `${recipes.length ? (recipes.length === 1 ? "1 Rezept" : `${recipes.length} Rezepte`) : "noch keine"} · ${(d.recipe_groups || []).length} Gruppen`, html: () => `
+        <div class="subtabs">
+          <button class="tab ${this._recTab !== "groups" ? "active" : ""}" data-act="rec-tab" data-tab="recipes"><ha-icon icon="mdi:chef-hat"></ha-icon>Rezepte</button>
+          <button class="tab ${this._recTab === "groups" ? "active" : ""}" data-act="rec-tab" data-tab="groups"><ha-icon icon="mdi:tag-multiple-outline"></ha-icon>Rezept-Gruppen</button>
+        </div>
+        ${this._recTab === "groups" ? `
         ${(d.recipe_groups || []).map((e, i) => row("recipe_groups", e, i, d.recipe_groups.length)).join("")}
         <form class="srow" data-addkind="recipe_groups">
           <ha-icon class="prev" icon="mdi:tag-plus-outline"></ha-icon>
@@ -2628,7 +2675,11 @@ class EinkaufslisteCard extends HTMLElement {
           <button class="primary" type="submit" title="Hinzufügen"><ha-icon icon="mdi:plus"></ha-icon></button>
         </form>
         <div class="picker" hidden></div>
-        <p class="hint">Das Icon der Gruppe bekommen automatisch alle Rezepte dieser Gruppe. Icon: einfach den Namen tippen (z. B. <b>fish</b>, <b>pizza</b> oder <b>cake</b>) und aus der Vorschau antippen.</p>` },
+        <p class="hint">Das Icon der Gruppe bekommen automatisch alle Rezepte dieser Gruppe. Icon: einfach den Namen tippen (z. B. <b>fish</b>, <b>pizza</b> oder <b>cake</b>) und aus der Vorschau antippen.</p>` : `
+        ${recipes.length ? this._recipeSearchHtml("recipeSearchS") : ""}
+        <div id="setRecipeList"></div>
+        <div class="btnrow"><button class="btn" data-act="recipe-new"><ha-icon icon="mdi:plus"></ha-icon>Neues Rezept</button></div>`}` },
+      { key: "recipe_groups", parent: "recipes", alias: true },
       { key: "persons", icon: "mdi:account-group-outline", title: "Personen", info: persons.length ? `${persons.length} für „Für wen?“` : "noch keine", html: () => `
         ${persons.map((e, i) => row("persons", e, i, persons.length)).join("")}
         <form class="srow" data-addkind="persons">
@@ -2652,12 +2703,14 @@ class EinkaufslisteCard extends HTMLElement {
           : `<p class="hint">Alle Produkte, die die Liste kennt. Antippen = ändern oder ganz löschen. Umbenennen zieht Fotos, Barcodes, Artikel und Rezepte mit.</p>`}
         <div class="srow"><ha-icon class="prev" icon="mdi:magnify"></ha-icon><input class="grow" id="prodSearch" placeholder="Produkt suchen …" value="${esc(this._prodFilter || "")}"></div>
         <div id="prodList"><p class="hint">Lade Produkte …</p></div>`}` },
-      { key: "check", icon: "mdi:check-decagram-outline", title: "Alles ok?", info: "prüfen & reparieren", html: () => `
+      { key: "tools", icon: "mdi:toolbox-outline", title: "Werkzeuge", info: "Alles ok?, Import, Verlauf, Aufräumen", group: true },
+      { key: "appx", icon: "mdi:cellphone-cog", title: "App & Aussehen", info: "Offline-App, Maskottchen, PIN", group: true },
+      { key: "check", parent: "tools", icon: "mdi:check-decagram-outline", title: "Alles ok?", info: "prüfen & reparieren", html: () => `
         <p class="hint">Sucht nach kaputten oder unvollständigen Einträgen: Produkte ohne Kategorie, Artikel ohne Geschäft, fehlende oder übrige Fotos, Barcodes ohne Produkt und Verweise auf Gelöschtes. Jeder Fund steht einzeln da – mit Haken und wie repariert wird. Repariert wird nur, was du anhakst.</p>
         <div class="btnrow"><button class="btn primary" data-act="check-run"><ha-icon icon="mdi:magnify"></ha-icon>Jetzt prüfen</button></div>
         <div id="checkRes"></div>` },
-      { key: "transfer", icon: "mdi:database-import-outline", title: "Import & Sicherung", info: "Rezepte, andere Apps, Backup", html: () => this._xferHtml() },
-      { key: "app", icon: "mdi:cellphone-arrow-down", title: "Offline-App", info: "Liste auch ohne Netz", html: () => `
+      { key: "transfer", parent: "tools", icon: "mdi:database-import-outline", title: "Import & Sicherung", info: "Rezepte, andere Apps, Backup", html: () => this._xferHtml() },
+      { key: "app", parent: "appx", icon: "mdi:cellphone-arrow-down", title: "Offline-App", info: "Liste auch ohne Netz", html: () => `
         <p class="hint">Eine eigene kleine App nur für die Einkaufsliste. Sie öffnet sich auch <b>ohne Netz</b> (z. B. im Funkloch im Laden), zeigt den letzten Stand, lässt dich abhaken und eintragen und schickt alles nach, sobald wieder Netz da ist.</p>
         <ol class="hint xferfmt">
           <li>Auf dem Handy im <b>Browser</b> (Chrome oder Safari, nicht in der HA-App) deine Home-Assistant-Adresse von unterwegs öffnen, z. B. die Nabu-Casa-Adresse, und <code>/einkaufsliste/app/</code> anhängen.</li>
@@ -2671,14 +2724,14 @@ class EinkaufslisteCard extends HTMLElement {
         <div class="btnrow"><button class="btn primary" data-act="app-copy"><ha-icon icon="mdi:content-copy"></ha-icon>Kopieren</button></div>
         <p class="hint">Kopieren, im Handy-Browser einfügen, fertig. Die Adresse funktioniert zu Hause und unterwegs.</p>`
           : `<p class="hint">⚠️ Home Assistant kennt keine https-Adresse für unterwegs. Mit <b>Nabu Casa</b> (Einstellungen → Home Assistant Cloud → Fernzugriff) oder einer eigenen https-Adresse (Einstellungen → System → Netzwerk) klappt es.</p>`}` },
-      { key: "mascot", icon: "mdi:emoticon-happy-outline", title: "Maskottchen", info: this._data.settings?.mascot ? "an – für alle" : "aus", html: () => `
+      { key: "mascot", parent: "appx", icon: "mdi:emoticon-happy-outline", title: "Maskottchen", info: this._data.settings?.mascot ? "an – für alle" : "aus", html: () => `
         <p class="hint">Statt des Einkaufswagen-Symbols oben links sitzt dann ein kleiner Einkaufswagen mit Gesicht. Er strahlt bei leerer Liste, schwitzt bei vollem Wagen, schläft nachts und hat an Feiertagen Deko auf. Antippen öffnet wie gewohnt die Anleitung.</p>
         <div class="mascotprev">${mascotSvg("happy", null)}${mascotSvg("busy", null)}${mascotSvg("full", null)}${mascotSvg("sleep", null)}</div>
         <p><b>${this._data.settings?.mascot ? "🛒😊 Das Maskottchen ist an." : "Das Maskottchen ist aus."}</b> Der Schalter gilt für <b>alle</b> – auf allen Handys, im Dashboard und in der App.</p>
         <div class="btnrow"><button class="btn primary" data-act="mascot-toggle"><ha-icon icon="${this._data.settings?.mascot ? "mdi:emoticon-neutral-outline" : "mdi:emoticon-happy-outline"}"></ha-icon>${this._data.settings?.mascot ? "Ausschalten" : "Einschalten"}</button></div>` },
-      { key: "pin", icon: this._data.settings?.pin ? "mdi:lock-outline" : "mdi:lock-open-variant-outline", title: "Schutz", info: this._data.settings?.pin ? "PIN ist an" : "PIN fürs Zahnrad", html: () => this._pinHtml() },
-      { key: "log", icon: "mdi:history", title: "Verlauf", info: "wer, wann, was, wie", html: () => this._logSectionHtml() },
-      { key: "cleanup", icon: "mdi:broom", title: "Aufräumen", info: `${WD_SHORT[s.cleanup_weekday]} ${s.cleanup_time} Uhr`, html: () => `
+      { key: "pin", parent: "appx", icon: this._data.settings?.pin ? "mdi:lock-outline" : "mdi:lock-open-variant-outline", title: "Schutz", info: this._data.settings?.pin ? "PIN ist an" : "PIN fürs Zahnrad", html: () => this._pinHtml() },
+      { key: "log", parent: "tools", icon: "mdi:history", title: "Verlauf", info: "wer, wann, was, wie", html: () => this._logSectionHtml() },
+      { key: "cleanup", parent: "tools", icon: "mdi:broom", title: "Aufräumen", info: `${WD_SHORT[s.cleanup_weekday]} ${s.cleanup_time} Uhr`, html: () => `
         <p>Jeden <b>${WD_LONG[s.cleanup_weekday]}</b> um <b>${s.cleanup_time} Uhr</b> werden alle offenen Artikel <b>abgehakt</b>, die mindestens <b>${s.min_age_days} Tage</b> auf der Liste stehen. Gelöscht wird nichts – so kannst du sie später mit einem Tipp wieder auf die Liste nehmen.</p>
         <p class="hint">Tag & Uhrzeit ändern: Einstellungen → Geräte & Dienste → Einkaufsliste → Konfigurieren</p>
         <div class="btnrow">
@@ -2686,31 +2739,40 @@ class EinkaufslisteCard extends HTMLElement {
           <button class="btn" data-act="check-all"><ha-icon icon="mdi:checkbox-multiple-marked-circle-outline"></ha-icon>Alles abhaken</button>
         </div>` },
     ];
-    const cur = sections.find((x) => x.key === this._setSec);
+    if (this._setSec === "recipe_groups") { this._setSec = "recipes"; this._recTab = "groups"; } // alter Weg zu den Rezept-Gruppen
+    const cur = sections.find((x) => x.key === this._setSec && !x.alias);
+    const tile = (x) => `
+            <button class="tile" data-act="set-sec" data-sec="${x.key}">
+              <ha-icon icon="${x.icon}"></ha-icon><b>${x.title}</b><small>${esc(x.info)}</small>
+            </button>`;
     if (!cur) {
       this.$("otherView").innerHTML = `
         <div class="sec">
           <h3><ha-icon icon="mdi:cog-outline"></ha-icon>Einstellungen</h3>
-          <div class="tiles">${sections.map((x) => `
-            <button class="tile" data-act="set-sec" data-sec="${x.key}">
-              <ha-icon icon="${x.icon}"></ha-icon><b>${x.title}</b><small>${esc(x.info)}</small>
-            </button>`).join("")}
+          <div class="tiles">${sections.filter((x) => !x.parent).map(tile).join("")}
           </div>
         </div>
         <p class="hint" style="text-align:right">Einkaufsliste v${EL_VERSION}</p>`;
       return;
     }
+    const parent = cur.parent && sections.find((x) => x.key === cur.parent);
+    const storeOpen = cur.key === "stores" && d.stores.some((x) => x.id === this._storeSel);
+    const back = storeOpen
+      ? `<button class="btn back" data-act="store-sel" data-id=""><ha-icon icon="mdi:arrow-left"></ha-icon>Alle Geschäfte</button>`
+      : parent
+      ? `<button class="btn back" data-act="set-sec" data-sec="${parent.key}"><ha-icon icon="mdi:arrow-left"></ha-icon>${parent.title}</button>`
+      : `<button class="btn back" data-act="set-sec" data-sec=""><ha-icon icon="mdi:arrow-left"></ha-icon>Übersicht</button>`;
     this.$("otherView").innerHTML = `
       <div class="sec">
         <div class="sechead">
-          <button class="btn back" data-act="set-sec" data-sec=""><ha-icon icon="mdi:arrow-left"></ha-icon>Übersicht</button>
+          ${back}
           <h3><ha-icon icon="${cur.icon}"></ha-icon>${cur.title}</h3>
         </div>
-        ${cur.html()}
+        ${cur.group ? `<div class="tiles">${sections.filter((x) => x.parent === cur.key).map(tile).join("")}</div>` : cur.html()}
       </div>`;
     if (cur.key === "log") { this._renderLogList(); this._loadLog(); }
     if (cur.key === "products" && this._prodTab !== "delete") { this._renderProducts(); this._loadProducts(); }
-    if (cur.key === "recipes") this._renderSetRecipeList();
+    if (cur.key === "recipes" && this._recTab !== "groups") this._renderSetRecipeList();
     if (cur.key === "transfer" && this._xferTab === "apps") this._loadTodoLists();
     this._renderDelList();
   }
@@ -5176,7 +5238,17 @@ class EinkaufslisteCard extends HTMLElement {
         this._doneOpen = !this._doneOpen;
         this._renderList();
         break;
+      case "store-sel":
+        this._storeSel = el.dataset.id || null;
+        this._renderSettings();
+        this.$("otherView").scrollIntoView?.({ block: "nearest" });
+        break;
+      case "rec-tab":
+        this._recTab = el.dataset.tab;
+        this._renderSettings();
+        break;
       case "set-sec":
+        if (el.dataset.sec !== "stores") this._storeSel = null;
         this._setSec = el.dataset.sec || null;
         this._renderSettings();
         this.$("otherView").scrollIntoView?.({ block: "nearest" });

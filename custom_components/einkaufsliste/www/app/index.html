@@ -36,8 +36,8 @@ body { padding:calc(env(safe-area-inset-top) + 8px) 8px calc(env(safe-area-inset
 .pill { border-radius:999px; padding:2px 10px; background:color-mix(in srgb, var(--success-color) 18%, transparent); color:var(--primary-text-color); }
 .pill.off { background:color-mix(in srgb, var(--error-color) 18%, transparent); }
 .bar button { font:inherit; color:inherit; background:none; border:0; text-decoration:underline; cursor:pointer; }
-.foot { display:flex; justify-content:space-between; align-items:center; margin:28px 6px 8px; font-size:13px; color:var(--secondary-text-color); }
-.foot button { font:inherit; color:inherit; background:none; border:1px solid var(--divider-color); border-radius:10px; padding:8px 14px; cursor:pointer; }
+.foot { display:flex; justify-content:center; margin:28px 6px 8px; font-size:13px; color:var(--secondary-text-color); }
+.foot button { font:inherit; color:inherit; background:none; text-decoration:underline; border:1px solid var(--divider-color); border-radius:10px; padding:8px 18px; cursor:pointer; }
 .login { max-width:420px; margin:16vh auto 0; text-align:center; padding:0 20px; }
 .login img { width:96px; height:96px; border-radius:22px; }
 .big { font:inherit; border:0; background:var(--primary-color); color:#fff; border-radius:12px; padding:13px 22px; font-size:17px; font-weight:600; margin-top:16px; cursor:pointer; }
@@ -75,6 +75,79 @@ const K = { auth: "elapp_auth", data: "elapp_data", user: "elapp_user", states: 
 const get = (k, d) => { try { const v = localStorage.getItem(k); return v == null ? d : JSON.parse(v); } catch (_) { return d; } };
 const put = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); } catch (_) { /* Speicher voll oder privat */ } };
 const EN = !String(navigator.language || "de").toLowerCase().startsWith("de");
+
+// ---------------------------------------------------------------- 🔄 Kleiner Speicher, den auch der Hintergrund-Helfer (sw.js) lesen kann
+// Darin: Warteschlange, Anmeldung, „wer schickt gerade“. So kann Android auch bei geschlossener App nachschicken.
+const QKEY = "einkaufsliste_queue";
+let dbp = null;
+function db() {
+  if (!("indexedDB" in window)) return Promise.reject(new Error("idb"));
+  return dbp || (dbp = new Promise((ok, fail) => {
+    const r = indexedDB.open("einkaufsliste-app", 1);
+    r.onupgradeneeded = () => r.result.createObjectStore("kv");
+    r.onsuccess = () => ok(r.result);
+    r.onerror = () => { dbp = null; fail(r.error); };
+  }));
+}
+async function kv(mode, fn) {
+  const d = await db();
+  return new Promise((ok, fail) => {
+    const tx = d.transaction("kv", mode);
+    const st = tx.objectStore("kv");
+    let out;
+    Promise.resolve(fn(st, (v) => { out = v; })).catch(fail);
+    tx.oncomplete = () => ok(out);
+    tx.onerror = () => fail(tx.error);
+  });
+}
+const kvGet = (k) => kv("readonly", (st, set) => { const r = st.get(k); r.onsuccess = () => set(r.result); }).catch(() => undefined);
+const kvSet = (k, v) => kv("readwrite", (st) => { st.put(v, k); }).catch(() => {});
+const kvDel = (k) => kv("readwrite", (st) => { st.delete(k); }).catch(() => {});
+// 🔐 Nur einer schickt gleichzeitig: diese Seite ODER der Hintergrund-Helfer
+const ME = "page-" + Math.random().toString(36).slice(2, 8);
+const lockTake = () => kv("readwrite", (st, set) => {
+  const r = st.get("lock");
+  r.onsuccess = () => {
+    const l = r.result;
+    if (l && l.owner !== ME && l.until > Date.now()) { set(false); return; }
+    st.put({ owner: ME, until: Date.now() + 60000 }, "lock");
+    set(true);
+  };
+}).catch(() => true);
+const lockFree = () => kv("readwrite", (st) => {
+  const r = st.get("lock");
+  r.onsuccess = () => { if (r.result?.owner === ME) st.delete("lock"); };
+}).catch(() => {});
+// Stand der Warteschlange aus dem gemeinsamen Speicher holen (der Hintergrund-Helfer hat vielleicht schon nachgeschickt)
+async function queueFromStore() {
+  const q = await kvGet("queue");
+  if (!Array.isArray(q)) return null;
+  const flushed = await kvGet("flushed");
+  if (flushed?.n) {
+    await kvDel("flushed");
+    setTimeout(() => toast(T(`✅ ${flushed.n} ${flushed.n === 1 ? "Änderung wurde" : "Änderungen wurden"} im Hintergrund nachgeschickt`,
+      `✅ ${flushed.n} ${flushed.n === 1 ? "change was" : "changes were"} sent in the background`)), 300);
+  }
+  return q;
+}
+window.einkaufslisteFlushGate = {
+  async acquire() {
+    if (!(await lockTake())) return false;
+    const q = await queueFromStore();
+    if (q) window.einkaufslisteQueue?.replace(q);
+    return true;
+  },
+  release() { lockFree(); },
+};
+window.addEventListener("einkaufsliste-queue", (e) => { kvSet("queue", e.detail || []); });
+function askBackgroundSync() {
+  let q = [];
+  try { q = JSON.parse(localStorage.getItem(QKEY) || "[]"); } catch (_) { /* egal */ }
+  if (!q.length || !("serviceWorker" in navigator)) return;
+  navigator.serviceWorker.ready.then((reg) => reg.sync?.register("el-queue")).catch(() => {});
+}
+document.addEventListener("visibilitychange", () => { if (document.hidden) askBackgroundSync(); });
+window.addEventListener("pagehide", askBackgroundSync);
 const T = (de, en) => (EN ? en : de);
 
 // ---------------------------------------------------------------- 🔲 Bausteine, die sonst Home Assistant mitbringt
@@ -127,12 +200,12 @@ async function finishLogin() {
   history.replaceState(null, "", BASE);
   if (q.get("state") !== sessionStorage.getItem("elapp_state")) return;
   auth = await tokenRequest({ grant_type: "authorization_code", code: q.get("code") });
-  put(K.auth, auth);
+  put(K.auth, auth); kvSet("auth", { ...auth, client_id: CLIENT_ID });
 }
 async function accessToken() {
   if (auth && auth.expires > Date.now()) return auth.access;
   auth = { ...(await tokenRequest({ grant_type: "refresh_token", refresh_token: auth.refresh })), refresh: auth.refresh };
-  put(K.auth, auth);
+  put(K.auth, auth); kvSet("auth", { ...auth, client_id: CLIENT_ID });
   return auth.access;
 }
 
@@ -154,7 +227,7 @@ function connect() {
       try { ws.send(JSON.stringify({ type: "auth", access_token: await accessToken() })); }
       catch (err) { if ([400, 401, 403].includes(err.status)) logout(true); else ws.close(); }
     } else if (m.type === "auth_invalid") {
-      auth.expires = 0; put(K.auth, auth); ws.close();
+      auth.expires = 0; put(K.auth, auth); kvSet("auth", { ...auth, client_id: CLIENT_ID }); ws.close();
     } else if (m.type === "auth_ok") {
       ready = true;
       for (const s of subs.values()) sendSub(s);
@@ -210,7 +283,15 @@ async function loadUserAndStates() {
 }
 window.addEventListener("online", connect);
 window.addEventListener("offline", () => { try { ws?.close(); } catch (_) { /* egal */ } update(); });
-document.addEventListener("visibilitychange", () => { if (!document.hidden) connect(); });
+document.addEventListener("visibilitychange", async () => {
+  if (document.hidden) return;
+  const q = await queueFromStore(); // erst abgleichen – vielleicht wurde im Hintergrund schon nachgeschickt
+  if (q && window.einkaufslisteQueue && JSON.stringify(q) !== JSON.stringify(window.einkaufslisteQueue.get())) {
+    window.einkaufslisteQueue.replace(q);
+    if (card && lastData) card.hass = makeHass();
+  }
+  connect();
+});
 
 // ---------------------------------------------------------------- 🗄️ Ohne Netz: gemerkte Antworten (Fotos, Produkte, Verlauf …)
 const READ_CACHE = new Set(["einkaufsliste/photo/get", "einkaufsliste/products", "einkaufsliste/log/get", "einkaufsliste/barcode/info", "einkaufsliste/import/todo_lists"]);
@@ -318,7 +399,9 @@ async function scanOpen(p) {
     let hit = null;
     try { hit = await read(video); } catch (_) { /* nächstes Bild */ }
     if (scan !== me) return;
-    if (hit?.rawValue && !(hit.rawValue === me.last.code && Date.now() - me.last.at < 2500)) {
+    // gleiche Packung bleibt im Bild? Erst wieder melden, wenn sie 2,5 Sekunden weg war
+    if (hit?.rawValue && hit.rawValue === me.last.code && Date.now() - me.last.at < 2500) me.last.at = Date.now();
+    else if (hit?.rawValue) {
       me.last = { code: hit.rawValue, at: Date.now() };
       navigator.vibrate?.(40);
       const shade = el.querySelector(".shade");
@@ -417,14 +500,14 @@ function update() {
     return;
   }
   if (!card) {
-    wrap.innerHTML = `<div class="bar"><span class="pill" id="pill"></span></div>`;
+    wrap.innerHTML = `<div class="bar"><span class="pill" id="pill"></span><span class="grow"></span><span>v${VERSION}</span></div>`;
     card = document.createElement("einkaufsliste-card");
     card.setConfig({ title: "Einkaufsliste" });
     wrap.append(card);
     // 🚪 Abmelden ganz unten – damit man beim Abhaken nicht aus Versehen draufkommt
     const foot = document.createElement("div");
     foot.className = "foot";
-    foot.innerHTML = `<span>v${VERSION}</span><button id="logoutBtn">🚪 ${T("Abmelden", "Log out")}</button>`;
+    foot.innerHTML = `<button id="logoutBtn">${T("Abmelden", "Log out")}</button>`;
     wrap.append(foot);
     document.getElementById("logoutBtn").addEventListener("click", () => {
       if (confirm(T("Abmelden? Noch nicht gesendete Änderungen gehen verloren.", "Log out? Changes not sent yet will be lost."))) logout(false);
@@ -439,8 +522,10 @@ function logout(silent) {
   const refresh = auth?.refresh;
   auth = null;
   localStorage.removeItem(K.auth);
+  kvDel("auth");
   if (!silent) {
     for (const k of [K.data, K.user, K.states, "einkaufsliste_queue"]) localStorage.removeItem(k);
+    kvDel("queue"); kvDel("auth"); kvDel("flushed");
     lastData = null; user = null; states = {};
     caches.delete("einkaufsliste-daten").catch(() => {});
     if (refresh) fetch("/auth/token", { method: "POST", body: new URLSearchParams({ action: "revoke", token: refresh }) }).catch(() => {});
@@ -453,6 +538,12 @@ function logout(silent) {
 (async () => {
   if ("serviceWorker" in navigator) navigator.serviceWorker.register(BASE + "sw.js", { scope: BASE }).catch(() => {});
   try { await finishLogin(); } catch (_) { toast(T("Anmeldung hat nicht geklappt 🙈", "Login failed 🙈")); }
+  try { // 🔄 Warteschlange abgleichen, bevor die Karte startet
+    const q = await queueFromStore();
+    if (q) localStorage.setItem(QKEY, JSON.stringify(q));
+    else kvSet("queue", JSON.parse(localStorage.getItem(QKEY) || "[]"));
+    if (auth) kvSet("auth", { ...auth, client_id: CLIENT_ID });
+  } catch (_) { /* egal */ }
   const s = document.createElement("script");
   s.type = "module";
   s.src = "/einkaufsliste_files/einkaufsliste-card.js?v=" + VERSION;
