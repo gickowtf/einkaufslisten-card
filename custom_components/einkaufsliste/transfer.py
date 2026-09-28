@@ -86,6 +86,8 @@ async def async_restore(manager: EinkaufslisteManager, raw: bytes) -> dict[str, 
     await manager.hass.async_add_executor_job(write_photos)
     await manager._store.async_save(data)
     await manager.async_load()
+    if getattr(manager, "sync", None) is not None:
+        manager.sync.start()  # 🔁 gewählte To-do-Liste aus der Sicherung übernehmen
     # Fotos, die jetzt zu nichts mehr gehören, wegräumen
     await manager.async_check(fixes={"photo_orphans": ""})
     manager._changed()

@@ -33,6 +33,8 @@
 
 Plus lots of small things: photos per product, nicknames (“Kleenex” = tissues), learned typos, store brands when scanning, duplicate finder, history, backup, a mascot 🛒😊 and more.
 
+**🗣️ With Alexa:** “Alexa, add milk to my shopping list” – and the milk lands on *this* list (see [Alexa & other lists](#-alexa--other-lists)).
+
 ---
 
 ## 📦 Installation
@@ -109,11 +111,12 @@ Good to know: it needs an **https** address (e.g. Nabu Casa). If two people chan
 
 | Tile | What's inside |
 |---|---|
-| **Stores, Categories, People, Recipe groups** | Add, rename, color, icon (just type “dog”, no “mdi:”), sort. Stores also get a 📍 zone and store brands. |
+| **Stores, Categories, People, Recipe groups** | Add, rename, color, icon (just type “dog”, no “mdi:”), sort. Stores also get 📍 zones (several, e.g. for several branches) and store brands. |
 | **Recipes** | New recipe, edit, delete. |
 | **Products** | Everything the list knows: rename, category, store (“Available at”), nicknames, photos, barcodes, learned typos, delete completely. Plus “Newly scanned” to check. |
 | **All good?** | Finds broken or incomplete entries and fixes only what you tick. |
-| **Import & backup** | Recipes from a file (.txt, .csv, .json – admins), lists from other apps (HA to-do lists, Bring!, Google Keep …), backup as .zip (admins). |
+| **Import & backup** | Recipes from a file (.txt, .csv, .json – admins), lists from other apps (HA to-do lists, Bring!, Google Keep …) – once or **🔁 automatically** –, backup as .zip (admins). |
+| **Mascot** | 🛒😊 shopping cart with a face instead of the icon at the top left – beams when the list is empty, sweats when it's full, sleeps at night. The switch applies to everyone. |
 | **Offline app** | Your app address with a copy button. |
 | **Protection** | A 4–8 digit PIN for the gear. Forgot it? Devices & services → Einkaufsliste → Configure → “Reset PIN” (admins). Honestly: protection against accidental changes, not a safe. |
 | **History** | Who did what and when, with filters – and “📈 Often not available”. |
@@ -123,7 +126,16 @@ Good to know: it needs an **https** address (e.g. Nabu Casa). If two people chan
 On cleanup day everything that has been open for at least 7 days (adjustable) gets **checked off**. Example Sunday: added on Tuesday → only 5 days old on the first Sunday, stays → checked off on the second Sunday. Each item shows 🧹 with its date. Nothing is deleted. Day and time: **Devices & services → Einkaufsliste → Configure**.
 
 ### 📍 Nearest store first
-Create a **zone** per store (Settings → Areas, labels & zones → Zones) and pick it in ⚙️ → Stores at 📍. Whoever shares their location via the companion app lands on the right tab in the store.
+Create a **zone** per store (Settings → Areas, labels & zones → Zones) and pick it in ⚙️ → Stores at 📍. Several branches? Just pick several zones for the same store. Whoever shares their location via the companion app lands on the right tab in the store.
+
+### 🗣️ Alexa & other lists
+The shopping list can **empty another Home Assistant to-do list automatically**: everything that lands there moves over right away and is deleted there.
+
+1. Set up the **“Alexa Devices”** integration in Home Assistant. The Alexa shopping list then shows up as a to-do list in HA.
+2. In the card: **⚙️ → Import & backup → From other apps → 🔁 Bring over automatically**, pick the Alexa list (and a store if you like), **Turn on**.
+3. From now on: “Alexa, add milk to my shopping list” → milk is on the list, with “🔁 Alexa” as the one who added it.
+
+This works with any to-do list in HA (Google Tasks, Bring!, Todoist, the HA shopping list …). Honestly: “Hey Google, …” writes to Google Keep, which has no official Home Assistant connection – so it doesn't work that way with Google.
 
 ---
 
@@ -141,7 +153,6 @@ Create a **zone** per store (Settings → Areas, labels & zones → Zones) and p
 | `show_settings` | `true` | show the gear (e.g. off for a kids' tablet) |
 | `compact` | `false` | smaller rows without extra info |
 | `auto_store` | `true` | jump to the store you are at |
-| `mascot` | `false` | 🛒😊 shopping cart with a face instead of the icon |
 | `language` | `auto` | `auto` = like Home Assistant, `de` or `en` |
 
 ---

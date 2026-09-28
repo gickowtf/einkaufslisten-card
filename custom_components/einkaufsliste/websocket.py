@@ -59,6 +59,8 @@ def async_register(hass: HomeAssistant) -> None:
         ws_import_text,
         ws_import_todo_lists,
         ws_import_todo,
+        ws_todo_sync,
+        ws_mascot,
         ws_seen,
         ws_group_add,
         ws_group_update,
@@ -295,12 +297,13 @@ def ws_group_add(hass, connection, msg):
         vol.Optional("color"): OPT_STR,
         vol.Optional("icon"): OPT_STR,
         vol.Optional("zone"): OPT_STR,
+        vol.Optional("zones"): [str],
         vol.Optional("brands"): OPT_STR,
     }
 )
 @callback
 def ws_group_update(hass, connection, msg):
-    fields = _pick(msg, "name", "color", "icon", "zone", "brands")
+    fields = _pick(msg, "name", "color", "icon", "zone", "zones", "brands")
     _run(
         hass, connection, msg, lambda m: m.update_group(msg["kind"], msg["group_id"], **fields)
     )
@@ -529,6 +532,22 @@ async def ws_import_todo(hass, connection, msg):
         connection.send_error(msg["id"], "invalid", str(err))
         return
     _run(hass, connection, msg, lambda m: import_text(m, text, msg.get("store_id") or None))
+
+
+@websocket_api.websocket_command(
+    {vol.Required("type"): "einkaufsliste/todo_sync/set", vol.Optional("entity_id"): OPT_STR, vol.Optional("store_id"): OPT_STR}
+)
+@callback
+def ws_todo_sync(hass, connection, msg):
+    """🔁 To-do-Liste zum automatischen Herüberholen wählen (ohne entity_id = aus)."""
+    _run(hass, connection, msg, lambda m: m.set_todo_sync(msg.get("entity_id") or None, msg.get("store_id") or None))
+
+
+@websocket_api.websocket_command({vol.Required("type"): "einkaufsliste/mascot/set", vol.Required("on"): bool})
+@callback
+def ws_mascot(hass, connection, msg):
+    """🛒😊 Maskottchen für alle an/aus."""
+    _run(hass, connection, msg, lambda m: m.set_mascot(msg["on"]))
 
 
 @websocket_api.websocket_command(

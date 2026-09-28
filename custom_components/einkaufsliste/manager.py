@@ -244,6 +244,8 @@ class EinkaufslisteManager:
         self.aliases: dict[str, dict[str, Any]] = {}  # 🏷️ Spitzname (klein) -> {"name", "note"} des Produkts
         self.typos: dict[str, dict[str, Any]] = {}  # 🧠 Tippfehler (klein) -> {"right": Name, "n": wie oft korrigiert}
         self.pin_hash: str | None = None  # 🔒 PIN für die Einstellungen (nur als Prüfsumme gespeichert)
+        self.mascot: bool = False  # 🛒😊 Maskottchen an/aus – gilt für alle Karten und Handys
+        self.todo_sync: dict[str, Any] | None = None  # 🔁 {"entity_id", "store_id", "count"} – To-do-Liste herüberholen
         self.photo_dir = Path(hass.config.path("einkaufsliste_fotos"))
         self.history: dict[str, dict[str, Any]] = {}
         self.last_cleanup: str | None = None
@@ -329,6 +331,12 @@ class EinkaufslisteManager:
         self.aliases = data.get("aliases", {})
         self.typos = data.get("typos", {})
         self.pin_hash = data.get("pin")
+        self.mascot = bool(data.get("mascot", False))
+        self.todo_sync = data.get("todo_sync") or None
+        for store in self.stores:  # 📍 früher eine Zone pro Geschäft, jetzt beliebig viele
+            if "zones" not in store:
+                store["zones"] = [store["zone"]] if store.get("zone") else []
+            store["zone"] = store["zones"][0] if store["zones"] else None
         self.log = data.get("log", [])
         self.log_days = int(data.get("log_days", LOG_DEFAULT_DAYS))
         if "persons" in data:
@@ -370,6 +378,8 @@ class EinkaufslisteManager:
             "aliases": self.aliases,
             "typos": self.typos,
             "pin": self.pin_hash,
+            "mascot": self.mascot,
+            "todo_sync": self.todo_sync,
             "last_cleanup": self.last_cleanup,
             "log": self.log,
             "log_days": self.log_days,
@@ -434,9 +444,37 @@ class EinkaufslisteManager:
                 "next_cleanup": self.next_cleanup().isoformat(),
                 "pin": bool(self.pin_hash),
                 "app_url": self._app_url(),
+                "mascot": self.mascot,
+                "todo_sync": self._todo_sync_info(),
             },
             "missed": self.missed_counts(),
         }
+
+    def _todo_sync_info(self) -> dict[str, Any] | None:
+        if not self.todo_sync:
+            return None
+        st = self.hass.states.get(self.todo_sync["entity_id"])
+        return {**self.todo_sync, "name": st.name if st else self.todo_sync["entity_id"], "ok": st is not None and st.state != "unavailable"}
+
+    def set_mascot(self, on: bool) -> None:
+        """🛒😊 Maskottchen für alle an- oder ausschalten."""
+        self.mascot = bool(on)
+        self._changed()
+
+    def set_todo_sync(self, entity_id: str | None, store_id: str | None = None) -> None:
+        """🔁 To-do-Liste zum automatischen Herüberholen wählen (None = aus)."""
+        if entity_id:
+            if not entity_id.startswith("todo.") or self.hass.states.get(entity_id) is None:
+                raise ValueError("Diese To-do-Liste gibt es nicht.")
+            store_id = self._check_store(store_id)
+            count = self.todo_sync.get("count", 0) if self.todo_sync and self.todo_sync.get("entity_id") == entity_id else 0
+            self.todo_sync = {"entity_id": entity_id, "store_id": store_id, "count": count}
+        else:
+            self.todo_sync = None
+        self._changed()
+        sync = getattr(self, "sync", None)
+        if sync is not None:
+            sync.start()
 
     def _app_url(self) -> str | None:
         """📱 Adresse der Offline-App von unterwegs (Nabu Casa bzw. externe https-Adresse)."""
@@ -1660,6 +1698,8 @@ class EinkaufslisteManager:
 
     @callback
     def async_stop(self) -> None:
+        if getattr(self, "sync", None) is not None:
+            self.sync.stop()
         if self._unsub_time:
             self._unsub_time()
             self._unsub_time = None
@@ -1883,6 +1923,7 @@ class EinkaufslisteManager:
             entry["color"] = _clean(color) or "#607d8b"
             entry["icon"] = _icon(icon, "mdi:cart")
             entry["zone"] = None
+            entry["zones"] = []
         elif kind == "persons":
             entry["color"] = _clean(color) or PERSON_COLORS[len(self.persons) % len(PERSON_COLORS)]
         elif kind == "recipe_groups":
@@ -1909,11 +1950,20 @@ class EinkaufslisteManager:
                 for thing in self.items + [ri for r in self.recipes for ri in r["items"]]:
                     if (thing.get("for_whom") or "").lower() == old.lower():
                         thing["for_whom"] = entry["name"]
-        if "zone" in fields and kind == "stores":
-            zone = _clean(fields["zone"])
-            if zone and not zone.startswith("zone."):
-                raise ValueError("Das ist keine Zone.")
-            entry["zone"] = zone
+        if "zone" in fields and kind == "stores" and "zones" not in fields:  # alt: genau eine Zone
+            fields["zones"] = [fields["zone"]] if _clean(fields["zone"]) else []
+        if "zones" in fields and kind == "stores":  # 📍 beliebig viele Zonen (z. B. mehrere Filialen)
+            zones: list[str] = []
+            for zone in fields["zones"] or []:
+                zone = _clean(zone)
+                if not zone:
+                    continue
+                if not zone.startswith("zone."):
+                    raise ValueError("Das ist keine Zone.")
+                if zone not in zones:
+                    zones.append(zone)
+            entry["zones"] = zones
+            entry["zone"] = zones[0] if zones else None
         if "color" in fields and kind in ("stores", "categories", "persons", "recipe_groups"):
             entry["color"] = _clean(fields["color"]) or entry.get("color")
         if "icon" in fields and kind != "persons":

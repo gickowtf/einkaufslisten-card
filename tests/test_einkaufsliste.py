@@ -1675,3 +1675,64 @@ async def test_missed_counts(hass: HomeAssistant, setup) -> None:
         m.mark_out(it["id"])
     m.move_item(it["id"], netto["id"])
     assert m.as_dict()["missed"] == {f"butter|{aldi['id']}": 3}
+
+
+async def test_zones_mascot_todo_sync(hass: HomeAssistant, setup, hass_ws_client) -> None:
+    """📍 mehrere Zonen pro Geschäft, 🛒😊 Maskottchen für alle, 🔁 To-do-Liste automatisch herüberholen."""
+    m = mgr(hass)
+    aldi = next(s for s in m.stores if s["name"] == "Aldi")
+    # 📍 Zonen
+    m.update_group("stores", aldi["id"], zones=["zone.aldi_ort", "zone.aldi_stadt", "zone.aldi_ort"])
+    assert aldi["zones"] == ["zone.aldi_ort", "zone.aldi_stadt"] and aldi["zone"] == "zone.aldi_ort"
+    with pytest.raises(ValueError):
+        m.update_group("stores", aldi["id"], zones=["person.anna"])
+    m.update_group("stores", aldi["id"], zone="zone.aldi_neu")  # alter Weg: genau eine Zone
+    assert aldi["zones"] == ["zone.aldi_neu"]
+    m.update_group("stores", aldi["id"], zones=[])
+    assert aldi["zones"] == [] and aldi["zone"] is None
+    # alte Daten (nur „zone“) werden beim Laden umgebaut
+    aldi["zone"] = "zone.alt"
+    del aldi["zones"]
+    await m.async_save_now()
+    await m.async_load()
+    aldi = next(s for s in m.stores if s["name"] == "Aldi")
+    assert aldi["zones"] == ["zone.alt"]
+
+    # 🛒😊 Maskottchen
+    client = await hass_ws_client(hass)
+    await client.send_json({"id": 1, "type": "einkaufsliste/mascot/set", "on": True})
+    assert (await client.receive_json())["success"]
+    assert m.as_dict()["settings"]["mascot"] is True
+
+    # 🔁 To-do-Liste (hier die eingebaute HA-Einkaufsliste)
+    import os
+    if os.path.exists(hass.config.path(".shopping_list.json")):
+        os.remove(hass.config.path(".shopping_list.json"))
+    sl = MockConfigEntry(domain="shopping_list")
+    sl.add_to_hass(hass)
+    assert await hass.config_entries.async_setup(sl.entry_id)
+    await hass.async_block_till_done()
+    await hass.services.async_call("todo", "add_item", {"entity_id": "todo.einkaufsliste", "item": "Kaffee"}, blocking=True)
+    netto = next(s for s in m.stores if s["name"] == "Netto")
+    await client.send_json({"id": 2, "type": "einkaufsliste/todo_sync/set", "entity_id": "todo.einkaufsliste", "store_id": netto["id"]})
+    assert (await client.receive_json())["success"]
+    await hass.async_block_till_done()
+    kaffee = next(i for i in m.items if i["name"] == "Kaffee")
+    assert kaffee["store_id"] == netto["id"] and not kaffee["checked"]
+    assert hass.states.get("todo.einkaufsliste").state == "0"  # dort gelöscht
+    # später Gesagtes kommt von selbst
+    await hass.services.async_call("todo", "add_item", {"entity_id": "todo.einkaufsliste", "item": "2 Milch"}, blocking=True)
+    await hass.async_block_till_done()
+    milch = next(i for i in m.items if i["name"] == "Milch")
+    assert milch["quantity"] == "2x" and milch["store_id"] == netto["id"]
+    assert hass.states.get("todo.einkaufsliste").state == "0"
+    info = m.as_dict()["settings"]["todo_sync"]
+    assert info["entity_id"] == "todo.einkaufsliste" and info["count"] == 2 and info["ok"]
+    assert m.log[-1]["v"] == "sync"
+    # ausschalten
+    await client.send_json({"id": 3, "type": "einkaufsliste/todo_sync/set", "entity_id": None})
+    assert (await client.receive_json())["success"]
+    await hass.services.async_call("todo", "add_item", {"entity_id": "todo.einkaufsliste", "item": "Tee"}, blocking=True)
+    await hass.async_block_till_done()
+    assert not any(i["name"] == "Tee" for i in m.items)
+    assert m.as_dict()["settings"]["todo_sync"] is None

@@ -38,6 +38,8 @@
 
 Dazu viele Kleinigkeiten: Fotos pro Produkt, Spitznamen („Tempos“ = Taschentücher), gelernte Tippfehler, Eigenmarken beim Scannen, Doppelt-Finder, Verlauf, Sicherung, Maskottchen 🛒😊 und mehr.
 
+**🗣️ Mit Alexa:** „Alexa, setz Milch auf die Einkaufsliste“ – und die Milch steht auf *dieser* Liste (siehe [Alexa & andere Listen](#-alexa--andere-listen)).
+
 ---
 
 ## 📦 Installation
@@ -114,11 +116,12 @@ Gut zu wissen: Es braucht eine **https**-Adresse (z. B. Nabu Casa). Ändern zwei
 
 | Kachel | Was drin ist |
 |---|---|
-| **Geschäfte, Kategorien, Personen, Rezept-Gruppen** | Anlegen, umbenennen, Farbe, Icon (einfach „hund“ tippen, ohne „mdi:“), sortieren. Bei Geschäften auch 📍 Zone und Eigenmarken. |
+| **Geschäfte, Kategorien, Personen, Rezept-Gruppen** | Anlegen, umbenennen, Farbe, Icon (einfach „hund“ tippen, ohne „mdi:“), sortieren. Bei Geschäften auch 📍 Zonen (mehrere, z. B. für mehrere Filialen) und Eigenmarken. |
 | **Rezepte** | Neues Rezept, bearbeiten, löschen. |
 | **Produkte** | Alles, was die Liste kennt: umbenennen, Kategorie, Geschäft („Gibt's bei“), Spitznamen, Fotos, Barcodes, gelernte Tippfehler, ganz löschen. Dazu „Neu gescannt“ zum Prüfen. |
 | **Alles ok?** | Findet kaputte oder unvollständige Einträge und repariert nur, was du anhakst. |
-| **Import & Sicherung** | Rezepte aus Datei (.txt, .csv, .json – nur Admins), Listen aus anderen Apps (HA-To-do-Listen, Bring!, Google Keep …), Sicherung als .zip (nur Admins). |
+| **Import & Sicherung** | Rezepte aus Datei (.txt, .csv, .json – nur Admins), Listen aus anderen Apps (HA-To-do-Listen, Bring!, Google Keep …) – einmal oder **🔁 automatisch** –, Sicherung als .zip (nur Admins). |
+| **Maskottchen** | 🛒😊 Einkaufswagen mit Gesicht statt des Symbols oben links – strahlt bei leerer Liste, schwitzt bei vollem Wagen, schläft nachts. Der Schalter gilt für alle. |
 | **Offline-App** | Deine App-Adresse mit „Kopieren“-Knopf. |
 | **Schutz** | PIN (4–8 Ziffern) fürs Zahnrad. Vergessen? Geräte & Dienste → Einkaufsliste → Konfigurieren → „PIN zurücksetzen“ (nur Admins). Ehrlich gesagt: Schutz vor Verstellen, kein Tresor. |
 | **Verlauf** | Wer hat wann was gemacht, mit Filtern – und „📈 Oft nicht bekommen“. |
@@ -128,7 +131,16 @@ Gut zu wissen: Es braucht eine **https**-Adresse (z. B. Nabu Casa). Ändern zwei
 Am Aufräum-Tag wird alles **abgehakt**, was mindestens 7 Tage (einstellbar) offen ist. Beispiel Sonntag: Am Dienstag eingetragen → am ersten Sonntag erst 5 Tage alt, bleibt → am zweiten Sonntag abgehakt. Unter jedem Artikel steht mit 🧹, wann es so weit ist. Gelöscht wird nichts. Tag und Uhrzeit: **Geräte & Dienste → Einkaufsliste → Konfigurieren**.
 
 ### 📍 Nächstes Geschäft zuerst
-Für jedes Geschäft eine **Zone** anlegen (Einstellungen → Bereiche, Beschriftungen & Zonen → Zonen) und sie in ⚙️ → Geschäfte bei 📍 auswählen. Wer seinen Standort über die Companion-App sendet, landet im Laden automatisch im richtigen Reiter.
+Für jedes Geschäft eine **Zone** anlegen (Einstellungen → Bereiche, Beschriftungen & Zonen → Zonen) und sie in ⚙️ → Geschäfte bei 📍 auswählen. Mehrere Filialen? Einfach mehrere Zonen beim selben Geschäft wählen. Wer seinen Standort über die Companion-App sendet, landet im Laden automatisch im richtigen Reiter.
+
+### 🗣️ Alexa & andere Listen
+Die Einkaufsliste kann eine andere To-do-Liste aus Home Assistant **automatisch leer räumen**: Alles, was dort landet, wandert sofort herüber und wird dort gelöscht.
+
+1. In Home Assistant die Integration **„Alexa Devices“** einrichten. Dann taucht die Alexa-Einkaufsliste als To-do-Liste in HA auf.
+2. In der Karte **⚙️ → Import & Sicherung → Aus anderen Apps → 🔁 Automatisch herüberholen**: die Alexa-Liste wählen (und auf Wunsch ein Geschäft), **Einschalten**.
+3. Ab jetzt: „Alexa, setz Milch auf die Einkaufsliste“ → Milch steht drauf, mit „🔁 Alexa“ als Eintrager.
+
+Das geht mit jeder To-do-Liste in HA (Google Tasks, Bring!, Todoist, die HA-Einkaufsliste …). Ehrlich gesagt: „Hey Google, …“ schreibt in Google Keep, und Keep hat keine offizielle Verbindung zu Home Assistant – mit Google klappt es deshalb so nicht.
 
 ---
 
@@ -148,7 +160,6 @@ Alles geht im visuellen Editor. Für YAML-Fans:
 | `show_settings` | `true` | Zahnrad anzeigen (z. B. fürs Kinder-Tablet aus) |
 | `compact` | `false` | kleinere Zeilen ohne Zusatz-Infos |
 | `auto_store` | `true` | automatisch zum Geschäft springen, bei dem man gerade ist |
-| `mascot` | `false` | 🛒😊 Einkaufswagen mit Gesicht statt des Symbols |
 | `language` | `auto` | `auto` = wie Home Assistant, `de` oder `en` |
 
 ---

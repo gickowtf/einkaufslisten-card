@@ -2,7 +2,7 @@
  * Einkaufsliste Card – die Familien-Einkaufsliste für Home Assistant
  * Wird automatisch von der Integration "einkaufsliste" geladen.
  */
-const EL_VERSION = "2.24.0";
+const EL_VERSION = "2.25.0";
 
 // Doppelt-Finder: Wörter, die dasselbe meinen (alles klein, ohne Leer-/Sonderzeichen)
 const DUP_SYNONYMS = (() => {
@@ -35,7 +35,7 @@ const LOG_ACT = {
   out: { label: "⇄ war aus", verb: "hat % als „war aus“ markiert" },
   remove: { label: "🗑️ gelöscht", verb: "hat % gelöscht" },
 };
-const LOG_VIA = { card: "✍️", scan: "▥", recipe: "🍳", merge: "🔗", cleanup: "🧹", service: "🤖" };
+const LOG_VIA = { card: "✍️", scan: "▥", recipe: "🍳", merge: "🔗", cleanup: "🧹", service: "🤖", sync: "🔁" };
 const WD_LONG = ["Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag", "Sonntag"];
 const pyWd = (d) => (d.getDay() + 6) % 7;
 const DAY = 86400000;
@@ -996,6 +996,13 @@ label.btn { cursor:pointer; }
 .redithint { font-size:.85em; padding:6px 10px; border-radius:10px; background:color-mix(in srgb, var(--primary-color,#03a9f4) 12%, transparent); margin:4px 2px; }
 .rrow .iconbtn { align-self:center; }
 .rrow.editing { outline:2px solid var(--primary-color,#03a9f4); }
+.zonechips { display:flex; flex-wrap:wrap; gap:6px; align-items:center; }
+.zchip { display:inline-flex; align-items:center; gap:2px; border-radius:999px; padding:2px 4px 2px 10px; font-size:.9em;
+  background:color-mix(in srgb, var(--primary-color,#03a9f4) 14%, transparent); }
+.zchip .zx { border:0; background:none; color:inherit; cursor:pointer; font:inherit; padding:2px 6px; opacity:.7; }
+.zadd { flex:1 1 140px; min-width:0; }
+.mascotprev { display:flex; gap:14px; align-items:center; margin:8px 0; color:var(--primary-text-color); }
+.mascotprev svg { width:48px; height:43px; }
 [hidden] { display:none !important; }
 `;
 
@@ -1214,6 +1221,9 @@ function mascotSvg(mood, deco) {
     ${eyes}${mouth}${extra}${hat}</svg>`;
 }
 
+// 📍 Zonen eines Geschäfts (früher genau eine, jetzt beliebig viele)
+const storeZones = (store) => (Array.isArray(store?.zones) ? store.zones : store?.zone ? [store.zone] : []);
+
 // ⏳ Warteschlange für Funklöcher: wird im Handy gespeichert, damit auch ein Neustart der App nichts verliert
 const QUEUE_TYPES = new Set(["einkaufsliste/item/toggle", "einkaufsliste/item/add", "einkaufsliste/item/update",
   "einkaufsliste/item/remove", "einkaufsliste/item/move", "einkaufsliste/item/out",
@@ -1402,16 +1412,18 @@ class EinkaufslisteCard extends HTMLElement {
     const { latitude: lat, longitude: lon } = person.attributes;
     let best = null;
     for (const store of this._data.stores) {
-      const zone = store.zone && this._hass.states[store.zone];
-      if (!zone) continue;
-      const zname = zone.attributes.friendly_name || store.zone.slice(5);
-      const inside = String(person.state).toLowerCase() === String(zname).toLowerCase();
-      let dist = inside ? 0 : null;
-      if (dist === null && lat != null && zone.attributes.latitude != null) {
-        dist = distance(lat, lon, zone.attributes.latitude, zone.attributes.longitude);
-        if (dist > (zone.attributes.radius || 100) + 200) dist = null; // noch zu weit weg
+      for (const zid of storeZones(store)) { // 📍 ein Geschäft kann mehrere Zonen haben (z. B. mehrere Filialen)
+        const zone = this._hass.states[zid];
+        if (!zone) continue;
+        const zname = zone.attributes.friendly_name || zid.slice(5);
+        const inside = String(person.state).toLowerCase() === String(zname).toLowerCase();
+        let dist = inside ? 0 : null;
+        if (dist === null && lat != null && zone.attributes.latitude != null) {
+          dist = distance(lat, lon, zone.attributes.latitude, zone.attributes.longitude);
+          if (dist > (zone.attributes.radius || 100) + 200) dist = null; // noch zu weit weg
+        }
+        if (dist !== null && (!best || dist < best.dist)) best = { id: store.id, dist };
       }
-      if (dist !== null && (!best || dist < best.dist)) best = { id: store.id, dist };
     }
     return best?.id || null;
   }
@@ -1754,7 +1766,7 @@ class EinkaufslisteCard extends HTMLElement {
     btnShop.title = shop ? "Laden-Modus beenden" : "Laden-Modus (große Zeilen, nur Abhaken)";
     btnShop.querySelector("ha-icon").setAttribute("icon", shop ? "mdi:cart-off" : "mdi:cart-outline");
     this.$("title").textContent = ""; // Titel-Text ist weg – der Einkaufswagen reicht
-    this.$("titleIcon").hidden = c.show_title === false || !!c.mascot;
+    this.$("titleIcon").hidden = c.show_title === false || !!d?.settings?.mascot;
     this.$("titleIcon").title = `📖 Anleitung – antippen${titleText ? ` · ${titleText}` : ""}`;
     this._renderUpdateBar();
     this._updateLive();
@@ -2465,7 +2477,7 @@ class EinkaufslisteCard extends HTMLElement {
   _renderMascot(open) {
     const box = this.$("mascot");
     if (!box) return;
-    const on = !!this._config.mascot && this._config.show_title !== false;
+    const on = !!this._data?.settings?.mascot && this._config.show_title !== false; // 🛒😊 Schalter in ⚙️ – gilt für alle
     box.hidden = !on;
     this.$("titleIcon").hidden = on || this._config.show_title === false;
     if (!on) return;
@@ -2559,14 +2571,20 @@ class EinkaufslisteCard extends HTMLElement {
         <button class="iconbtn" data-act="group-remove" title="Löschen"><ha-icon icon="mdi:trash-can-outline"></ha-icon></button>
       </div>
       ${kind === "categories" || kind === "recipe_groups" ? `<div class="picker" hidden></div>` : ""}
-      ${kind === "stores" && zones.length ? `
+      ${kind === "stores" && zones.length ? (() => {
+        const mine = storeZones(e);
+        const zname = (id) => zones.find((z) => z.id === id)?.name || id.slice(5);
+        const free = zones.filter((z) => !mine.includes(z.id));
+        return `
       <div class="srow zonerow" data-kind="stores" data-id="${e.id}">
         <ha-icon class="prev" icon="mdi:map-marker-outline"></ha-icon>
-        <select class="grow" data-field="zone" title="Zone für „Nächstes Geschäft“">
-          <option value="">📍 Keine Zone</option>
-          ${zones.map((z) => `<option value="${z.id}" ${z.id === e.zone ? "selected" : ""}>📍 ${esc(z.name)}</option>`).join("")}
-        </select>
-      </div>` : ""}
+        <div class="grow zonechips">${mine.map((id) => `<span class="zchip">📍 ${esc(zname(id))}<button type="button" class="zx" data-act="zone-del" data-zone="${esc(id)}" title="Zone entfernen">✕</button></span>`).join("")}
+        ${free.length ? `<select class="zadd" data-zadd="1" title="Zone für „Nächstes Geschäft“ – mehrere gehen, z. B. für mehrere Filialen">
+          <option value="">${mine.length ? "📍 Noch eine Zone …" : "📍 Zone wählen …"}</option>
+          ${free.map((z) => `<option value="${esc(z.id)}">📍 ${esc(z.name)}</option>`).join("")}
+        </select>` : ""}</div>
+      </div>`;
+      })() : ""}
       ${kind === "stores" ? `
       <div class="srow zonerow" data-kind="stores" data-id="${e.id}">
         <ha-icon class="prev" icon="mdi:tag-outline"></ha-icon>
@@ -2653,6 +2671,11 @@ class EinkaufslisteCard extends HTMLElement {
         <div class="btnrow"><button class="btn primary" data-act="app-copy"><ha-icon icon="mdi:content-copy"></ha-icon>Kopieren</button></div>
         <p class="hint">Kopieren, im Handy-Browser einfügen, fertig. Die Adresse funktioniert zu Hause und unterwegs.</p>`
           : `<p class="hint">⚠️ Home Assistant kennt keine https-Adresse für unterwegs. Mit <b>Nabu Casa</b> (Einstellungen → Home Assistant Cloud → Fernzugriff) oder einer eigenen https-Adresse (Einstellungen → System → Netzwerk) klappt es.</p>`}` },
+      { key: "mascot", icon: "mdi:emoticon-happy-outline", title: "Maskottchen", info: this._data.settings?.mascot ? "an – für alle" : "aus", html: () => `
+        <p class="hint">Statt des Einkaufswagen-Symbols oben links sitzt dann ein kleiner Einkaufswagen mit Gesicht. Er strahlt bei leerer Liste, schwitzt bei vollem Wagen, schläft nachts und hat an Feiertagen Deko auf. Antippen öffnet wie gewohnt die Anleitung.</p>
+        <div class="mascotprev">${mascotSvg("happy", null)}${mascotSvg("busy", null)}${mascotSvg("full", null)}${mascotSvg("sleep", null)}</div>
+        <p><b>${this._data.settings?.mascot ? "🛒😊 Das Maskottchen ist an." : "Das Maskottchen ist aus."}</b> Der Schalter gilt für <b>alle</b> – auf allen Handys, im Dashboard und in der App.</p>
+        <div class="btnrow"><button class="btn primary" data-act="mascot-toggle"><ha-icon icon="${this._data.settings?.mascot ? "mdi:emoticon-neutral-outline" : "mdi:emoticon-happy-outline"}"></ha-icon>${this._data.settings?.mascot ? "Ausschalten" : "Einschalten"}</button></div>` },
       { key: "pin", icon: this._data.settings?.pin ? "mdi:lock-outline" : "mdi:lock-open-variant-outline", title: "Schutz", info: this._data.settings?.pin ? "PIN ist an" : "PIN fürs Zahnrad", html: () => this._pinHtml() },
       { key: "log", icon: "mdi:history", title: "Verlauf", info: "wer, wann, was, wie", html: () => this._logSectionHtml() },
       { key: "cleanup", icon: "mdi:broom", title: "Aufräumen", info: `${WD_SHORT[s.cleanup_weekday]} ${s.cleanup_time} Uhr`, html: () => `
@@ -2755,8 +2778,17 @@ class EinkaufslisteCard extends HTMLElement {
         ${admin ? `<div class="btnrow"><label class="btn primary"><ha-icon icon="mdi:file-upload-outline"></ha-icon>Datei auswählen<input type="file" id="xferRecipeFile" accept=".txt,.md,.csv,.json,text/*,application/json" hidden></label></div>` : `<p class="hint">🔒 Rezepte einlesen darf nur ein Admin.</p>`}
         <div id="xferRes"></div>`;
     } else if (tab === "apps") {
+      const sync = this._data.settings?.todo_sync;
+      const syncStore = sync?.store_id ? this._store(sync.store_id)?.name : null;
       body = `
-        <p class="hint"><b>Aus Home Assistant</b>: Die Artikel einer anderen HA-Liste (z. B. der eingebauten Einkaufsliste oder einer Google-/Bring!-Liste, die in HA eingebunden ist) herüberholen. Die alte Liste bleibt, wie sie ist.</p>
+        <div class="syncbox">
+        <p class="hint"><b>🔁 Automatisch herüberholen</b>: Alles, was auf der gewählten Liste landet, wandert <b>sofort</b> in die Einkaufsliste und wird dort gelöscht – ganz ohne Automation. Für <b>Alexa</b>: in Home Assistant die Integration „Alexa Devices“ einrichten und hier deren Einkaufsliste wählen. Dann reicht „Alexa, setz Milch auf die Einkaufsliste“.</p>
+        ${sync ? `<p><b>✅ An:</b> <span translate="no">${esc(sync.name || sync.entity_id)}</span> → ${syncStore ? `<span translate="no">${esc(syncStore)}</span>` : "<span>Egal wo</span>"}${sync.count ? `<span> · schon ${sync.count}× herübergeholt</span>` : ""}${sync.ok === false ? `<br><span>⚠️ Die Liste ist gerade nicht erreichbar – es geht weiter, sobald sie wieder da ist.</span>` : ""}</p>` : ""}
+        <div class="srow"><ha-icon class="prev" icon="mdi:sync"></ha-icon><select class="grow" id="syncTodo"><option value="">Lade Listen …</option></select></div>
+        <div class="srow"><ha-icon class="prev" icon="mdi:store-outline"></ha-icon><select class="grow" id="syncStore">${this._selectOptions(this._data.stores, sync?.store_id || null, "🛒 Egal wo")}</select></div>
+        <div class="btnrow"><button class="btn primary" data-act="sync-on"><ha-icon icon="mdi:sync"></ha-icon>${sync ? "Ändern" : "Einschalten"}</button>${sync ? `<button class="btn" data-act="sync-off"><ha-icon icon="mdi:sync-off"></ha-icon>Ausschalten</button>` : ""}</div>
+        </div>
+        <p class="hint" style="margin-top:14px"><b>Einmal herüberholen</b>: Die Artikel einer anderen HA-Liste (z. B. der eingebauten Einkaufsliste oder einer Google-/Bring!-Liste, die in HA eingebunden ist) herüberholen. Die alte Liste bleibt, wie sie ist.</p>
         <div class="srow"><ha-icon class="prev" icon="mdi:format-list-checks"></ha-icon><select class="grow" id="xferTodo"><option value="">Lade Listen …</option></select></div>
         <div class="srow"><ha-icon class="prev" icon="mdi:store-outline"></ha-icon><select class="grow" id="xferTodoStore">${stores}</select></div>
         <div class="btnrow"><button class="btn primary" data-act="xfer-todo"><ha-icon icon="mdi:import"></ha-icon>Herüberholen</button></div>
@@ -2784,12 +2816,16 @@ class EinkaufslisteCard extends HTMLElement {
   async _loadTodoLists() {
     let lists = [];
     try { lists = await this._ws({ type: "einkaufsliste/import/todo_lists" }); } catch (_) { /* Meldung kam schon */ }
-    const sel = this.$("xferTodo");
-    if (!sel) return;
     lists = lists?.lists || lists || [];
-    sel.innerHTML = lists.length
-      ? lists.map((l) => `<option value="${esc(l.entity_id)}">${esc(l.name)}${l.open != null ? ` · ${l.open}` : ""}</option>`).join("")
-      : `<option value="">Keine andere Liste in Home Assistant gefunden</option>`;
+    const cur = this._data.settings?.todo_sync?.entity_id;
+    for (const id of ["xferTodo", "syncTodo"]) {
+      const sel = this.$(id);
+      if (!sel) continue;
+      sel.innerHTML = lists.length
+        ? (id === "syncTodo" && !cur ? `<option value="">🔁 Welche Liste?</option>` : "")
+          + lists.map((l) => `<option value="${esc(l.entity_id)}" ${id === "syncTodo" && l.entity_id === cur ? "selected" : ""}>${esc(l.name)}${l.open != null ? ` · ${l.open}` : ""}</option>`).join("")
+        : `<option value="">Keine andere Liste in Home Assistant gefunden</option>`;
+    }
   }
 
   _xferStore(id) {
@@ -2868,7 +2904,7 @@ class EinkaufslisteCard extends HTMLElement {
         <select id="logDays" style="width:auto">${[7, 30, 90, 180, 365].map((n) => `<option value="${n}" ${n === days ? "selected" : ""}>${n} Tage</option>`).join("")}</select>
       </div>
       <div class="btnrow"><button class="btn" data-act="log-clear"><ha-icon icon="mdi:delete-sweep-outline"></ha-icon>Verlauf leeren</button></div>
-      <p class="hint">Zeichen: ✍️ in der Karte · ▥ gescannt · 🍳 Rezept · 🔗 zusammengelegt · 🧹 automatisch aufgeräumt · 🤖 Automation/Dienst</p>`;
+      <p class="hint">Zeichen: ✍️ in der Karte · ▥ gescannt · 🍳 Rezept · 🔗 zusammengelegt · 🧹 automatisch aufgeräumt · 🔁 von einer anderen Liste geholt · 🤖 Automation/Dienst</p>`;
   }
 
   async _loadLog() {
@@ -5294,6 +5330,29 @@ class EinkaufslisteCard extends HTMLElement {
       case "pin-off":
         this._pinChange(act === "pin-off");
         break;
+      case "mascot-toggle":
+        this._ws({ type: "einkaufsliste/mascot/set", on: !this._data.settings?.mascot })
+          .then(() => setTimeout(() => this._renderSettings(), 150)).catch(() => {});
+        break;
+      case "zone-del": {
+        const srow = el.closest(".srow[data-kind]");
+        const store = this._data.stores.find((x) => x.id === srow?.dataset.id);
+        if (!store) break;
+        this._ws({ type: "einkaufsliste/group/update", kind: "stores", group_id: store.id, zones: storeZones(store).filter((z) => z !== el.dataset.zone) })
+          .then(() => setTimeout(() => this._renderSettings(), 150)).catch(() => {});
+        break;
+      }
+      case "sync-on": {
+        const entity_id = this.$("syncTodo")?.value;
+        if (!entity_id) { this._toast("Erst eine Liste auswählen 😉"); break; }
+        this._ws({ type: "einkaufsliste/todo_sync/set", entity_id, store_id: this._xferStore("syncStore") })
+          .then(() => { this._toast("🔁 Ab jetzt wird automatisch herübergeholt"); setTimeout(() => this._renderSettings(), 300); }).catch(() => {});
+        break;
+      }
+      case "sync-off":
+        this._ws({ type: "einkaufsliste/todo_sync/set", entity_id: null })
+          .then(() => { this._toast("🔁 Automatisch herüberholen ist aus"); setTimeout(() => this._renderSettings(), 150); }).catch(() => {});
+        break;
       case "xfer-tab":
         this._xferTab = el.dataset.tab;
         this._renderSettings();
@@ -5495,6 +5554,13 @@ class EinkaufslisteCard extends HTMLElement {
       return;
     }
     const srow = t.closest(".srow[data-kind]");
+    if (srow && t.dataset.zadd && t.value) { // 📍 noch eine Zone für dieses Geschäft
+      const store = this._data.stores.find((x) => x.id === srow.dataset.id);
+      const zones = [...storeZones(store), t.value];
+      this._ws({ type: "einkaufsliste/group/update", kind: "stores", group_id: srow.dataset.id, zones })
+        .then(() => setTimeout(() => this._renderSettings(), 150)).catch(() => this._renderSettings());
+      return;
+    }
     if (!srow || !t.dataset.field) return;
     const msg = { type: "einkaufsliste/group/update", kind: srow.dataset.kind, group_id: srow.dataset.id };
     if (srow.dataset.kind === "recipe_groups" && t.dataset.field === "name") {
@@ -5558,7 +5624,6 @@ const EDITOR_LABELS = {
   compact: "📱 Kompakt-Modus (kleinere Zeilen, ohne Zusatz-Infos)",
   show_settings: "Zahnrad für Einstellungen anzeigen",
   language: "🌍 Sprache / Language",
-  mascot: "🛒😊 Maskottchen (Einkaufswagen mit Gesicht)",
 };
 
 class EinkaufslisteCardEditor extends HTMLElement {
@@ -5594,7 +5659,6 @@ class EinkaufslisteCardEditor extends HTMLElement {
       { name: "auto_store", selector: { boolean: {} } },
       { name: "compact", selector: { boolean: {} } },
       { name: "show_settings", selector: { boolean: {} } },
-      { name: "mascot", selector: { boolean: {} } },
       { name: "language", selector: { select: { mode: "dropdown", options: [
         { value: "auto", label: elT("Automatisch") + " (Home Assistant)" }, { value: "de", label: "Deutsch" }, { value: "en", label: "English" },
       ] } } },

@@ -36,6 +36,8 @@ body { padding:calc(env(safe-area-inset-top) + 8px) 8px calc(env(safe-area-inset
 .pill { border-radius:999px; padding:2px 10px; background:color-mix(in srgb, var(--success-color) 18%, transparent); color:var(--primary-text-color); }
 .pill.off { background:color-mix(in srgb, var(--error-color) 18%, transparent); }
 .bar button { font:inherit; color:inherit; background:none; border:0; text-decoration:underline; cursor:pointer; }
+.foot { display:flex; justify-content:space-between; align-items:center; margin:28px 6px 8px; font-size:13px; color:var(--secondary-text-color); }
+.foot button { font:inherit; color:inherit; background:none; border:1px solid var(--divider-color); border-radius:10px; padding:8px 14px; cursor:pointer; }
 .login { max-width:420px; margin:16vh auto 0; text-align:center; padding:0 20px; }
 .login img { width:96px; height:96px; border-radius:22px; }
 .big { font:inherit; border:0; background:var(--primary-color); color:#fff; border-radius:12px; padding:13px 22px; font-size:17px; font-weight:600; margin-top:16px; cursor:pointer; }
@@ -415,10 +417,15 @@ function update() {
     return;
   }
   if (!card) {
-    wrap.innerHTML = `<div class="bar"><span class="pill" id="pill"></span><span class="grow"></span><span>v${VERSION}</span> · <button id="logoutBtn">${T("Abmelden", "Log out")}</button></div>`;
+    wrap.innerHTML = `<div class="bar"><span class="pill" id="pill"></span></div>`;
     card = document.createElement("einkaufsliste-card");
-    card.setConfig({ title: "Einkaufsliste", mascot: get("elapp_mascot", false) });
+    card.setConfig({ title: "Einkaufsliste" });
     wrap.append(card);
+    // 🚪 Abmelden ganz unten – damit man beim Abhaken nicht aus Versehen draufkommt
+    const foot = document.createElement("div");
+    foot.className = "foot";
+    foot.innerHTML = `<span>v${VERSION}</span><button id="logoutBtn">🚪 ${T("Abmelden", "Log out")}</button>`;
+    wrap.append(foot);
     document.getElementById("logoutBtn").addEventListener("click", () => {
       if (confirm(T("Abmelden? Noch nicht gesendete Änderungen gehen verloren.", "Log out? Changes not sent yet will be lost."))) logout(false);
     });
