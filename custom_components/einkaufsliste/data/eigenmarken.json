@@ -1,0 +1,98 @@
+{
+  "_info": [
+    "🏷️ Eigenmarken der Einkaufsliste: Marken, die es nur in einer Kette gibt (Barcode-Scan -> richtiges Geschäft).",
+    "Aufbau: Land (ISO-Kürzel wie in Home Assistant: DE, AT, CH …) -> Stichwort im Geschäfts-Namen (klein) -> Marken (klein).",
+    "Das Land kommt aus Einstellungen -> System -> Allgemein in Home Assistant. Ist es hier nicht drin, gelten alle Länder zusammen.",
+    "Eigene Marken, die in der Karte bei einem Geschäft eingetragen sind, gehen immer vor.",
+    "Ergänzen: Land oder Kette dazuschreiben und als Pull Request auf GitHub schicken."
+  ],
+  "DE": {
+    "aldi": [
+      "milsani",
+      "moser roth",
+      "gut bio",
+      "lacura",
+      "tandil",
+      "choceur",
+      "cucina nobile",
+      "rio d'oro",
+      "mamia",
+      "golden bridge",
+      "knusperone",
+      "ombra"
+    ],
+    "lidl": [
+      "milbona",
+      "pilos",
+      "cien",
+      "formil",
+      "w5",
+      "freeway",
+      "crownfield",
+      "favorina",
+      "deluxe",
+      "solevita",
+      "fin carré",
+      "chef select",
+      "pikok",
+      "vemondo",
+      "alesto",
+      "snack day",
+      "italiamo",
+      "kania",
+      "dulano"
+    ],
+    "rewe": [
+      "ja!",
+      "rewe beste wahl",
+      "rewe bio",
+      "rewe feine welt"
+    ],
+    "penny": [
+      "penny",
+      "naturgut"
+    ],
+    "kaufland": [
+      "k-classic",
+      "k-bio",
+      "k-favourites",
+      "k-take it veggie"
+    ],
+    "netto": [
+      "biobio",
+      "gut & günstig",
+      "gut&günstig"
+    ],
+    "edeka": [
+      "gut & günstig",
+      "gut&günstig",
+      "edeka bio",
+      "edeka",
+      "elkos"
+    ],
+    "dm": [
+      "balea",
+      "alverde",
+      "ebelin",
+      "babylove",
+      "dmbio",
+      "dm bio",
+      "mivolis",
+      "denkmit",
+      "profissimo",
+      "sundance",
+      "jessa",
+      "dontodent"
+    ],
+    "rossmann": [
+      "isana",
+      "alterra",
+      "babydream",
+      "domol",
+      "enerbio",
+      "rival de loop",
+      "sunozon",
+      "prokudent"
+    ]
+  }
+}

@@ -4,8 +4,10 @@ from __future__ import annotations
 
 import asyncio
 import base64
+import json
 import logging
 import re
+from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
 
@@ -62,21 +64,40 @@ def guess_category(tags: list[str], source: str, categories: list[dict[str, Any]
     return None
 
 
-# 🏷️ Eigenmarken: gibt's nur in einer Kette. Stichwort im Geschäfts-Namen -> Marken (klein geschrieben)
-PRIVATE_LABELS: dict[str, tuple[str, ...]] = {
-    "aldi": ("milsani", "moser roth", "gut bio", "lacura", "tandil", "choceur", "cucina nobile", "rio d'oro",
-             "mamia", "golden bridge", "knusperone", "ombra"),
-    "lidl": ("milbona", "pilos", "cien", "formil", "w5", "freeway", "crownfield", "favorina", "deluxe", "solevita",
-             "fin carré", "chef select", "pikok", "vemondo", "alesto", "snack day", "italiamo", "kania", "dulano"),
-    "rewe": ("ja!", "rewe beste wahl", "rewe bio", "rewe feine welt"),
-    "penny": ("penny", "naturgut"),
-    "kaufland": ("k-classic", "k-bio", "k-favourites", "k-take it veggie"),
-    "netto": ("biobio", "gut & günstig", "gut&günstig"),
-    "edeka": ("gut & günstig", "gut&günstig", "edeka bio", "edeka", "elkos"),
-    "dm": ("balea", "alverde", "ebelin", "babylove", "dmbio", "dm bio", "mivolis", "denkmit", "profissimo",
-           "sundance", "jessa", "dontodent"),
-    "rossmann": ("isana", "alterra", "babydream", "domol", "enerbio", "rival de loop", "sunozon", "prokudent"),
-}
+# 🏷️ Eigenmarken: gibt's nur in einer Kette. Stehen in data/eigenmarken.json (nach Land) – ohne Python ergänzbar.
+_BRANDS_FILE = Path(__file__).parent / "data" / "eigenmarken.json"
+
+
+def load_private_labels(path: Path = _BRANDS_FILE) -> dict[str, dict[str, tuple[str, ...]]]:
+    """{"DE": {"aldi": ("milsani", …)}, "AT": {…}} – Schlüssel mit „_“ (Erklärungen) werden übersprungen."""
+    try:
+        raw = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as err:
+        _LOGGER.error("🏷️ Eigenmarken-Liste %s nicht lesbar: %s", path, err)
+        return {}
+    out: dict[str, dict[str, tuple[str, ...]]] = {}
+    for country, chains in raw.items():
+        if country.startswith("_") or not isinstance(chains, dict):
+            continue
+        out[country.upper()] = {
+            str(k).lower(): tuple(str(b).strip().lower() for b in v or [] if str(b).strip())
+            for k, v in chains.items() if not str(k).startswith("_")
+        }
+    return out
+
+
+PRIVATE_LABELS_BY_COUNTRY = load_private_labels()  # einmal beim Laden der Integration
+
+
+def private_labels(country: str | None) -> dict[str, tuple[str, ...]]:
+    """Eigenmarken fürs Land aus den HA-Einstellungen – kennt die Liste das Land nicht, gelten alle zusammen."""
+    if country and country.upper() in PRIVATE_LABELS_BY_COUNTRY:
+        return PRIVATE_LABELS_BY_COUNTRY[country.upper()]
+    merged: dict[str, tuple[str, ...]] = {}
+    for chains in PRIVATE_LABELS_BY_COUNTRY.values():
+        for key, labels in chains.items():
+            merged[key] = tuple(dict.fromkeys(merged.get(key, ()) + labels))
+    return merged
 
 
 def private_label_store(manager: Any, brands: str | None, stores_tags: list[str] | None = None) -> tuple[str | None, str | None]:
@@ -94,7 +115,7 @@ def private_label_store(manager: Any, brands: str | None, stores_tags: list[str]
             if brand in own:
                 return st["id"], st["name"]
     for brand in wanted:
-        for key, labels in PRIVATE_LABELS.items():
+        for key, labels in private_labels(getattr(getattr(getattr(manager, "hass", None), "config", None), "country", None)).items():
             if brand in labels:
                 st = next((x for x in stores if key in x["name"].lower().replace("-", " ").split() or x["name"].lower().startswith(key)), None)
                 if st:

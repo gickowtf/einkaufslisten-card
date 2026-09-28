@@ -2076,6 +2076,12 @@ class EinkaufslisteManager:
             entry["icon"] = None  # 🏪 leer = automatisch (Icon der Zone, sonst Einkaufswagen)
         elif "icon" in fields and kind != "persons":
             entry["icon"] = _icon(fields["icon"], entry.get("icon") or "mdi:tag-outline")
+        if "cat_order" in fields and kind == "stores":  # 🗺️ eigene Kategorien-Reihenfolge (None = wie alle)
+            if fields["cat_order"] is None:
+                entry["cat_order"] = None
+            else:
+                known = {c["id"] for c in self.categories}
+                entry["cat_order"] = [c for c in dict.fromkeys(fields["cat_order"]) if c in known]
         if "brands" in fields and kind == "stores":  # 🏷️ eigene Eigenmarken („Milsani, Moser Roth“)
             entry["brands"] = [b.strip() for b in re.split(r"[,;]", fields["brands"] or "") if b.strip()][:30]
         self._changed()

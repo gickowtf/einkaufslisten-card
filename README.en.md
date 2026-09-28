@@ -118,7 +118,7 @@ Good to know: it needs an **https** address (e.g. Nabu Casa). If two people chan
 
 | Tile | What's inside |
 |---|---|
-| 🏪 **Stores** | Every store as its own tile. Tap = name, color, icon, order, 📍 zones (several, e.g. for several branches) and 🏷️ store brands. Without an icon of its own the list uses the zone's icon (if it has one), otherwise 🛒. |
+| 🏪 **Stores** | Every store as its own tile. Tap = name, color, icon, order, 📍 zones (several, e.g. for several branches), 🏷️ store brands and 🗺️ **category order** (default: same everywhere – or its own, the way you walk through the store). Without an icon of its own the list uses the zone's icon (if it has one), otherwise 🛒. |
 | 🗂️ **Categories** · 👥 **People** | Add, rename, color, icon (just type “dog”, no “mdi:”), sort. |
 | 👨‍🍳 **Recipes** | Two tabs: **Recipes** (new, edit, delete) and **Recipe groups**. |
 | 📦 **Products** | Everything the list knows: rename, category, store (“Available at”), nicknames, photos, barcodes, learned typos, delete completely. Plus “Newly scanned” to check. |
@@ -198,6 +198,8 @@ Events: `einkaufsliste_item_added`, `einkaufsliste_cleanup`.
 **Where is the data stored?** Locally in Home Assistant (`/config/.storage/einkaufsliste.data`, photos in `/config/einkaufsliste_fotos`). No cloud. Your HA backups include it; ⚙️ → Tools → Import & backup gives you an extra .zip.
 
 **Why are my categories German?** The integration was set up while Home Assistant was in German. Just rename them in ⚙️ → Categories – the guessing works by keywords in the category name (e.g. “Dairy”, “Frozen”, “Drinks”).
+
+**Can I add store brands or category words for my country?** Yes, without programming: both live in their own files under `custom_components/einkaufsliste/data/` – `eigenmarken.json` (country as set in HA → chain → brands; unknown country = all combined) and `kategorien.json` (keywords in the category name + products per language, e.g. `de`, `en`, `nl`). Add yours and send a pull request 🙏
 
 ---
 

@@ -1957,3 +1957,39 @@ async def test_missed_ignores_anywhere_and_hide(hass: HomeAssistant, setup) -> N
     assert f"butter|{aldi}" in m.as_dict()["missed_hidden"]
     with pytest.raises(ValueError):
         m.hide_missed("Butter", "gibtsnicht")
+
+
+async def test_data_files_brands_and_dictionary(hass: HomeAssistant, setup, tmp_path) -> None:
+    """🏷️📖 Eigenmarken und Kategorie-Wörterbuch kommen aus data/*.json – nach Land, ohne Python ergänzbar."""
+    import json
+    from custom_components.einkaufsliste import barcode
+    from custom_components.einkaufsliste.categories import load_dictionary
+    assert "milsani" in barcode.private_labels("DE")["aldi"]
+    assert "balea" in barcode.private_labels(None)["dm"]  # unbekanntes Land -> alle zusammen
+    f = tmp_path / "eigenmarken.json"
+    f.write_text(json.dumps({"_info": ["x"], "AT": {"spar": ["S-Budget"]}, "DE": {"aldi": ["milsani"]}}), encoding="utf-8")
+    labels = barcode.load_private_labels(f)
+    assert labels == {"AT": {"spar": ("s-budget",)}, "DE": {"aldi": ("milsani",)}}
+    assert barcode.load_private_labels(tmp_path / "fehlt.json") == {}
+    k = tmp_path / "kategorien.json"
+    k.write_text(json.dumps({"categories": [{"id": "x", "match": ["kühl"], "words": {"de": ["Milch"], "nl": ["melk"]}}]}), encoding="utf-8")
+    assert load_dictionary(k) == [{"match": ["kühl"], "de": ["milch"], "other": ["melk"]}]
+    m = mgr(hass)
+    aldi = m.find_store("Aldi")
+    assert barcode.private_label_store(m, "Milsani")[0] == aldi
+
+
+async def test_store_cat_order(hass: HomeAssistant, setup, hass_ws_client) -> None:
+    """🗺️ Pro Geschäft eigene Kategorien-Reihenfolge – Standard: wie alle (None)."""
+    m = mgr(hass)
+    aldi = m.find_store("Aldi")
+    ids = [c["id"] for c in m.categories]
+    assert m.store_by_id(aldi).get("cat_order") is None
+    client = await hass_ws_client(hass)
+    await client.send_json({"id": 1, "type": "einkaufsliste/group/update", "kind": "stores", "group_id": aldi,
+                            "cat_order": [ids[1], ids[0], "gibtsnicht", ids[1]]})
+    assert (await client.receive_json())["success"]
+    assert m.store_by_id(aldi)["cat_order"] == [ids[1], ids[0]]
+    await client.send_json({"id": 2, "type": "einkaufsliste/group/update", "kind": "stores", "group_id": aldi, "cat_order": None})
+    assert (await client.receive_json())["success"]
+    assert m.store_by_id(aldi)["cat_order"] is None

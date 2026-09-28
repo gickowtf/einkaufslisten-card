@@ -1037,5 +1037,12 @@
 "Strg + V": "Ctrl + V",
 "drücken (z. B. Screenshot)": "(e.g. a screenshot)",
 "oder klicken zum Auswählen": "or click to choose",
-"Das war kein Bild 🙈": "That wasn't a picture 🙈"
+"Das war kein Bild 🙈": "That wasn't a picture 🙈",
+"🗺️ Kategorien wie überall": "🗺️ Categories as everywhere",
+"🗺️ Eigene Kategorien-Folge": "🗺️ Own category order",
+"Reihenfolge der Kategorien in der Liste": "Order of the categories in the list",
+"🗺️ So wie du durch den Laden läufst – oben das, woran du zuerst vorbeikommst. Gilt nur im Reiter dieses Geschäfts.": "🗺️ The way you walk through the store – at the top what you pass first. Only applies in this store's tab.",
+"🗺️ Jetzt mit ↑↓ so sortieren, wie der Laden aufgebaut ist": "🗺️ Now sort with ↑↓ the way the store is laid out",
+"🗺️ Wieder wie bei allen Geschäften": "🗺️ Back to the same as all stores",
+"Geschäft antippen = Name, Farbe, Reihenfolge, 📍 Zonen, 🏷️ Eigenmarken und 🗺️ Reihenfolge der Kategorien einstellen.": "Tap a store = set name, color, order, 📍 zones, 🏷️ own brands and 🗺️ category order."
 }

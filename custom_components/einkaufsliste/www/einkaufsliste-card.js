@@ -2,7 +2,7 @@
  * Einkaufsliste Card – die Familien-Einkaufsliste für Home Assistant
  * Wird automatisch von der Integration "einkaufsliste" geladen.
  */
-const EL_VERSION = "2.33.0";
+const EL_VERSION = "2.34.0";
 const EGAL_CHIP = `<span class="chip" style="--c:#888">🤷 Egal wo</span>`; // Artikel ohne Geschäft: überall kaufen
 
 // Doppelt-Finder: Wörter, die dasselbe meinen (alles klein, ohne Leer-/Sonderzeichen)
@@ -553,8 +553,13 @@ function ovButton(label, main = false) {
 
 // 📷 Woher kommt das Foto? Kamera · Galerie · Einfügen (Zwischenablage) – gibt "camera" | "gallery" | "paste" | null
 const elCanPaste = () => !!(window.isSecureContext && navigator.clipboard?.read);
-// 📱 Läuft die Karte in der HA-App (Android/iPhone)?
-const elInHaApp = () => !!(window.externalApp || window.webkit?.messageHandlers?.getExternalAuth);
+// 📱 Läuft die Karte in der HA-App (Android/iPhone)? Mehrere Wege, weil die Apps das je nach Version anders verraten
+const elInHaApp = (hass) => !!(
+  window.externalApp || window.externalAppV2 || window.webkit?.messageHandlers?.getExternalAuth
+  || window.webkit?.messageHandlers?.externalBus
+  || (hass?.auth?.external && !window.__elOfflineApp) // HA selbst weiß es (nicht in unserer Offline-App)
+  || /Home ?Assistant\/|HomeAssistant\/|io\.homeassistant/i.test(navigator.userAgent || "")
+);
 // 🖥️ PC/Laptop mit Maus (kein Touch)
 const elIsPc = () => !!window.matchMedia?.("(hover: hover) and (pointer: fine)").matches && !(navigator.maxTouchPoints > 0);
 
@@ -1111,6 +1116,10 @@ ha-card.compact .group { margin-top:4px; }
 .subtabs .tab ha-icon { --mdc-icon-size:18px; }
 .xferfmt { margin:4px 0 10px; padding-left:20px; }
 .missed { background:color-mix(in srgb, var(--warning-color,#ffa600) 12%, transparent); border-radius:10px; padding:8px 12px; margin:4px 0 10px; }
+.catordlist { display:flex; flex-direction:column; gap:2px; margin:4px 0 6px; }
+.catord { display:flex; align-items:center; gap:8px; padding:3px 6px; border-radius:8px; background:var(--secondary-background-color, rgba(127,127,127,.06)); }
+.catord .con { min-width:1.6em; opacity:.6; font-variant-numeric:tabular-nums; }
+.catord .grow { flex:1; min-width:0; }
 .missed .mrow { margin-top:4px; display:flex; align-items:center; gap:6px; }
 .missed .mtxt { flex:1; min-width:0; }
 .missed .mx { flex:none; opacity:.6; --mdc-icon-size:18px; }
@@ -2574,10 +2583,36 @@ class EinkaufslisteCard extends HTMLElement {
       </form>`;
   }
 
+  // 🗺️ Kategorien in der Reihenfolge dieses Geschäfts (so wie der Laden aufgebaut ist) – sonst wie alle
+  _storeCats(storeId) {
+    const cats = this._data.categories;
+    const order = this._store(storeId)?.cat_order;
+    if (!Array.isArray(order) || !order.length) return cats;
+    const pos = new Map(order.map((id, n) => [id, n]));
+    return [...cats].sort((a, b) => (pos.has(a.id) ? pos.get(a.id) : 1e4 + cats.indexOf(a)) - (pos.has(b.id) ? pos.get(b.id) : 1e4 + cats.indexOf(b)));
+  }
+
+  _catOrderHtml(store) {
+    const own = Array.isArray(store.cat_order);
+    const cats = this._storeCats(store.id);
+    return `<div class="catorder">
+      <div class="srow"><ha-icon class="prev" icon="mdi:sort"></ha-icon>
+        <select class="grow" id="catOrderMode" data-store="${esc(store.id)}" title="Reihenfolge der Kategorien in der Liste">
+          <option value="std" ${own ? "" : "selected"}>🗺️ Kategorien wie überall</option>
+          <option value="own" ${own ? "selected" : ""}>🗺️ Eigene Kategorien-Folge</option>
+        </select></div>
+      ${own ? `<div class="catordlist">${cats.map((c, i) => `<div class="catord"><span class="con">${i + 1}.</span><ha-icon icon="${esc(c.icon || "mdi:tag-outline")}"></ha-icon><span class="grow" translate="no">${esc(c.name)}</span>
+        <button type="button" class="iconbtn" data-act="catord-up" data-store="${esc(store.id)}" data-cat="${esc(c.id)}" title="Nach oben" ${i ? "" : "disabled"}><ha-icon icon="mdi:arrow-up"></ha-icon></button>
+        <button type="button" class="iconbtn" data-act="catord-down" data-store="${esc(store.id)}" data-cat="${esc(c.id)}" title="Nach unten" ${i < cats.length - 1 ? "" : "disabled"}><ha-icon icon="mdi:arrow-down"></ha-icon></button></div>`).join("")}</div>
+      <p class="hint">🗺️ So wie du durch den Laden läufst – oben das, woran du zuerst vorbeikommst. Gilt nur im Reiter dieses Geschäfts.</p>` : ""}
+    </div>`;
+  }
+
   _groupedHtml(items, row, sortFn, collapsible = false, forceOpen = false) {
     const d = this._data;
     const groups = new Map();
-    for (const c of d.categories) groups.set(c.id, []);
+    const here = this._fixedStore || (this._activeTab !== "all" && this._activeTab !== "none" ? this._activeTab : null);
+    for (const c of here ? this._storeCats(here) : d.categories) groups.set(c.id, []);
     groups.set(null, []);
     for (const i of items) (groups.has(i.category_id) ? groups.get(i.category_id) : groups.get(null)).push(i);
     const html = [];
@@ -2934,6 +2969,7 @@ class EinkaufslisteCard extends HTMLElement {
           <input class="icon grow" data-field="icon" value="${esc(e.icon && e.icon !== "mdi:cart" ? stripMdi(e.icon) : "")}" placeholder="Icon, z. B. baguette" title="Leer lassen = Icon der Zone (wenn sie eins hat), sonst Einkaufswagen">
         </div>
         <div class="picker" hidden></div>
+        ${this._catOrderHtml(e)}
         ${zones.length ? "" : `<p class="hint">📍 Noch keine Zonen in Home Assistant angelegt (Einstellungen → Bereiche, Beschriftungen & Zonen → Zonen).</p>`}
         <p class="hint">🖼️ Icon: Namen tippen (z. B. <b>baguette</b>, <b>pill</b>, <b>hammer</b>) und aus der Vorschau antippen. Leer lassen = Icon der Zone, sonst 🛒.</p>
         <p class="hint">📍 Zonen: Bist du in einer davon, springt die Liste auf dieses Geschäft – mehrere gehen, z. B. für mehrere Filialen. 🏷️ Eigenmarken: Beim Scannen landen diese Marken gleich hier.</p>`;
@@ -2941,7 +2977,7 @@ class EinkaufslisteCard extends HTMLElement {
         return `
         <div class="tiles storetiles">${d.stores.map((e) => {
           const nz = storeZones(e).length, nb = (e.brands || []).length;
-          const info = [nz ? `📍 ${nz} ${nz === 1 ? "Zone" : "Zonen"}` : "", nb ? `🏷️ ${nb} ${nb === 1 ? "Marke" : "Marken"}` : ""].filter(Boolean).join(" · ") || "antippen zum Einstellen";
+          const info = [nz ? `📍 ${nz} ${nz === 1 ? "Zone" : "Zonen"}` : "", nb ? `🏷️ ${nb} ${nb === 1 ? "Marke" : "Marken"}` : "", Array.isArray(e.cat_order) ? "🗺️ eigene Reihenfolge" : ""].filter(Boolean).join(" · ") || "antippen zum Einstellen";
           return `<button class="tile storetile" data-act="store-sel" data-id="${e.id}" style="--sc:${esc(e.color || "#607d8b")}">
             <ha-icon icon="${esc(this._storeIcon(e))}"></ha-icon><b translate="no">${esc(e.name)}</b><small>${esc(info)}</small></button>`;
         }).join("")}</div>
@@ -2950,7 +2986,7 @@ class EinkaufslisteCard extends HTMLElement {
           <input class="grow" name="name" placeholder="Neues Geschäft, z. B. Kaufland">
           <button class="primary" type="submit" title="Hinzufügen"><ha-icon icon="mdi:plus"></ha-icon></button>
         </form>
-        <p class="hint">Geschäft antippen = Name, Farbe, Reihenfolge, 📍 Zonen und 🏷️ Eigenmarken einstellen.</p>`;
+        <p class="hint">Geschäft antippen = Name, Farbe, Reihenfolge, 📍 Zonen, 🏷️ Eigenmarken und 🗺️ Reihenfolge der Kategorien einstellen.</p>`;
       } },
       { key: "categories", icon: "mdi:shape-outline", title: "Kategorien", info: d.categories.length === 1 ? "1 Kategorie" : `${d.categories.length} Kategorien`, html: () => `
         ${d.categories.map((e, i) => row("categories", e, i, d.categories.length)).join("")}
@@ -4133,7 +4169,7 @@ class EinkaufslisteCard extends HTMLElement {
       return;
     }
     // 📱 HA-App über http (zu Hause im WLAN): Kamera geht da nicht – also gleich die Galerie, ohne Menü
-    const camera = window.isSecureContext || !elInHaApp();
+    const camera = window.isSecureContext || !elInHaApp(this._hass);
     if (!camera && !elCanPaste()) { browse(); return; }
     const how = await askPhotoSource(camera);
     if (!how) return;
@@ -5716,6 +5752,17 @@ class EinkaufslisteCard extends HTMLElement {
         this._logMax = (this._logMax || 150) + 150;
         this._renderLogList();
         break;
+      case "catord-up":
+      case "catord-down": {
+        const ids = this._storeCats(el.dataset.store).map((c) => c.id);
+        const pos = ids.indexOf(el.dataset.cat);
+        const to = act === "catord-up" ? pos - 1 : pos + 1;
+        if (pos < 0 || to < 0 || to >= ids.length) return;
+        [ids[pos], ids[to]] = [ids[to], ids[pos]];
+        this._ws({ type: "einkaufsliste/group/update", kind: "stores", group_id: el.dataset.store, cat_order: ids })
+          .then(() => this._renderSettings()).catch(() => {});
+        break;
+      }
       case "missed-hide":
         this._ws({ type: "einkaufsliste/missed/hide", name: el.dataset.name, store_id: el.dataset.store })
           .then(() => { this._toast("✖ Ausgeblendet – kommt nur wieder, wenn es erneut fehlt"); setTimeout(() => this._renderMissed(), 150); })
@@ -6040,6 +6087,13 @@ class EinkaufslisteCard extends HTMLElement {
       this._logF[logKey] = t.value;
       this._logMax = 150;
       this._renderLogList();
+      return;
+    }
+    if (t.id === "catOrderMode") { // 🗺️ eigene Kategorien-Reihenfolge an/aus
+      const own = t.value === "own";
+      this._ws({ type: "einkaufsliste/group/update", kind: "stores", group_id: t.dataset.store,
+        cat_order: own ? this._data.categories.map((c) => c.id) : null })
+        .then(() => { this._toast(own ? "🗺️ Jetzt mit ↑↓ so sortieren, wie der Laden aufgebaut ist" : "🗺️ Wieder wie bei allen Geschäften"); this._renderSettings(); }).catch(() => {});
       return;
     }
     if (t.id === "logDays") {
