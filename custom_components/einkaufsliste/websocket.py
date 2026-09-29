@@ -75,6 +75,8 @@ def async_register(hass: HomeAssistant) -> None:
         ws_missed_hide,
         ws_offers_set,
         ws_offers_refresh,
+        ws_offers_search,
+        ws_offers_take,
         ws_product_add,
         ws_stats,
     ):
@@ -806,6 +808,34 @@ async def ws_offers_refresh(hass, connection, msg):
             raise ValueError("Angebote sind aus.")
         return await m.offers.run(force=True)
     await _run_async(hass, connection, msg, _go)
+
+
+@websocket_api.websocket_command({vol.Required("type"): "einkaufsliste/offers/search", vol.Required("q"): str})
+@websocket_api.async_response
+async def ws_offers_search(hass, connection, msg):
+    """🔎 Angebote zu einem getippten Produkt."""
+    async def _go(m):
+        if getattr(m, "offers", None) is None:
+            return []
+        return await m.offers.search(msg["q"])
+    await _run_async(hass, connection, msg, _go)
+
+
+OFFER = vol.Schema({vol.Required("p"): vol.Coerce(float), vol.Optional("to"): OPT_STR, vol.Optional("r"): OPT_STR,
+                    vol.Optional("d"): OPT_STR}, extra=vol.REMOVE_EXTRA)
+
+
+@websocket_api.websocket_command(
+    {vol.Required("type"): "einkaufsliste/offers/take", vol.Required("offer"): OFFER, vol.Optional("item_id"): OPT_STR,
+     vol.Optional("name"): OPT_STR, vol.Optional("store_id"): OPT_STR, vol.Optional("via"): vol.In(VIA)}
+)
+@callback
+def ws_offers_take(hass, connection, msg):
+    """🛒 Angebot übernehmen („Hier kaufen“ / „Auf die Liste“)."""
+    who = _user_name(hass, connection)
+    uid = connection.user.id if connection.user else None
+    _run(hass, connection, msg, lambda m: m.take_offer(msg["offer"], msg.get("item_id") or None, msg.get("name") or None,
+                                                       msg.get("store_id") or None, who, uid))
 
 
 @websocket_api.websocket_command({vol.Required("type"): "einkaufsliste/stats"})

@@ -1138,5 +1138,16 @@
 "= gerade im Angebot (nur wenn in den Einstellungen eingeschaltet). Antippen oder lange drücken →": "= on offer right now (only if turned on in the settings). Tap or long-press →",
 ": Geschäft, Preis, wie lange. Ehrlich gesagt: Das kommt inoffiziell von Marktguru und kann jederzeit aufhören zu funktionieren.": ": store, price, how long. Honestly: this comes unofficially from Marktguru and may stop working at any time.",
 "🕒 alle {} Std.": "🕒 every {0} h",
-"Nur diese Geschäfte (leer = alle):": "Only these stores (empty = all):"
+"Nur diese Geschäfte (leer = alle):": "Only these stores (empty = all):",
+"🛒 Hier kaufen": "🛒 Buy here",
+"➕ Auf die Liste": "➕ Add to list",
+"Angebote für": "Offers for",
+"anzeigen": "show",
+"⌛ Angebot vorbei": "⌛ Offer over",
+"Das Angebot ist abgelaufen": "The offer has expired",
+"🏷️ Suche Angebote für „{}“ …": "🏷️ Looking for offers for “{0}” …",
+"🏷️ Gerade keine Angebote für „{}“ gefunden": "🏷️ No offers for “{0}” right now",
+"„{}“ gibt es bei dir noch nicht als Geschäft.": "You don't have “{0}” as a store yet.",
+"➕ „{}“ anlegen": "➕ Add “{0}”",
+"🛒 {}: {} · {}": "🛒 {0}: {1} · {2}"
 }

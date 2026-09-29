@@ -148,7 +148,9 @@ The shopping list can **empty another Home Assistant to-do list automatically**:
 This works with any to-do list in HA (Google Tasks, Bring!, Todoist, the HA shopping list …). Honestly: “Hey Google, …” writes to Google Keep, which has no official Home Assistant connection – so it doesn't work that way with Google.
 
 ### 🏷️ Offers from the flyers (unofficial)
-Turn it on in **⚙️ → Tools → Offers** (admins only): postal code, only certain stores if you like, how often to check (every 3–24 hours). If something on your list is on offer right now, the item gets a small **🏷️** – tap or long-press → **Offers** shows store, price, old price and how long it's valid.
+Turn it on in **⚙️ → Tools → Offers** (admins only): postal code, only certain stores if you like, how often to check (every 3–24 hours). If something on your list is on offer right now, the item gets a small **🏷️** at the front – tap or long-press → **Offers** shows store, price, old price and how long it's valid. **🛒 Buy here** moves the item to that store and adds “🏷️ 1.19 € until Sat” as a note (store not on your list yet: add it or use “Anywhere”).
+
+**Searching offers:** type the product at the top (e.g. “coffee”) → below the suggestions **🏷️ Show offers for “coffee”** → **➕ Add to list**. When an offer expires the item stays – only the offer price disappears, and **⌛ Offer over** shows for a moment.
 
 ⚠️ **Honestly:** the offers come from **Marktguru**, but **unofficially** – without any agreement with Marktguru. The shopping list simply opens the Marktguru website the way your browser does (there's no access key in the code). This can **stop working at any time without warning**; then ⚙️ says “unavailable right now” and the list keeps running normally. Only the names of open items and your postal code are looked up. It's **off** by default.
 

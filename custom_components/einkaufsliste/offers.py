@@ -197,6 +197,37 @@ class Offers:
             return None
         return list((data or {}).get("results") or [])
 
+    async def search(self, query: str) -> list[dict[str, Any]]:
+        """🔎 Angebote zu einem beliebigen Produkt (beim Tippen „🏷️ Angebote für … anzeigen“)."""
+        cfg = self.manager.offers_cfg
+        query = str(query or "").strip()[:60]
+        if not cfg or not cfg.get("enabled") or len(query) < 2:
+            return []
+        dom = domain(getattr(self.hass.config, "country", None))
+        session = async_get_clientsession(self.hass)
+        key = cfg.get("key")
+        results = await self._search(session, dom, key, query, cfg["zip"], 30) if key else None
+        if results is None:  # Schlüssel neu holen und nochmal
+            key = cfg["key"] = await self._find_key(session, dom)
+            results = await self._search(session, dom, key, query, cfg["zip"], 30) if key else None
+        if results is None:
+            raise ValueError("Marktguru ist gerade nicht erreichbar oder hat etwas geändert.")
+        now = dt_util.utcnow()
+        wanted = [s["name"].strip().lower() for s in self.manager.stores if s["id"] in (cfg.get("stores") or [])]
+        out = []
+        for raw in results:
+            if not matches(query, raw):
+                continue
+            o = slim(raw, dom)
+            if not o or (wanted and not any(w in o["r"].lower() or o["r"].lower() in w for w in wanted)):
+                continue
+            to = dt_util.parse_datetime(o["to"]) if o.get("to") else None
+            if to and to < now:
+                continue
+            out.append(o)
+        out.sort(key=lambda o: o["p"])
+        return out[:20]
+
     async def run(self, force: bool = False) -> dict[str, Any]:
         """Einmal alle offenen Artikel nachschlagen. Gibt den Stand zurück."""
         cfg = self.manager.offers_cfg

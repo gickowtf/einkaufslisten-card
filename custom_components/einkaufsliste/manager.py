@@ -20,7 +20,7 @@ import uuid
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.helpers.dispatcher import async_dispatcher_send
-from homeassistant.helpers.event import async_track_time_change
+from homeassistant.helpers.event import async_track_time_change, async_track_time_interval
 from homeassistant.helpers.storage import Store
 from homeassistant.util import dt as dt_util
 
@@ -81,6 +81,11 @@ def _clean(text: Any) -> str | None:
         return None
     text = str(text).strip()
     return text or None
+
+
+def _norm_name(text: Any) -> str:
+    """„ALDI SÜD“ -> „aldi süd“, „Netto Marken-Discount“ -> „netto marken discount“"""
+    return re.sub(r"\s+", " ", re.sub(r"[^\wäöüß]+", " ", str(text or "").lower())).strip()
 
 
 def _nice(text: Any) -> str | None:
@@ -475,6 +480,69 @@ class EinkaufslisteManager:
         info = {k: v for k, v in self.todo_sync.items() if k != "links"}
         return {**info, "mode": info.get("mode", "move"), "name": st.name if st else self.todo_sync["entity_id"],
                 "ok": st is not None and st.state != "unavailable"}
+
+    def store_for_retailer(self, retailer: str | None) -> str | None:
+        """🏷️ „ALDI SÜD“ -> dein Geschäft „Aldi“ (am Namen erkannt)."""
+        r = _norm_name(retailer)
+        if not r:
+            return None
+        for st in self.stores:
+            n = _norm_name(st["name"])
+            if n and (n == r or n in r.split() or r.startswith(n + " ") or n.startswith(r + " ")):
+                return st["id"]
+        return None
+
+    @staticmethod
+    def offer_note(offer: dict[str, Any]) -> str:
+        """„🏷️ 1,19 € bis Sa.“"""
+        price = f"{float(offer.get('p') or 0):.2f}".replace(".", ",")
+        to = dt_util.parse_datetime(str(offer.get("to") or ""))
+        day = ["Mo.", "Di.", "Mi.", "Do.", "Fr.", "Sa.", "So."][dt_util.as_local(to).weekday()] if to else None
+        return f"🏷️ {price} €" + (f" bis {day}" if day else "")
+
+    def take_offer(self, offer: dict[str, Any], item_id: str | None = None, name: str | None = None,
+                   store_id: str | None = None, by: str | None = None, by_id: str | None = None) -> dict[str, Any]:
+        """🛒 Angebot übernehmen: Artikel ins Geschäft des Angebots (oder neu drauf), Preis als Notiz."""
+        store_id = self._check_store(store_id)
+        part = self.offer_note(offer)
+        if item_id:
+            item = self.get_item(item_id)
+            if item["store_id"] != store_id and not item["checked"]:
+                item = self.move_item(item["id"], store_id or "~none", by, by_id)
+        else:
+            item = self.add_item(name or offer.get("d") or "", store_id=store_id, added_by=by, added_by_id=by_id)
+        old = (item.get("offer") or {}).get("part")
+        note = item.get("note") or ""
+        if old and old in note:
+            note = note.replace(" · " + old, "").replace(old, "").strip(" ·")
+        item["note"] = " · ".join(x for x in (note, part) if x)
+        item["offer"] = {"to": offer.get("to"), "part": part, "r": offer.get("r"), "p": offer.get("p")}
+        self._log("update", item, f"Angebot {offer.get('r') or ''} {part}".strip(), who=by)
+        self._changed()
+        return item
+
+    @callback
+    def expire_offers(self, now: datetime | None = None) -> int:
+        """⌛ Abgelaufene Angebote: Artikel bleibt, nur die Angebots-Notiz fällt weg („⌛ Angebot vorbei“)."""
+        now = now or dt_util.utcnow()
+        n = 0
+        for item in self.items:
+            off = item.get("offer")
+            if not off or off.get("expired") or not off.get("to"):
+                continue
+            to = dt_util.parse_datetime(str(off["to"]))
+            if to is None or to > now:
+                continue
+            part = off.get("part") or ""
+            note = item.get("note") or ""
+            if part and part in note:
+                note = note.replace(" · " + part, "").replace(part, "").strip(" ·")
+            item["note"] = note or None
+            item["offer"] = {"expired": now.isoformat()}
+            n += 1
+        if n:
+            self._changed()
+        return n
 
     def _offers_info(self) -> dict[str, Any] | None:
         """🏷️ Angebote-Einstellungen für die Karte (ohne Schlüssel)."""
@@ -1892,6 +1960,8 @@ class EinkaufslisteManager:
 
     @callback
     def async_start_scheduler(self) -> None:
+        self.expire_offers()
+        self._unsub_offer_exp = async_track_time_interval(self.hass, lambda now: self.expire_offers(), timedelta(hours=1))
         hour, minute = self.cleanup_time
         self._unsub_time = async_track_time_change(
             self.hass, self._handle_time, hour=hour, minute=minute, second=0
@@ -1916,6 +1986,9 @@ class EinkaufslisteManager:
             self.mail.stop()
         if getattr(self, "offers", None) is not None:
             self.offers.stop()
+        if getattr(self, "_unsub_offer_exp", None):
+            self._unsub_offer_exp()
+            self._unsub_offer_exp = None
         if self._unsub_time:
             self._unsub_time()
             self._unsub_time = None

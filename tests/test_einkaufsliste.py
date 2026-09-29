@@ -2083,3 +2083,20 @@ async def test_offers_marktguru(hass: HomeAssistant, setup, aioclient_mock) -> N
     assert len(butter) == 1 and butter[0]["r"] == "ALDI SÜD" and butter[0]["p"] == 1.79 and butter[0]["op"] == 2.49  # nur Aldi
     m.set_offers(False)
     assert m.as_dict()["offers"] == {} and not m.as_dict()["settings"]["offers"]["enabled"]
+
+
+async def test_offer_take_and_expire(hass: HomeAssistant, setup) -> None:
+    """🛒 „Hier kaufen“ / neu auf die Liste mit Preis-Notiz; ⌛ abgelaufen -> Artikel bleibt, Notiz weg."""
+    from datetime import timedelta as td
+    m = mgr(hass)
+    aldi, netto = m.find_store("Aldi"), m.find_store("Netto")
+    assert m.store_for_retailer("ALDI SÜD") == aldi and m.store_for_retailer("Kaufland") is None
+    butter = m.add_item("Butter", store_id=netto, note="Irisch")
+    soon = (dt_util.utcnow() + td(days=2)).isoformat()
+    new = m.take_offer({"p": 1.19, "to": soon, "r": "ALDI SÜD"}, item_id=butter["id"], store_id=aldi)
+    assert new["store_id"] == aldi and new["note"].startswith("Irisch · 🏷️ 1,19 €") and " bis " in new["note"]
+    kaffee = m.take_offer({"p": 4.99, "to": soon, "r": "Lidl", "d": "Jacobs Krönung"}, name="Kaffee", store_id=None)
+    assert kaffee["name"] == "Kaffee" and kaffee["store_id"] is None and kaffee["note"].startswith("🏷️ 4,99 €")
+    assert m.expire_offers(dt_util.utcnow() + td(days=3)) == 2
+    assert new["note"] == "Irisch" and new["offer"].get("expired") and not new["checked"]
+    assert kaffee["note"] is None and not kaffee["checked"]

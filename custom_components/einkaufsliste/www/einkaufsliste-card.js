@@ -2,7 +2,7 @@
  * Einkaufsliste Card – die Familien-Einkaufsliste für Home Assistant
  * Wird automatisch von der Integration "einkaufsliste" geladen.
  */
-const EL_VERSION = "2.36.0";
+const EL_VERSION = "2.37.0";
 const EL_START_STORE_ICONS = new Set(["mdi:cart", "mdi:lotion"]); // so bekommen Geschäfte beim Einrichten ihr Icon – zählt als „automatisch“
 const EGAL_CHIP = `<span class="chip" style="--c:#888">🤷 Egal wo</span>`; // Artikel ohne Geschäft: überall kaufen
 
@@ -757,6 +757,26 @@ async function elNextCamera(oldStream, facing) {
   } catch (_) { return null; }
 }
 
+// ❓ Kleine Auswahl-Frage: gibt den Wert der gewählten Option zurück (oder null)
+function askChoice(text, options) {
+  return new Promise((resolve) => {
+    const ov = makeOverlay();
+    const box = document.createElement("div");
+    box.style.cssText = "width:100%;max-width:380px;display:flex;flex-direction:column;gap:10px;padding:16px;background:#222;border-radius:18px";
+    const t = document.createElement("div");
+    t.textContent = elT(text);
+    t.style.cssText = "font:600 16px Roboto,sans-serif;text-align:center;margin-bottom:4px";
+    box.appendChild(t);
+    const done = (v) => { ov.remove(); resolve(v); };
+    options.forEach(([v, label], i) => { const b = ovButton(label, i === 0); b.onclick = () => done(v); box.appendChild(b); });
+    const c = ovButton("Abbrechen");
+    c.onclick = () => done(null);
+    box.appendChild(c);
+    ov.appendChild(box);
+    ov.onclick = (e) => { if (e.target === ov) done(null); };
+  });
+}
+
 // 📋 Bild aus der Zwischenablage holen (null = keins drin / nicht erlaubt)
 async function elClipboardImage() {
   const items = await navigator.clipboard.read();
@@ -1175,6 +1195,8 @@ ha-card.compact .group { margin-top:4px; }
 .prodrow.marked { outline:2px solid var(--primary-color,#03a9f4); outline-offset:-2px; background:color-mix(in srgb, var(--primary-color,#03a9f4) 10%, transparent); }
 .prodrow:focus { outline:2px solid var(--primary-color,#03a9f4); outline-offset:-2px; }
 .offtag { cursor:pointer; }
+.offgone { opacity:.75; }
+.chip2.offsearch { border-style:dashed; }
 .warnbox { background:color-mix(in srgb, var(--warning-color,#ffa600) 12%, transparent); border-radius:10px; padding:8px 12px; }
 .stats { display:flex; flex-direction:column; gap:2px; }
 .statrow { display:flex; align-items:center; gap:10px; padding:6px 8px; border-radius:8px; background:var(--secondary-background-color, rgba(127,127,127,.06)); }
@@ -2418,8 +2440,12 @@ class EinkaufslisteCard extends HTMLElement {
     const q = (this.$("inName").value || "").trim().toLowerCase();
     const list = this._suggestList(q);
     this._suggMap = new Map(list.map((c, n) => [String(n), c]));
-    if (!list.length) { box.hidden = true; box.innerHTML = ""; return; }
-    box.innerHTML = this._suggestChips(list, q, "suggest");
+    // 🏷️ Angebote beim Tippen: „Angebote für „Kaffee“ anzeigen“ (nur wenn in ⚙️ eingeschaltet)
+    const typed = (splitQty(splitMany(this.$("inName").value).pop() || "").name || "").trim();
+    const offChip = this._data?.settings?.offers?.enabled && this._formMode !== "recipe" && typed.length >= 3
+      ? `<button type="button" class="chip2 offsearch" data-act="offers-search" data-q="${esc(typed)}">🏷️ <span>Angebote für</span> „<span translate="no">${esc(typed)}</span>“ <span>anzeigen</span></button>` : "";
+    if (!list.length && !offChip) { box.hidden = true; box.innerHTML = ""; return; }
+    box.innerHTML = (list.length ? this._suggestChips(list, q, "suggest") : "") + offChip;
     box.hidden = false;
   }
 
@@ -2472,7 +2498,8 @@ class EinkaufslisteCard extends HTMLElement {
     const pk = this._pk(item.name, item.note);
     const codes = this._barcodesOf(pk);
     if (codes.length && !this._shopMode) meta.push(`<span class="bc" title="Barcode hinterlegt: ${esc(codes.join(", "))}">▥</span>`);
-    if (!item.checked && this._offersFor(item).length) meta.push(`<span class="offtag" data-act="offers-show" data-id="${item.id}" title="Im Angebot – antippen für Details">🏷️</span>`);
+    if (!item.checked && this._offersFor(item).length) meta.unshift(`<span class="offtag" data-act="offers-show" data-id="${item.id}" title="Im Angebot – antippen für Details">🏷️</span>`); // 🏷️ ganz vorn, vor dem Geschäft
+    else if (!item.checked && item.offer?.expired && Date.now() - new Date(item.offer.expired) < 2 * DAY) meta.unshift(`<span class="offgone" title="Das Angebot ist abgelaufen">⌛ Angebot vorbei</span>`);
     // ✍️ Wer & wann: „✍️ Anna, Mo.“ (heute: „vor 5 Min“)
     const when = c.show_dates && !item.checked && !this._shopMode && item.added_at ? fmtWhen(item.added_at) : "";
     if (c.show_added_by && item.added_by) meta.push(`<span title="Eingetragen von"><span translate="no">✍️ ${esc(this._who(item.added_by))}</span>${when ? `, <span>${when}</span>` : ""}</span>`);
@@ -4830,7 +4857,10 @@ class EinkaufslisteCard extends HTMLElement {
         <li>Artikel <b>lange drücken</b> = Menü: Bearbeiten, Verschieben, Menge, Kategorie, Foto, Barcode.</li>
         <li>Menge direkt ändern: auf die Menge tippen, dann <span class="elg-k">−</span> und <span class="elg-k">＋</span>.</li>
         <li>Unter dem Artikel steht klein: das <b>Geschäft in seiner Farbe</b>, die <b>📝 Notiz</b> (gelb hinterlegt), ▥ (Barcode da), wer eingetragen und wer abgehakt hat.</li>
-        <li><b>🏷️</b> = gerade im Angebot (nur wenn in den Einstellungen eingeschaltet). Antippen oder lange drücken → <b>Angebote</b>: Geschäft, Preis, wie lange. Ehrlich gesagt: Das kommt inoffiziell von Marktguru und kann jederzeit aufhören zu funktionieren.</li></ul>`)}
+        <li><b>🏷️</b> vorn am Artikel = gerade im Angebot (nur wenn in den Einstellungen eingeschaltet). Antippen oder lange drücken → <b>Angebote</b>: Geschäft, Preis, wie lange. <b>🛒 Hier kaufen</b> schiebt den Artikel in dieses Geschäft und schreibt den Preis als Notiz dazu.</li>
+        <li><b>Angebote suchen:</b> Einfach das Produkt oben eintippen (z. B. „Kaffee“) – unter den Vorschlägen steht <b>🏷️ Angebote für „Kaffee“ anzeigen</b>. Dort mit <b>➕ Auf die Liste</b> gleich beim richtigen Geschäft eintragen.</li>
+        <li><b>⌛ Angebot vorbei</b> = das Angebot ist abgelaufen. Der Artikel bleibt auf der Liste, nur der Angebotspreis ist weg.</li>
+        <li>Ehrlich gesagt: Die Angebote kommen inoffiziell von Marktguru und können jederzeit aufhören zu funktionieren.</li></ul>`)}
       ${sec("🛍️", "Im Laden", `<ul>
         <li>Der <b>Wagen oben rechts</b> schaltet den <b>Laden-Modus</b> ein: große Zeilen, nur Abhaken, nur das Wichtigste.</li>
         <li>Nochmal antippen (oder <b>Beenden</b>) = wieder normal.</li>
@@ -4974,7 +5004,10 @@ class EinkaufslisteCard extends HTMLElement {
         <li><b>Long-press</b> an item = menu: edit, move, quantity, category, photo, barcode.</li>
         <li>Change the quantity directly: tap the quantity, then <span class="elg-k">−</span> and <span class="elg-k">＋</span>.</li>
         <li>Below the item in small print: the <b>store in its color</b>, the <b>📝 note</b> (yellow background), ▥ (has a barcode), who added it and who checked it off.</li>
-        <li><b>🏷️</b> = on offer right now (only if turned on in the settings). Tap or long-press → <b>Offers</b>: store, price, how long. Honestly: this comes unofficially from Marktguru and may stop working at any time.</li></ul>`)}
+        <li><b>🏷️</b> at the front of an item = on offer right now (only if turned on in the settings). Tap or long-press → <b>Offers</b>: store, price, how long. <b>🛒 Buy here</b> moves the item to that store and adds the price as a note.</li>
+        <li><b>Searching offers:</b> just type the product at the top (e.g. “coffee”) – below the suggestions there's <b>🏷️ Show offers for “coffee”</b>. Use <b>➕ Add to list</b> to put it on the list at the right store.</li>
+        <li><b>⌛ Offer over</b> = the offer has expired. The item stays on the list, only the offer price is gone.</li>
+        <li>Honestly: the offers come unofficially from Marktguru and may stop working at any time.</li></ul>`)}
       ${sec("🛍️", "In the store", `<ul>
         <li>The <b>cart at the top right</b> switches on <b>shop mode</b>: big rows, checking off only, just the essentials.</li>
         <li>Tap again (or <b>Finish</b>) = back to normal.</li>
@@ -5125,14 +5158,34 @@ class EinkaufslisteCard extends HTMLElement {
   _showOffers(item) {
     const list = this._offersFor(item);
     if (!list.length) return;
+    this._offersOverlay(`🏷️ <span translate="no">${esc(item.name)}</span> <span>im Angebot</span>`, list, "🛒 Hier kaufen",
+      (o, close) => this._takeOffer(o, { item }).then((ok) => ok && close()));
+  }
+
+  // 🔎 Angebote zu einem getippten Produkt
+  async _searchOffers(q) {
+    this._toast(`🏷️ Suche Angebote für „${q}“ …`);
+    let list;
+    try { list = await this._ws({ type: "einkaufsliste/offers/search", q }); } catch (_) { return; }
+    if (!list?.length) { this._toast(`🏷️ Gerade keine Angebote für „${q}“ gefunden`); return; }
+    this._offersOverlay(`🏷️ <span>Angebote für</span> „<span translate="no">${esc(q)}</span>“`, list, "➕ Auf die Liste",
+      (o, close) => this._takeOffer(o, { name: q }).then((ok) => {
+        if (!ok) return;
+        close();
+        const inp = this.$("inName");
+        if (inp) { inp.value = ""; this._renderSuggest(); this._updateTools?.(); }
+      }));
+  }
+
+  _offersOverlay(titleHtml, list, btnLabel, onTake) {
     const eur = (n) => `${Number(n).toFixed(2).replace(".", ",")} €`;
     const day = (iso) => { if (!iso) return ""; const d = new Date(iso); return `${WD_SHORT[pyWd(d)]}. ${String(d.getDate()).padStart(2, "0")}.${String(d.getMonth() + 1).padStart(2, "0")}.`; };
     const ov = makeOverlay();
     Object.assign(ov.style, { justifyContent: "flex-start", overflowY: "auto", touchAction: "auto" });
     const card = document.createElement("div");
     Object.assign(card.style, { background: "#1e1e1e", borderRadius: "16px", padding: "18px", maxWidth: "460px", width: "100%", marginTop: "4vh", lineHeight: "1.45" });
-    card.innerHTML = `<div style="font:600 19px Roboto,sans-serif;margin-bottom:10px">🏷️ <span translate="no">${esc(item.name)}</span> im Angebot</div>
-      ${list.map((o) => `<div style="display:flex;gap:12px;align-items:center;padding:10px 0;border-top:1px solid #333">
+    card.innerHTML = `<div style="font:600 19px Roboto,sans-serif;margin-bottom:10px">${titleHtml}</div>
+      ${list.map((o, n) => `<div style="padding:10px 0;border-top:1px solid #333"><div style="display:flex;gap:12px;align-items:center">
         ${o.img ? `<img src="${esc(o.img)}" alt="" loading="lazy" style="width:64px;height:64px;object-fit:contain;background:#fff;border-radius:8px;flex:none" onerror="this.remove()">` : ""}
         <div style="flex:1;min-width:0">
           <div><b translate="no">${esc(o.r)}</b></div>
@@ -5140,14 +5193,42 @@ class EinkaufslisteCard extends HTMLElement {
           <div style="font-size:13px;color:#aaa">${o.from ? `<span>ab</span> ${esc(day(o.from))} ` : ""}${o.to ? `<span>bis</span> ${esc(day(o.to))}` : ""}</div>
         </div>
         <div style="text-align:right;flex:none"><div style="font:700 18px Roboto,sans-serif;color:#81c784">${eur(o.p)}</div>${o.op ? `<div style="color:#999;text-decoration:line-through;font-size:13px">${eur(o.op)}</div>` : ""}</div>
-      </div>`).join("")}
+      </div><div style="text-align:right;margin-top:6px"><button type="button" data-take="${n}" style="${OV_BTN_MAIN}padding:7px 12px">${esc(elT(btnLabel))}</button></div></div>`).join("")}
       <div style="color:#888;font-size:12px;margin-top:10px">Quelle: Marktguru (inoffiziell) · Angaben ohne Gewähr · kann jederzeit aufhören zu funktionieren</div>`;
+    const close = () => ov.remove();
+    card.querySelectorAll("[data-take]").forEach((b) => { b.onclick = () => onTake(list[Number(b.dataset.take)], close); });
     const b = ovButton("Schließen", true);
     b.style.marginTop = "14px";
-    b.onclick = () => ov.remove();
+    b.onclick = close;
     card.appendChild(b);
     ov.appendChild(card);
-    ov.addEventListener("click", (e) => { if (e.target === ov) ov.remove(); });
+    ov.addEventListener("click", (e) => { if (e.target === ov) close(); });
+  }
+
+  // 🏪 „ALDI SÜD“ -> dein Geschäft „Aldi“
+  _storeForRetailer(r) {
+    const norm = (x) => String(x || "").toLowerCase().replace(/[^\p{L}\p{N}]+/gu, " ").trim();
+    const rn = norm(r);
+    if (!rn) return null;
+    return this._data.stores.find((st) => { const n = norm(st.name); return n && (n === rn || rn.split(" ").includes(n) || rn.startsWith(n + " ") || n.startsWith(rn + " ")); }) || null;
+  }
+
+  // 🛒 Angebot übernehmen: Geschäft zuordnen (sonst fragen: anlegen oder „Egal wo“), Preis als Notiz
+  async _takeOffer(o, { item = null, name = null } = {}) {
+    let store = this._storeForRetailer(o.r);
+    if (!store) {
+      const how = await askChoice(`„${o.r}“ gibt es bei dir noch nicht als Geschäft.`, [["new", `➕ „${o.r}“ anlegen`], ["none", "🤷 Egal wo"]]);
+      if (!how) return false;
+      if (how === "new") {
+        try { store = await this._ws({ type: "einkaufsliste/group/add", kind: "stores", name: o.r }); } catch (_) { return false; }
+      }
+    }
+    try {
+      const res = await this._ws({ type: "einkaufsliste/offers/take", offer: { p: o.p, to: o.to || null, r: o.r, d: o.d || null },
+        ...(item ? { item_id: item.id } : { name }), store_id: store?.id || null });
+      this._toast(`🛒 ${res?.name || item?.name || name}: ${store ? store.name : "Egal wo"} · ${Number(o.p).toFixed(2).replace(".", ",")} €`);
+      return true;
+    } catch (_) { return false; }
   }
 
   _offersHtml() {
@@ -5845,6 +5926,9 @@ class EinkaufslisteCard extends HTMLElement {
         this._menuId = null;
         this._qtyEdit = el.dataset.id;
         this._renderList();
+        break;
+      case "offers-search":
+        this._searchOffers(el.dataset.q);
         break;
       case "menu-offers":
       case "offers-show": {
