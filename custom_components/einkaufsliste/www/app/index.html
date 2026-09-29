@@ -406,20 +406,36 @@ async function scanOpen(p) {
   const video = el.querySelector("video");
   video.srcObject = me.stream;
   try { await video.play(); } catch (_) { /* startet trotzdem */ }
-  // 🔄 Vorder-/Rückkamera wechseln
+  // 🔄 Vorder-/Rückkamera wechseln: erst die laufende aus (viele Handys erlauben nur eine), dann die andere suchen
   let facing = "environment";
   el.querySelector('[data-b="flip"]').onclick = async () => {
-    const want = facing === "environment" ? "user" : "environment";
-    try {
-      const next = await navigator.mediaDevices.getUserMedia({ audio: false, video: { facingMode: { exact: want }, width: { ideal: 1280 }, height: { ideal: 720 } } })
-        .catch(() => navigator.mediaDevices.getUserMedia({ audio: false, video: { facingMode: want } }));
-      if (scan !== me) { next.getTracks().forEach((t) => t.stop()); return; }
-      me.stream.getTracks().forEach((t) => t.stop());
-      me.stream = next;
-      video.srcObject = next;
-      facing = want;
-      try { await video.play(); } catch (_) { /* egal */ }
-    } catch (_) { scanNote(T("📷 Nur eine Kamera gefunden.", "📷 Only one camera found.")); }
+    const md = navigator.mediaDevices;
+    const oldId = me.stream?.getVideoTracks()[0]?.getSettings?.().deviceId;
+    let cams = [];
+    try { cams = (await md.enumerateDevices()).filter((d) => d.kind === "videoinput"); } catch (_) { /* egal */ }
+    me.stream?.getTracks().forEach((t) => t.stop());
+    const want = facing === "user" ? "environment" : "user";
+    const isFront = (c) => /front|user|vorder|selfie/i.test(c.label || "");
+    const other = cams.filter((c) => c.deviceId && c.deviceId !== oldId);
+    const pick = other.find((c) => (want === "user" ? isFront(c) : c.label && !isFront(c))) || other[0];
+    const tries = [...(pick ? [{ deviceId: { exact: pick.deviceId } }] : []), { facingMode: { exact: want } }, { facingMode: want }];
+    let next = null;
+    for (const video of tries) {
+      try {
+        const st = await md.getUserMedia({ audio: false, video: { ...video, width: { ideal: 1280 }, height: { ideal: 720 } } });
+        const got = st.getVideoTracks()[0]?.getSettings?.() || {};
+        if (got.deviceId && got.deviceId === oldId && cams.length > 1) { st.getTracks().forEach((t) => t.stop()); continue; }
+        next = st; facing = got.facingMode || want; break;
+      } catch (_) { /* nächster Versuch */ }
+    }
+    if (!next) {
+      scanNote(T("📷 Nur eine Kamera gefunden.", "📷 Only one camera found."));
+      try { next = await md.getUserMedia({ audio: false, video: oldId ? { deviceId: { exact: oldId } } : { facingMode: facing } }); } catch (_) { return; }
+    }
+    if (scan !== me) { next.getTracks().forEach((t) => t.stop()); return; }
+    me.stream = next;
+    video.srcObject = next;
+    try { await video.play(); } catch (_) { /* egal */ }
   };
   let read;
   try { read = await makeReader(); } catch (_) {

@@ -73,6 +73,8 @@ def async_register(hass: HomeAssistant) -> None:
         ws_log_settings,
         ws_log_clear,
         ws_missed_hide,
+        ws_offers_set,
+        ws_offers_refresh,
         ws_product_add,
         ws_stats,
     ):
@@ -781,6 +783,29 @@ def ws_log_settings(hass, connection, msg):
 @callback
 def ws_product_add(hass, connection, msg):
     _run(hass, connection, msg, lambda m: m.add_product(msg["name"], msg.get("category_id"), msg.get("store_id")))
+
+
+@websocket_api.websocket_command(
+    {vol.Required("type"): "einkaufsliste/offers/set", vol.Required("enabled"): bool, vol.Optional("zip"): OPT_STR,
+     vol.Optional("stores"): [str], vol.Optional("hours"): vol.Coerce(int)}
+)
+@websocket_api.require_admin
+@callback
+def ws_offers_set(hass, connection, msg):
+    """🏷️ Angebote (Marktguru, inoffiziell) ein-/ausschalten."""
+    _run(hass, connection, msg, lambda m: m.set_offers(msg["enabled"], msg.get("zip"), msg.get("stores"), msg.get("hours")))
+
+
+@websocket_api.websocket_command({vol.Required("type"): "einkaufsliste/offers/refresh"})
+@websocket_api.require_admin
+@websocket_api.async_response
+async def ws_offers_refresh(hass, connection, msg):
+    """🏷️ Jetzt nachschauen."""
+    async def _go(m):
+        if getattr(m, "offers", None) is None:
+            raise ValueError("Angebote sind aus.")
+        return await m.offers.run(force=True)
+    await _run_async(hass, connection, msg, _go)
 
 
 @websocket_api.websocket_command({vol.Required("type"): "einkaufsliste/stats"})

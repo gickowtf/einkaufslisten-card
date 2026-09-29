@@ -24,6 +24,7 @@ from .transfer import async_register_views
 from .manager import EinkaufslisteManager, person_name_for_user
 from .todo_sync import TodoSync
 from .mail_import import MailImport
+from .offers import Offers
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -78,6 +79,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     manager.sync.start()
     manager.mail = MailImport(hass, manager)  # 📧 Produkte per E-Mail (über die IMAP-Integration)
     manager.mail.start()
+    manager.offers = Offers(hass, manager)  # 🏷️ Angebote aus Prospekten (inoffiziell, standardmäßig aus)
+    manager.offers.start()
     entry.async_on_unload(manager.async_stop)
     entry.async_on_unload(entry.add_update_listener(_async_update_listener))
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)

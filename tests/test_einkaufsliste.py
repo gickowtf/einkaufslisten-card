@@ -2051,3 +2051,35 @@ async def test_move_to_anywhere_and_check_at_store(hass: HomeAssistant, setup) -
     saft = m.add_item("Saft")
     m.set_checked(saft["id"], True, at_store=edeka_like)
     assert [i["id"] for i in m.items if i["name"] == "Saft"] == [saft["id"]]
+
+
+async def test_offers_marktguru(hass: HomeAssistant, setup, aioclient_mock) -> None:
+    """🏷️ Angebote: Schlüssel von der Webseite holen (nicht im Code), passende Angebote zu offenen Artikeln."""
+    from custom_components.einkaufsliste import offers as mod
+    m = mgr(hass)
+    aldi = m.find_store("Aldi")
+    assert mod.key_candidates('headers:{"x-apikey":"ABCDEFGHIJKLMNOP"}') == ["ABCDEFGHIJKLMNOP"]
+    assert mod.matches("Butter", {"product": {"name": "Deutsche Markenbutter"}, "description": ""})
+    assert not mod.matches("Milch", {"product": {"name": "Milchschnitte"}, "description": ""})
+    assert mod.matches("Tomaten", {"product": {"name": "Rispentomate"}, "description": ""})
+    with pytest.raises(ValueError):
+        m.set_offers(True, "12")
+    m.add_item("Butter", store_id=aldi)
+    m.add_item("Zahnpasta")
+    aioclient_mock.get("https://www.marktguru.de/", text='<html><script src="/app.js"></script></html>')
+    aioclient_mock.get("https://www.marktguru.de/app.js", text='const c={apiKey:"GEHEIMERSCHLUESSEL1"}')
+    offer = {"id": 7, "price": 1.79, "oldPrice": 2.49, "product": {"name": "Markenbutter"}, "brand": {"name": "Kerrygold"},
+             "advertisers": [{"name": "ALDI SÜD"}], "validityDates": [{"from": "2026-01-01T00:00:00Z", "to": "2099-01-01T00:00:00Z"}],
+             "description": "", "unit": {"shortName": "g"}, "volume": 250}
+    other = {**offer, "id": 8, "price": 0.99, "advertisers": [{"name": "Lidl"}]}
+    aioclient_mock.get("https://api.marktguru.de/api/v1/offers/search", json={"results": [offer, other]})
+    with patch("custom_components.einkaufsliste.offers.asyncio.sleep"):
+        m.set_offers(True, "48565", [aldi], 6)
+        assert m.as_dict()["settings"]["offers"]["enabled"] and "key" not in m.as_dict()["settings"]["offers"]
+        res = await m.offers.run()
+    assert res["ok"]
+    assert m.offers_cfg["key"] == "GEHEIMERSCHLUESSEL1"
+    butter = m.as_dict()["offers"]["butter"]
+    assert len(butter) == 1 and butter[0]["r"] == "ALDI SÜD" and butter[0]["p"] == 1.79 and butter[0]["op"] == 2.49  # nur Aldi
+    m.set_offers(False)
+    assert m.as_dict()["offers"] == {} and not m.as_dict()["settings"]["offers"]["enabled"]

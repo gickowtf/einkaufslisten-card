@@ -248,6 +248,8 @@ class EinkaufslisteManager:
         self.pin_hash: str | None = None  # 🔒 PIN für die Einstellungen (nur als Prüfsumme gespeichert)
         self.mascot: bool = False  # 🛒😊 Maskottchen an/aus – gilt für alle Karten und Handys
         self.todo_sync: dict[str, Any] | None = None  # 🔁 {"entity_id", "store_id", "count"} – To-do-Liste herüberholen
+        self.offers_cfg: dict[str, Any] | None = None  # 🏷️ {"enabled", "zip", "stores", "hours", "key", "last", "ok", "error", "count"}
+        self.offers_data: dict[str, list[dict[str, Any]]] = {}  # 🏷️ Artikelname klein -> Angebote
         self.mail_import: dict[str, Any] | None = None  # 📧 {"entry_id", "store_id", "senders", "count"} – per E-Mail
         self.photo_dir = Path(hass.config.path("einkaufsliste_fotos"))
         self.history: dict[str, dict[str, Any]] = {}
@@ -338,6 +340,8 @@ class EinkaufslisteManager:
         self.mascot = bool(data.get("mascot", False))
         self.todo_sync = data.get("todo_sync") or None
         self.mail_import = data.get("mail_import") or None
+        self.offers_cfg = data.get("offers_cfg") or None
+        self.offers_data = dict(data.get("offers_data") or {})
         for store in self.stores:  # 📍 früher eine Zone pro Geschäft, jetzt beliebig viele
             if "zones" not in store:
                 store["zones"] = [store["zone"]] if store.get("zone") else []
@@ -387,6 +391,8 @@ class EinkaufslisteManager:
             "mascot": self.mascot,
             "todo_sync": self.todo_sync,
             "mail_import": self.mail_import,
+            "offers_cfg": self.offers_cfg,
+            "offers_data": self.offers_data,
             "last_cleanup": self.last_cleanup,
             "log": self.log,
             "log_days": self.log_days,
@@ -455,8 +461,10 @@ class EinkaufslisteManager:
                 "mascot": self.mascot,
                 "todo_sync": self._todo_sync_info(),
                 "mail_import": self._mail_import_info(),
+                "offers": self._offers_info(),
             },
             "missed": self.missed_counts(),
+            "offers": self.offers_data if (self.offers_cfg or {}).get("enabled") else {},
             "missed_hidden": self.missed_hidden,
         }
 
@@ -467,6 +475,37 @@ class EinkaufslisteManager:
         info = {k: v for k, v in self.todo_sync.items() if k != "links"}
         return {**info, "mode": info.get("mode", "move"), "name": st.name if st else self.todo_sync["entity_id"],
                 "ok": st is not None and st.state != "unavailable"}
+
+    def _offers_info(self) -> dict[str, Any] | None:
+        """🏷️ Angebote-Einstellungen für die Karte (ohne Schlüssel)."""
+        cfg = self.offers_cfg
+        if not cfg:
+            return None
+        return {k: cfg.get(k) for k in ("enabled", "zip", "stores", "hours", "last", "ok", "error", "count")}
+
+    def set_offers(self, enabled: bool, zip_code: str | None = None, stores: list[str] | None = None,
+                   hours: int | None = None) -> dict[str, Any] | None:
+        """🏷️ Angebote ein-/ausschalten (inoffiziell über Marktguru)."""
+        from .offers import INTERVALS  # noqa: PLC0415
+
+        cfg = dict(self.offers_cfg or {})
+        if enabled:
+            zip_code = re.sub(r"\D", "", str(zip_code or cfg.get("zip") or ""))
+            if not 4 <= len(zip_code) <= 5:
+                raise ValueError("Bitte deine Postleitzahl eintragen.")
+            cfg.update(enabled=True, zip=zip_code,
+                       stores=[s for s in (stores if stores is not None else cfg.get("stores", [])) if self.store_by_id(s)],
+                       hours=hours if hours in INTERVALS else cfg.get("hours", 6), last=None)
+            self.offers_cfg = cfg
+        else:
+            if cfg:
+                cfg["enabled"] = False
+            self.offers_cfg = cfg or None
+            self.offers_data = {}
+        if getattr(self, "offers", None) is not None:
+            self.offers.start()
+        self._changed()
+        return self._offers_info()
 
     def _mail_import_info(self) -> dict[str, Any] | None:
         if not self.mail_import:
@@ -1875,6 +1914,8 @@ class EinkaufslisteManager:
             self.sync.stop()
         if getattr(self, "mail", None) is not None:
             self.mail.stop()
+        if getattr(self, "offers", None) is not None:
+            self.offers.stop()
         if self._unsub_time:
             self._unsub_time()
             self._unsub_time = None

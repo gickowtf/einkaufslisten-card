@@ -2,7 +2,7 @@
  * Einkaufsliste Card – die Familien-Einkaufsliste für Home Assistant
  * Wird automatisch von der Integration "einkaufsliste" geladen.
  */
-const EL_VERSION = "2.35.0";
+const EL_VERSION = "2.36.0";
 const EL_START_STORE_ICONS = new Set(["mdi:cart", "mdi:lotion"]); // so bekommen Geschäfte beim Einrichten ihr Icon – zählt als „automatisch“
 const EGAL_CHIP = `<span class="chip" style="--c:#888">🤷 Egal wo</span>`; // Artikel ohne Geschäft: überall kaufen
 
@@ -692,19 +692,15 @@ async function elCameraShot() {
     flip.title = "Kamera wechseln";
     flip.style.minWidth = "56px";
     flip.onclick = async () => {
-      const want = facing === "environment" ? "user" : "environment";
-      try {
-        const next = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { exact: want }, width: { ideal: 1920 }, height: { ideal: 1080 } }, audio: false })
-          .catch(() => navigator.mediaDevices.getUserMedia({ video: { facingMode: want }, audio: false }));
-        stream.getTracks().forEach((t) => t.stop());
-        stream = next;
-        video.srcObject = stream;
-        facing = want;
-        video.style.transform = facing === "user" ? "scaleX(-1)" : ""; // Selfie wie im Spiegel
-      } catch (_) {
-        flip.textContent = "🚫";
-        setTimeout(() => { flip.textContent = "🔄"; }, 1500);
-      }
+      flip.disabled = true;
+      const res = await elNextCamera(stream, facing);
+      flip.disabled = false;
+      if (!res) { flip.textContent = "🚫"; setTimeout(() => { flip.textContent = "🔄"; }, 1500); return; }
+      stream = res.stream;
+      facing = res.facing;
+      video.srcObject = stream;
+      video.style.transform = facing === "user" ? "scaleX(-1)" : ""; // Selfie wie im Spiegel
+      if (res.failed) { flip.textContent = "🚫"; setTimeout(() => { flip.textContent = "🔄"; }, 1500); }
     };
     bar.append(cancel, shot, flip);
     ov.append(video, bar);
@@ -730,6 +726,35 @@ async function elCameraShot() {
       cv.toBlob((blob) => finish(blob ? new File([blob], "kamera.jpg", { type: "image/jpeg" }) : null), "image/jpeg", 0.92);
     };
   });
+}
+
+// 🔄 Nächste Kamera: erst die laufende AUSschalten (viele Handys erlauben nur eine gleichzeitig),
+// dann eine Kamera mit der anderen Blickrichtung suchen. Klappt nichts, geht die alte wieder an.
+async function elNextCamera(oldStream, facing) {
+  const md = navigator.mediaDevices;
+  const oldId = oldStream?.getVideoTracks?.()[0]?.getSettings?.().deviceId;
+  let cams = [];
+  try { cams = (await md.enumerateDevices()).filter((d) => d.kind === "videoinput"); } catch (_) { /* egal */ }
+  oldStream?.getTracks().forEach((t) => t.stop());
+  const want = facing === "user" ? "environment" : "user";
+  const isFront = (c) => /front|user|vorder|selfie|facing front/i.test(c.label || "");
+  const tries = [{ facingMode: { exact: want } }];
+  const other = cams.filter((c) => c.deviceId && c.deviceId !== oldId);
+  const pick = other.find((c) => (want === "user" ? isFront(c) : c.label && !isFront(c))) || other[0];
+  if (pick) tries.unshift({ deviceId: { exact: pick.deviceId } });
+  tries.push({ facingMode: want });
+  for (const video of tries) {
+    try {
+      const stream = await md.getUserMedia({ audio: false, video: { ...video, width: { ideal: 1920 }, height: { ideal: 1080 } } });
+      const got = stream.getVideoTracks()[0]?.getSettings?.() || {};
+      if (got.deviceId && got.deviceId === oldId && cams.length > 1) { stream.getTracks().forEach((t) => t.stop()); continue; } // wieder dieselbe
+      return { stream, facing: got.facingMode || (pick && video.deviceId ? (isFront(pick) ? "user" : "environment") : want) };
+    } catch (_) { /* nächster Versuch */ }
+  }
+  try { // nichts gefunden: die alte Kamera wieder an
+    const stream = await md.getUserMedia({ audio: false, video: oldId ? { deviceId: { exact: oldId } } : { facingMode: facing } });
+    return { stream, facing, failed: true };
+  } catch (_) { return null; }
 }
 
 // 📋 Bild aus der Zwischenablage holen (null = keins drin / nicht erlaubt)
@@ -1130,7 +1155,8 @@ ha-card.compact .group { margin-top:4px; }
 .rtools [data-act="photo-view"] ha-icon { color:var(--primary-color,#03a9f4); }
 .rtools [data-act="recipe-cook"] ha-icon { color:var(--error-color,#e53935); }
 .rtools [data-act="recipe-share"] ha-icon { color:var(--success-color,#43a047); }
-.rtools [data-act="recipe-apply"] ha-icon, [data-act="recipe-apply"] ha-icon { color:var(--success-color,#43a047); } /* 🛒 Auf die Liste: Wagen grün */
+.rbtns [data-act="recipe-apply"] { background:transparent; color:var(--primary-text-color); border:2px solid var(--primary-color,#03a9f4); } /* 🛒 Auf die Liste: blauer Rahmen, nicht gefüllt */
+.rtools [data-act="recipe-apply"] ha-icon, [data-act="recipe-apply"] ha-icon { color:var(--success-color,#43a047); } /* 🛒 Wagen grün */
 .bclist { display:flex; flex-wrap:wrap; gap:6px; }
 .bcchip { display:inline-flex; align-items:center; gap:2px; font-size:.85em; padding:0 0 0 8px; border:1px solid var(--divider-color, rgba(127,127,127,.35)); border-radius:8px; --mdc-icon-size:18px; }
 .chklist { display:flex; flex-direction:column; gap:6px; margin:8px 0; }
@@ -1148,6 +1174,8 @@ ha-card.compact .group { margin-top:4px; }
 .missed { background:color-mix(in srgb, var(--warning-color,#ffa600) 12%, transparent); border-radius:10px; padding:8px 12px; margin:4px 0 10px; }
 .prodrow.marked { outline:2px solid var(--primary-color,#03a9f4); outline-offset:-2px; background:color-mix(in srgb, var(--primary-color,#03a9f4) 10%, transparent); }
 .prodrow:focus { outline:2px solid var(--primary-color,#03a9f4); outline-offset:-2px; }
+.offtag { cursor:pointer; }
+.warnbox { background:color-mix(in srgb, var(--warning-color,#ffa600) 12%, transparent); border-radius:10px; padding:8px 12px; }
 .stats { display:flex; flex-direction:column; gap:2px; }
 .statrow { display:flex; align-items:center; gap:10px; padding:6px 8px; border-radius:8px; background:var(--secondary-background-color, rgba(127,127,127,.06)); }
 .statrow .grow { flex:1; min-width:0; }
@@ -2444,6 +2472,7 @@ class EinkaufslisteCard extends HTMLElement {
     const pk = this._pk(item.name, item.note);
     const codes = this._barcodesOf(pk);
     if (codes.length && !this._shopMode) meta.push(`<span class="bc" title="Barcode hinterlegt: ${esc(codes.join(", "))}">▥</span>`);
+    if (!item.checked && this._offersFor(item).length) meta.push(`<span class="offtag" data-act="offers-show" data-id="${item.id}" title="Im Angebot – antippen für Details">🏷️</span>`);
     // ✍️ Wer & wann: „✍️ Anna, Mo.“ (heute: „vor 5 Min“)
     const when = c.show_dates && !item.checked && !this._shopMode && item.added_at ? fmtWhen(item.added_at) : "";
     if (c.show_added_by && item.added_by) meta.push(`<span title="Eingetragen von"><span translate="no">✍️ ${esc(this._who(item.added_by))}</span>${when ? `, <span>${when}</span>` : ""}</span>`);
@@ -2487,6 +2516,7 @@ class EinkaufslisteCard extends HTMLElement {
         ${b("menu-photo", "mdi:camera-plus-outline", this._hasPhoto(this._pk(item.name, item.note)) ? "Fotos" : "Foto")}
         ${this._hasAppScanner() ? b("barcode-assign", "mdi:barcode-scan", this._barcodesOf(this._pk(item.name, item.note)).length ? "Barcode ✓" : "Barcode") : ""}
         ${this._barcodesOf(this._pk(item.name, item.note)).length ? b("menu-info", "mdi:information-outline", "Infos") : ""}
+        ${this._offersFor(item).length ? b("menu-offers", "mdi:tag-outline", "Angebote") : ""}
         <button class="iconbtn" data-act="menu-close" title="Schließen"><ha-icon icon="mdi:close"></ha-icon></button>
       </div>`;
   }
@@ -3106,9 +3136,10 @@ class EinkaufslisteCard extends HTMLElement {
           <button class="btn" data-act="prod-add" title="Neues Produkt in den Katalog"><ha-icon icon="mdi:plus"></ha-icon>Neues Produkt</button></div>
         ${elIsPc() ? `<p class="hint">⌨️ Klick = markieren · Doppelklick oder Enter = bearbeiten · ↑↓ = blättern · Esc = zurück</p>` : ""}`}
         <div id="prodList"><p class="hint">Lade Produkte …</p></div>`}` },
-      { key: "tools", icon: "mdi:toolbox-outline", title: "Werkzeuge", info: "Alles ok?, Import, Verlauf, Aufräumen, Ressourcen", group: true },
+      { key: "tools", icon: "mdi:toolbox-outline", title: "Werkzeuge", info: "Alles ok?, Import, Angebote, Verlauf, Aufräumen, Ressourcen", group: true },
       { key: "appx", icon: "mdi:cellphone-cog", title: "App & Aussehen", info: "Offline-App, Maskottchen, PIN", group: true },
       { key: "credits", icon: "mdi:hand-heart-outline", title: "Credits", info: `v${EL_VERSION} · von Mister-M`, html: () => this._creditsHtml() },
+      { key: "offers", parent: "tools", icon: "mdi:tag-outline", title: "Angebote", info: this._data.settings?.offers?.enabled ? (this._data.settings.offers.ok === false ? "⚠️ gerade nicht verfügbar" : "an · Marktguru") : "aus · inoffiziell", html: () => this._offersHtml() },
       { key: "stats", parent: "tools", icon: "mdi:chart-donut", title: "Ressourcen", info: "Speicher & Umfang", html: () => `
         <p class="hint">So viel Platz braucht die Einkaufsliste in deinem Home Assistant.</p>
         <div id="statsBox"><p class="hint">Lade …</p></div>` },
@@ -4798,7 +4829,8 @@ class EinkaufslisteCard extends HTMLElement {
       ${sec("👆", "Ändern & lange drücken", `<ul>
         <li>Artikel <b>lange drücken</b> = Menü: Bearbeiten, Verschieben, Menge, Kategorie, Foto, Barcode.</li>
         <li>Menge direkt ändern: auf die Menge tippen, dann <span class="elg-k">−</span> und <span class="elg-k">＋</span>.</li>
-        <li>Unter dem Artikel steht klein: das <b>Geschäft in seiner Farbe</b>, die <b>📝 Notiz</b> (gelb hinterlegt), ▥ (Barcode da), wer eingetragen und wer abgehakt hat.</li></ul>`)}
+        <li>Unter dem Artikel steht klein: das <b>Geschäft in seiner Farbe</b>, die <b>📝 Notiz</b> (gelb hinterlegt), ▥ (Barcode da), wer eingetragen und wer abgehakt hat.</li>
+        <li><b>🏷️</b> = gerade im Angebot (nur wenn in den Einstellungen eingeschaltet). Antippen oder lange drücken → <b>Angebote</b>: Geschäft, Preis, wie lange. Ehrlich gesagt: Das kommt inoffiziell von Marktguru und kann jederzeit aufhören zu funktionieren.</li></ul>`)}
       ${sec("🛍️", "Im Laden", `<ul>
         <li>Der <b>Wagen oben rechts</b> schaltet den <b>Laden-Modus</b> ein: große Zeilen, nur Abhaken, nur das Wichtigste.</li>
         <li>Nochmal antippen (oder <b>Beenden</b>) = wieder normal.</li>
@@ -4941,7 +4973,8 @@ class EinkaufslisteCard extends HTMLElement {
       ${sec("👆", "Changing & long-press", `<ul>
         <li><b>Long-press</b> an item = menu: edit, move, quantity, category, photo, barcode.</li>
         <li>Change the quantity directly: tap the quantity, then <span class="elg-k">−</span> and <span class="elg-k">＋</span>.</li>
-        <li>Below the item in small print: the <b>store in its color</b>, the <b>📝 note</b> (yellow background), ▥ (has a barcode), who added it and who checked it off.</li></ul>`)}
+        <li>Below the item in small print: the <b>store in its color</b>, the <b>📝 note</b> (yellow background), ▥ (has a barcode), who added it and who checked it off.</li>
+        <li><b>🏷️</b> = on offer right now (only if turned on in the settings). Tap or long-press → <b>Offers</b>: store, price, how long. Honestly: this comes unofficially from Marktguru and may stop working at any time.</li></ul>`)}
       ${sec("🛍️", "In the store", `<ul>
         <li>The <b>cart at the top right</b> switches on <b>shop mode</b>: big rows, checking off only, just the essentials.</li>
         <li>Tap again (or <b>Finish</b>) = back to normal.</li>
@@ -5084,6 +5117,63 @@ class EinkaufslisteCard extends HTMLElement {
   }
 
   // ℹ️ Produkt-Infos – nur auf Nachfrage (lange drücken → Infos)
+  // 🏷️ Angebote (Marktguru) zu einem Artikel
+  _offersFor(item) {
+    return (this._data?.offers || {})[String(item?.name || "").toLowerCase()] || [];
+  }
+
+  _showOffers(item) {
+    const list = this._offersFor(item);
+    if (!list.length) return;
+    const eur = (n) => `${Number(n).toFixed(2).replace(".", ",")} €`;
+    const day = (iso) => { if (!iso) return ""; const d = new Date(iso); return `${WD_SHORT[pyWd(d)]}. ${String(d.getDate()).padStart(2, "0")}.${String(d.getMonth() + 1).padStart(2, "0")}.`; };
+    const ov = makeOverlay();
+    Object.assign(ov.style, { justifyContent: "flex-start", overflowY: "auto", touchAction: "auto" });
+    const card = document.createElement("div");
+    Object.assign(card.style, { background: "#1e1e1e", borderRadius: "16px", padding: "18px", maxWidth: "460px", width: "100%", marginTop: "4vh", lineHeight: "1.45" });
+    card.innerHTML = `<div style="font:600 19px Roboto,sans-serif;margin-bottom:10px">🏷️ <span translate="no">${esc(item.name)}</span> im Angebot</div>
+      ${list.map((o) => `<div style="display:flex;gap:12px;align-items:center;padding:10px 0;border-top:1px solid #333">
+        ${o.img ? `<img src="${esc(o.img)}" alt="" loading="lazy" style="width:64px;height:64px;object-fit:contain;background:#fff;border-radius:8px;flex:none" onerror="this.remove()">` : ""}
+        <div style="flex:1;min-width:0">
+          <div><b translate="no">${esc(o.r)}</b></div>
+          <div style="color:#ccc;font-size:13px" translate="no">${esc(o.d || "")}${o.q ? ` · ${esc(o.q)}` : ""}</div>
+          <div style="font-size:13px;color:#aaa">${o.from ? `<span>ab</span> ${esc(day(o.from))} ` : ""}${o.to ? `<span>bis</span> ${esc(day(o.to))}` : ""}</div>
+        </div>
+        <div style="text-align:right;flex:none"><div style="font:700 18px Roboto,sans-serif;color:#81c784">${eur(o.p)}</div>${o.op ? `<div style="color:#999;text-decoration:line-through;font-size:13px">${eur(o.op)}</div>` : ""}</div>
+      </div>`).join("")}
+      <div style="color:#888;font-size:12px;margin-top:10px">Quelle: Marktguru (inoffiziell) · Angaben ohne Gewähr · kann jederzeit aufhören zu funktionieren</div>`;
+    const b = ovButton("Schließen", true);
+    b.style.marginTop = "14px";
+    b.onclick = () => ov.remove();
+    card.appendChild(b);
+    ov.appendChild(card);
+    ov.addEventListener("click", (e) => { if (e.target === ov) ov.remove(); });
+  }
+
+  _offersHtml() {
+    const o = this._data.settings?.offers;
+    const on = !!o?.enabled;
+    const admin = !!this._hass?.user?.is_admin;
+    const last = o?.last ? new Date(o.last) : null;
+    const status = !on ? "" : o.ok === false ? `<p><b>⚠️ Angebote gerade nicht verfügbar.</b> <span>${esc(o.error || "")}</span></p>`
+      : last ? `<p><b>✅ An</b> <span>· zuletzt</span> ${WD_SHORT[pyWd(last)]}. ${String(last.getHours()).padStart(2, "0")}:${String(last.getMinutes()).padStart(2, "0")} <span>·</span> ${o.count || 0} <span>Angebote gefunden</span></p>`
+      : `<p><b>✅ An</b> <span>– die ersten Angebote kommen in ein paar Minuten.</span></p>`;
+    return `
+      <p class="hint"><b>🏷️ Angebote aus den Prospekten</b>: Steht etwas von deiner Liste gerade im Angebot, bekommt der Artikel ein kleines 🏷️. Lange drücken → <b>Angebote</b> zeigt Geschäft, Preis und wie lange es gilt.</p>
+      <p class="hint warnbox">⚠️ <b>Inoffiziell.</b> Die Angebote kommen von Marktguru – ohne Absprache mit Marktguru, so wie die Webseite sie auch jedem Browser zeigt. Das kann <b>jederzeit ohne Vorwarnung aufhören</b> zu funktionieren. Die Einkaufsliste selbst läuft dann ganz normal weiter. Nachgeschaut werden nur die Namen offener Artikel und deine Postleitzahl – sonst nichts.</p>
+      ${status}
+      ${admin ? `
+      <div class="srow"><ha-icon class="prev" icon="mdi:map-marker-outline"></ha-icon><input class="grow" id="offZip" inputmode="numeric" maxlength="5" placeholder="Postleitzahl, z. B. 48565" value="${esc(o?.zip || "")}"></div>
+      <div class="pestores">🏪 <span>Nur diese Geschäfte (leer = alle):</span> ${this._data.stores.map((st) =>
+        `<label class="stck" style="--c:${esc(st.color || "#888")}"><input type="checkbox" class="offstore" value="${esc(st.id)}" ${(o?.stores || []).includes(st.id) ? "checked" : ""}><span translate="no">${esc(st.name)}</span></label>`).join("")}</div>
+      <div class="srow"><ha-icon class="prev" icon="mdi:timer-outline"></ha-icon><select class="grow" id="offHours" title="Wie oft nachschauen">${[3, 6, 12, 24].map((h) =>
+        `<option value="${h}" ${(o?.hours || 6) === h ? "selected" : ""}>🕒 alle ${h} Std.</option>`).join("")}</select></div>
+      <div class="btnrow">
+        <button class="btn primary" data-act="${on ? "offers-save" : "offers-on"}"><ha-icon icon="mdi:tag-outline"></ha-icon>${on ? "Speichern" : "Einschalten"}</button>
+        ${on ? `<button class="btn" data-act="offers-refresh"><ha-icon icon="mdi:refresh"></ha-icon>Jetzt nachschauen</button><button class="btn" data-act="offers-off"><ha-icon icon="mdi:close"></ha-icon>Ausschalten</button>` : ""}
+      </div>` : `<p class="hint">🔒 Einschalten oder ändern kann das nur ein Admin.</p>`}`;
+  }
+
   async _showProductInfo(item) {
     const codes = this._barcodesOf(this._pk(item.name, item.note));
     if (!codes.length) { this._toast("Für Infos braucht das Produkt einen Barcode ▥"); return; }
@@ -5755,6 +5845,34 @@ class EinkaufslisteCard extends HTMLElement {
         this._menuId = null;
         this._qtyEdit = el.dataset.id;
         this._renderList();
+        break;
+      case "menu-offers":
+      case "offers-show": {
+        const item = this._data.items.find((i) => i.id === (el.dataset.id || el.closest(".item")?.dataset.id));
+        this._menuId = null;
+        this._renderList();
+        if (item) this._showOffers(item);
+        break;
+      }
+      case "offers-on":
+      case "offers-save": {
+        const zip = this.$("offZip")?.value || "";
+        const stores = [...this.shadowRoot.querySelectorAll(".offstore:checked")].map((x) => x.value);
+        const hours = Number(this.$("offHours")?.value || 6);
+        this._ws({ type: "einkaufsliste/offers/set", enabled: true, zip, stores, hours })
+          .then(() => { this._toast("🏷️ Angebote sind an – die ersten kommen in ein paar Minuten"); setTimeout(() => this._renderSettings(), 150); })
+          .catch(() => {});
+        break;
+      }
+      case "offers-off":
+        this._ws({ type: "einkaufsliste/offers/set", enabled: false })
+          .then(() => { this._toast("🏷️ Angebote sind aus"); setTimeout(() => this._renderSettings(), 150); }).catch(() => {});
+        break;
+      case "offers-refresh":
+        this._toast("🏷️ Ich schaue nach … (dauert etwa eine Sekunde pro Artikel)");
+        this._ws({ type: "einkaufsliste/offers/refresh" })
+          .then((r) => { this._toast(r?.ok ? `🏷️ Fertig: ${r.offers} Angebote zu ${r.items} Artikeln` : "⚠️ Angebote gerade nicht verfügbar"); setTimeout(() => this._renderSettings(), 150); })
+          .catch(() => {});
         break;
       case "menu-info": {
         const item = this._data.items.find((i) => i.id === el.dataset.id);

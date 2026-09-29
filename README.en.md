@@ -122,7 +122,7 @@ Good to know: it needs an **https** address (e.g. Nabu Casa). If two people chan
 | 🗂️ **Categories** · 👥 **People** | Add, rename, color, icon (just type “dog”, no “mdi:”), sort. |
 | 👨‍🍳 **Recipes** | Two tabs: **Recipes** (new, edit, delete) and **Recipe groups**. |
 | 📦 **Products** | Everything the list knows: rename, category, store (“Available at”), nicknames, photos, barcodes, learned typos, delete completely. Plus “Newly scanned” to check, 🔽 filters (no category, no photo, per store …) and **➕ New product**. On a PC: click selects, ↑↓ browses, double-click/Enter edits. |
-| 🧰 **Tools** | **All good?** (finds broken entries, fixes only what you tick) · **Import & backup** (recipes from a file, lists from other apps – once or 🔁 automatically –, backup as .zip; file import and backup for admins) · **History** (who did what and when, “📈 Often not available”, hide with ✖) · **Cleanup** · **📊 Resources** (how much space data and photos take) |
+| 🧰 **Tools** | **All good?** (finds broken entries, fixes only what you tick) · **Import & backup** (recipes from a file, lists from other apps – once or 🔁 automatically –, backup as .zip; file import and backup for admins) · **History** (who did what and when, “📈 Often not available”, hide with ✖) · **Cleanup** · **📊 Resources** (how much space data and photos take) · **🏷️ Offers** (see below) |
 | 📱 **App & look** | **Offline app** (your address with a copy button) · **Mascot** 🛒😊 (the switch applies to everyone) · **Protection** (4–8 digit PIN for the gear; forgot it? Devices & services → Einkaufsliste → Configure → “Reset PIN”, admins – honestly: protection against accidental changes, not a safe). While the gear is unlocked, a 🔓 shows at the top – tap it to lock right away · **Light / dark** (offline app only: automatic, light or dark) |
 | 🙏 **Credits** | Version, who made it, links to GitHub and “Report a bug”. Also in the guide. |
 
@@ -146,6 +146,11 @@ The shopping list can **empty another Home Assistant to-do list automatically**:
    Honestly: if you rename something in Alexa, the list can't match it reliably – it may become a new entry.
 
 This works with any to-do list in HA (Google Tasks, Bring!, Todoist, the HA shopping list …). Honestly: “Hey Google, …” writes to Google Keep, which has no official Home Assistant connection – so it doesn't work that way with Google.
+
+### 🏷️ Offers from the flyers (unofficial)
+Turn it on in **⚙️ → Tools → Offers** (admins only): postal code, only certain stores if you like, how often to check (every 3–24 hours). If something on your list is on offer right now, the item gets a small **🏷️** – tap or long-press → **Offers** shows store, price, old price and how long it's valid.
+
+⚠️ **Honestly:** the offers come from **Marktguru**, but **unofficially** – without any agreement with Marktguru. The shopping list simply opens the Marktguru website the way your browser does (there's no access key in the code). This can **stop working at any time without warning**; then ⚙️ says “unavailable right now” and the list keeps running normally. Only the names of open items and your postal code are looked up. It's **off** by default.
 
 ### 📧 Onto the list by email
 1. Create a **separate email address** just for the shopping list and set up the **“IMAP”** integration in Home Assistant with it.
