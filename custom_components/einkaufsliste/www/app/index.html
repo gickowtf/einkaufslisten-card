@@ -22,10 +22,15 @@
   color-scheme: light;
 }
 @media (prefers-color-scheme: dark) {
-  :root { --primary-text-color:#e1e1e1; --secondary-text-color:#9b9b9b; --divider-color:rgba(225,225,225,.12);
+  :root:not([data-theme="light"]) { --primary-text-color:#e1e1e1; --secondary-text-color:#9b9b9b; --divider-color:rgba(225,225,225,.12);
     --primary-background-color:#111111; --secondary-background-color:#282828; --card-background-color:#1c1c1c;
     --ha-card-background:#1c1c1c; --state-icon-color:#9e9e9e; color-scheme: dark; }
 }
+/* 🌓 in der App gewählt: immer dunkel */
+:root[data-theme="dark"] { --primary-text-color:#e1e1e1; --secondary-text-color:#9b9b9b; --divider-color:rgba(225,225,225,.12);
+  --primary-background-color:#111111; --secondary-background-color:#282828; --card-background-color:#1c1c1c;
+  --ha-card-background:#1c1c1c; --state-icon-color:#9e9e9e; color-scheme: dark; }
+:root[data-theme="light"] { color-scheme: light; }
 * { box-sizing:border-box; }
 html, body { margin:0; background:var(--primary-background-color); color:var(--primary-text-color);
   font:16px/1.4 Roboto, system-ui, -apple-system, "Segoe UI", sans-serif; -webkit-tap-highlight-color:transparent; }
@@ -36,6 +41,7 @@ body { padding:calc(env(safe-area-inset-top) + 8px) 8px calc(env(safe-area-inset
 .pill { border-radius:999px; padding:2px 10px; background:color-mix(in srgb, var(--success-color) 18%, transparent); color:var(--primary-text-color); }
 .pill.off { background:color-mix(in srgb, var(--error-color) 18%, transparent); }
 .bar button { font:inherit; color:inherit; background:none; border:0; text-decoration:underline; cursor:pointer; }
+.foot[hidden] { display:none; }
 .foot { display:flex; justify-content:center; margin:28px 6px 8px; font-size:13px; color:var(--secondary-text-color); }
 .foot button { font:inherit; color:inherit; background:none; text-decoration:underline; border:1px solid var(--divider-color); border-radius:10px; padding:8px 18px; cursor:pointer; }
 .login { max-width:420px; margin:16vh auto 0; text-align:center; padding:0 20px; }
@@ -66,6 +72,16 @@ body { padding:calc(env(safe-area-inset-top) + 8px) 8px calc(env(safe-area-inset
 <script>
 "use strict";
 window.__elOfflineApp = true; // 📱 für die Karte: das hier ist unsere Offline-App, nicht die HA-App
+// 🌓 Hell / Dunkel / Automatisch (in ⚙️ → App & Aussehen)
+function applyTheme(v) {
+  const t = v === "light" || v === "dark" ? v : "";
+  if (t) document.documentElement.dataset.theme = t; else delete document.documentElement.dataset.theme;
+  const meta = document.querySelector('meta[name="theme-color"]');
+  const dark = t === "dark" || (!t && matchMedia("(prefers-color-scheme: dark)").matches);
+  if (meta) meta.content = dark ? "#1c1c1c" : "#03a9f4";
+}
+try { applyTheme(localStorage.getItem("einkaufsliste_theme")); } catch (_) { applyTheme(""); }
+window.addEventListener("einkaufsliste-theme", (e) => applyTheme(e.detail));
 // 📱 Einkaufsliste – die Offline-App. Version __EL_VERSION__
 // Hier läuft GENAU DIESELBE Karte wie im Dashboard. Diese Seite spielt nur „Home Assistant“ für sie:
 // Anmeldung, Verbindung, und alles für ohne Netz (letzter Stand, Warteschlange, gemerkte Fotos).
@@ -367,7 +383,7 @@ async function scanOpen(p) {
   el.className = "scan";
   el.innerHTML = `<video playsinline muted autoplay></video><div class="shade"></div>
     <div class="top"><h2></h2><p></p></div><div class="msg"></div>
-    <div class="btns">${p.alternative_option_label ? `<button class="main" data-b="alt"></button>` : ""}<button data-b="x">✕ ${T("Schließen", "Close")}</button></div>`;
+    <div class="btns">${p.alternative_option_label ? `<button class="main" data-b="alt"></button>` : ""}<button data-b="flip" title="${T("Kamera wechseln", "Switch camera")}">🔄</button><button data-b="x">✕ ${T("Schließen", "Close")}</button></div>`;
   el.querySelector("h2").textContent = p.title || T("Barcode scannen", "Scan barcode");
   el.querySelector(".top p").textContent = p.description || "";
   const alt = el.querySelector('[data-b="alt"]');
@@ -390,6 +406,21 @@ async function scanOpen(p) {
   const video = el.querySelector("video");
   video.srcObject = me.stream;
   try { await video.play(); } catch (_) { /* startet trotzdem */ }
+  // 🔄 Vorder-/Rückkamera wechseln
+  let facing = "environment";
+  el.querySelector('[data-b="flip"]').onclick = async () => {
+    const want = facing === "environment" ? "user" : "environment";
+    try {
+      const next = await navigator.mediaDevices.getUserMedia({ audio: false, video: { facingMode: { exact: want }, width: { ideal: 1280 }, height: { ideal: 720 } } })
+        .catch(() => navigator.mediaDevices.getUserMedia({ audio: false, video: { facingMode: want } }));
+      if (scan !== me) { next.getTracks().forEach((t) => t.stop()); return; }
+      me.stream.getTracks().forEach((t) => t.stop());
+      me.stream = next;
+      video.srcObject = next;
+      facing = want;
+      try { await video.play(); } catch (_) { /* egal */ }
+    } catch (_) { scanNote(T("📷 Nur eine Kamera gefunden.", "📷 Only one camera found.")); }
+  };
   let read;
   try { read = await makeReader(); } catch (_) {
     scanNote(T("⚠️ Der Barcode-Leser konnte nicht geladen werden – einmal mit Netz öffnen.", "⚠️ The barcode reader could not be loaded – open the app once with a connection."), true);
@@ -528,6 +559,10 @@ function update() {
     foot.className = "foot";
     foot.innerHTML = `<button id="logoutBtn">${T("Abmelden", "Log out")}</button>`;
     wrap.append(foot);
+    // 🚪 Abmelden nur unten in der Einkaufsliste und auf der ersten Seite der Einstellungen
+    const showFoot = () => { foot.hidden = !(card._view === "list" || (card._view === "settings" && !card._setSec)); };
+    window.addEventListener("einkaufsliste-nav", () => setTimeout(showFoot, 0));
+    showFoot();
     document.getElementById("logoutBtn").addEventListener("click", () => {
       if (confirm(T("Abmelden? Noch nicht gesendete Änderungen gehen verloren.", "Log out? Changes not sent yet will be lost."))) logout(false);
     });

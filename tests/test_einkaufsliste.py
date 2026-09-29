@@ -873,7 +873,9 @@ Zubereitung:""")
     assert [i["name"] for i in info["items"]] == ["Mehl", "Eier", "Milch"]
 
 
-async def test_recipe_import_ws(hass, setup, hass_ws_client, aioclient_mock):
+async def test_recipe_import_ws(hass, setup, hass_ws_client, aioclient_mock, monkeypatch):
+    from custom_components.einkaufsliste import recipe_import
+    monkeypatch.setattr(recipe_import, "_resolve", lambda host, port: ["93.184.216.34"])  # echte Internet-IP
     client = await hass_ws_client(hass)
     m = mgr(hass)
     page = """<script type="application/ld+json">{"@type":"Recipe","name":"Pizza","image":"https://img.example.com/pizza.jpg",
@@ -1993,3 +1995,59 @@ async def test_store_cat_order(hass: HomeAssistant, setup, hass_ws_client) -> No
     await client.send_json({"id": 2, "type": "einkaufsliste/group/update", "kind": "stores", "group_id": aldi, "cat_order": None})
     assert (await client.receive_json())["success"]
     assert m.store_by_id(aldi)["cat_order"] is None
+
+
+
+async def test_recipe_import_blocks_home_network(hass, setup, hass_ws_client, aioclient_mock, monkeypatch):
+    """🔒 Rezept-Link: kein Heimnetz – weder direkt, noch per Umleitung, Bild oder Namen mit privater IP."""
+    from custom_components.einkaufsliste import recipe_import
+    ips = {"rezepte.example.com": ["93.184.216.34"], "boese.example.com": ["192.168.1.10"], "img.example.com": ["93.184.216.35"]}
+    monkeypatch.setattr(recipe_import, "_resolve", lambda host, port: ips.get(host, ["10.0.0.1"]))
+    client = await hass_ws_client(hass)
+    for n, url in enumerate(["http://192.168.1.1/x", "http://router/x", "http://[::ffff:127.0.0.1]/x", "https://boese.example.com/x"], 1):
+        await client.send_json({"id": n, "type": "einkaufsliste/recipe/import", "text": url})
+        assert not (await client.receive_json())["success"], url
+    # Umleitung ins Heimnetz wird nicht verfolgt
+    aioclient_mock.get("https://rezepte.example.com/weiter", status=302, headers={"Location": "http://192.168.1.1/admin"})
+    await client.send_json({"id": 10, "type": "einkaufsliste/recipe/import", "text": "https://rezepte.example.com/weiter"})
+    assert not (await client.receive_json())["success"]
+    assert not any("192.168" in str(c[1]) for c in aioclient_mock.mock_calls)
+    # Rezeptbild aus dem Heimnetz wird nicht geladen, das Rezept selbst schon
+    page = """<script type="application/ld+json">{"@type":"Recipe","name":"Suppe","image":"https://boese.example.com/bild.jpg",
+      "recipeIngredient":["1 Karotte"]}</script>"""
+    aioclient_mock.get("https://rezepte.example.com/suppe", text=page)
+    await client.send_json({"id": 11, "type": "einkaufsliste/recipe/import", "text": "https://rezepte.example.com/suppe"})
+    res = await client.receive_json()
+    assert res["success"] and res["result"]["image"] is None
+    assert not any("boese" in str(c[1]) for c in aioclient_mock.mock_calls)
+
+
+async def test_mail_and_sync_admin_only(hass: HomeAssistant, setup, hass_ws_client, hass_read_only_access_token) -> None:
+    """🔒 E-Mail- und To-do-Abgleich einstellen dürfen nur Admins."""
+    client = await hass_ws_client(hass, hass_read_only_access_token)
+    for n, msg in enumerate([{"type": "einkaufsliste/mail/set", "entry_id": None},
+                             {"type": "einkaufsliste/mail/sources"},
+                             {"type": "einkaufsliste/todo_sync/set", "entity_id": "todo.x"}], 1):
+        await client.send_json({"id": n, **msg})
+        res = await client.receive_json()
+        assert not res["success"] and res["error"]["code"] == "unauthorized", msg
+
+
+async def test_move_to_anywhere_and_check_at_store(hass: HomeAssistant, setup) -> None:
+    """🤷 Nach „Egal wo“ schieben, im Geschäft abhaken -> gehört dorthin; wieder drauf -> dort."""
+    m = mgr(hass)
+    edeka_like, netto = m.find_store("Aldi"), m.find_store("Netto")
+    tee = m.add_item("Tee", store_id=netto)
+    moved = m.move_item(tee["id"], None)
+    assert moved["id"] == tee["id"] and moved["store_id"] is None and len([i for i in m.items if i["name"] == "Tee"]) == 1
+    assert m.log[-1]["d"] == "Netto → Egal wo"
+    m.set_checked(tee["id"], True, at_store=edeka_like)
+    assert tee["checked"] and tee["store_id"] == edeka_like
+    m.set_checked(tee["id"], False)
+    assert not tee["checked"] and tee["store_id"] == edeka_like  # wieder drauf: da, wo zuletzt gekauft
+    # alter abgehakter Eintrag im Geschäft wird ersetzt, nicht verdoppelt
+    alt = m.add_item("Saft", store_id=edeka_like)
+    m.set_checked(alt["id"], True)
+    saft = m.add_item("Saft")
+    m.set_checked(saft["id"], True, at_store=edeka_like)
+    assert [i["id"] for i in m.items if i["name"] == "Saft"] == [saft["id"]]

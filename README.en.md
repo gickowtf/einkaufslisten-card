@@ -66,7 +66,7 @@ Copy `custom_components/einkaufsliste` to `/config/custom_components/einkaufslis
 **In the list:**
 - ⭕ **Circle** = check off. Under “Done” once more = back on the list.
 - ⇄ = was out (stays open marked “was out”, or moves to another store).
-- 🤷 **“Anywhere”** = items without a fixed store. They show up in **every** store tab (tagged “🤷 Anywhere”) – wherever you happen to be. Check off = gone everywhere. Moving one to a store with ⇄ simply relocates it, nothing is left under “Done”.
+- 🤷 **“Anywhere”** = items without a fixed store. They show up in **every** store tab (tagged “🤷 Anywhere”) – wherever you happen to be. Check off = gone everywhere. Moving one to a store with ⇄ simply relocates it, nothing is left under “Done”. The other way round works too: ⇄ → **🤷 Anywhere**. Checked off in a store tab, it belongs to that store from then on (there under “Done”, gone from the others) – and comes back there next time.
 - **Long-press** = menu: edit, move, quantity, category, photo, barcode, info.
 - **Tap the quantity** = [−] 2x [＋].
 - ✨ = new since you last looked; the red number on a tab shows how much is new there.
@@ -121,9 +121,10 @@ Good to know: it needs an **https** address (e.g. Nabu Casa). If two people chan
 | 🏪 **Stores** | Every store as its own tile. Tap = name, color, icon, order, 📍 zones (several, e.g. for several branches), 🏷️ store brands and 🗺️ **category order** (default: same everywhere – or its own, the way you walk through the store). Without an icon of its own the list uses the zone's icon (if it has one), otherwise 🛒. |
 | 🗂️ **Categories** · 👥 **People** | Add, rename, color, icon (just type “dog”, no “mdi:”), sort. |
 | 👨‍🍳 **Recipes** | Two tabs: **Recipes** (new, edit, delete) and **Recipe groups**. |
-| 📦 **Products** | Everything the list knows: rename, category, store (“Available at”), nicknames, photos, barcodes, learned typos, delete completely. Plus “Newly scanned” to check. |
-| 🧰 **Tools** | **All good?** (finds broken entries, fixes only what you tick) · **Import & backup** (recipes from a file, lists from other apps – once or 🔁 automatically –, backup as .zip; file import and backup for admins) · **History** (who did what and when, “📈 Often not available”, hide with ✖) · **Cleanup** |
-| 📱 **App & look** | **Offline app** (your address with a copy button) · **Mascot** 🛒😊 (the switch applies to everyone) · **Protection** (4–8 digit PIN for the gear; forgot it? Devices & services → Einkaufsliste → Configure → “Reset PIN”, admins – honestly: protection against accidental changes, not a safe) |
+| 📦 **Products** | Everything the list knows: rename, category, store (“Available at”), nicknames, photos, barcodes, learned typos, delete completely. Plus “Newly scanned” to check, 🔽 filters (no category, no photo, per store …) and **➕ New product**. On a PC: click selects, ↑↓ browses, double-click/Enter edits. |
+| 🧰 **Tools** | **All good?** (finds broken entries, fixes only what you tick) · **Import & backup** (recipes from a file, lists from other apps – once or 🔁 automatically –, backup as .zip; file import and backup for admins) · **History** (who did what and when, “📈 Often not available”, hide with ✖) · **Cleanup** · **📊 Resources** (how much space data and photos take) |
+| 📱 **App & look** | **Offline app** (your address with a copy button) · **Mascot** 🛒😊 (the switch applies to everyone) · **Protection** (4–8 digit PIN for the gear; forgot it? Devices & services → Einkaufsliste → Configure → “Reset PIN”, admins – honestly: protection against accidental changes, not a safe). While the gear is unlocked, a 🔓 shows at the top – tap it to lock right away · **Light / dark** (offline app only: automatic, light or dark) |
+| 🙏 **Credits** | Version, who made it, links to GitHub and “Report a bug”. Also in the guide. |
 
 ### 🧹 Cleanup, simply explained
 On cleanup day everything that has been open for at least 7 days (adjustable) gets **checked off**. Example Sunday: added on Tuesday → only 5 days old on the first Sunday, stays → checked off on the second Sunday. Each item shows 🧹 with its date. Nothing is deleted. Day and time: **Devices & services → Einkaufsliste → Configure**.
@@ -135,7 +136,7 @@ Create a **zone** per store (Settings → Areas, labels & zones → Zones) and p
 The shopping list can **empty another Home Assistant to-do list automatically**: everything that lands there moves over right away and is deleted there.
 
 1. Set up the **“Alexa Devices”** integration in Home Assistant. The Alexa shopping list then shows up as a to-do list in HA.
-2. In the card: **⚙️ → Tools → Import & backup → From other apps → 🔁 Bring over automatically**, pick the Alexa list (and a store if you like), **Turn on**.
+2. In the card: **⚙️ → Tools → Import & backup → From other apps → 🔁 Bring over automatically**, pick the Alexa list (and a store if you like), **Turn on**. 🔒 Only admins can turn it on or change it.
 3. From now on: “Alexa, add milk to my shopping list” → milk is on the list, with “🔁 Alexa” as the one who added it.
 4. **Pick how lists are matched:**
    - 🗑️ **Fetch & delete there** – Alexa is just the mailbox.
@@ -148,7 +149,7 @@ This works with any to-do list in HA (Google Tasks, Bring!, Todoist, the HA shop
 
 ### 📧 Onto the list by email
 1. Create a **separate email address** just for the shopping list and set up the **“IMAP”** integration in Home Assistant with it.
-2. In the card: **⚙️ → Tools → Import & backup → 📧 Email**: pick the mailbox, a store if you like, what happens to the email afterwards (📬 leave · 👁️ mark as read · 🗑️ delete), enter the **allowed senders** (at least one), **Turn on**.
+2. In the card: **⚙️ → Tools → Import & backup → 📧 Email**: pick the mailbox, a store if you like, what happens to the email afterwards (📬 leave · 👁️ mark as read · 🗑️ delete), enter the **allowed senders** (at least one), **Turn on**. 🔒 Admins only.
 3. Send an email to that address – **one item per line** (“milk”, “6 eggs” …). Several in one line work too: “milk, butter, bread”. Greetings (“Hi …”, “Best regards”), signatures, quotes, “Sent from my iPhone” and whole sentences are skipped, quantities are recognized. If the email arrives without line breaks (some phone mail apps), the list fetches it again properly from the mailbox. The history shows 📧.
 4. **Send the store along:** a store in the **subject** (“Aldi”, “Shopping at Aldi”) puts everything there. Or use a **heading** in the email: `Aldi:` – the things below – then `DM:` … Also in one line: `Netto: milk, bread`. Unknown names go to the chosen store.
 

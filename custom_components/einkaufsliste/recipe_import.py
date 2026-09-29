@@ -9,8 +9,9 @@ import ipaddress
 import json
 import logging
 import re
+import socket
 from typing import Any
-from urllib.parse import urlparse
+from urllib.parse import urljoin, urlparse
 
 import aiohttp
 
@@ -171,27 +172,66 @@ def _steps(node: Any) -> str | None:
     return convert_temps("\n".join(out))[:8000] or None  # ⚖️ °F -> °C
 
 
+def _bad_ip(ip: ipaddress.IPv4Address | ipaddress.IPv6Address) -> bool:
+    if isinstance(ip, ipaddress.IPv6Address) and ip.ipv4_mapped:
+        ip = ip.ipv4_mapped
+    return (ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved
+            or ip.is_multicast or ip.is_unspecified or not ip.is_global)
+
+
 def _is_local(host: str) -> bool:
-    host = host.strip("[]").lower()
-    if host in ("localhost", "homeassistant", "homeassistant.local") or host.endswith(".local"):
+    host = host.strip("[]").lower().rstrip(".")
+    if host in ("localhost", "homeassistant", "homeassistant.local") or host.endswith((".local", ".lan", ".home", ".internal", ".localhost")):
+        return True
+    if "." not in host and ":" not in host:  # „router“, „nas“ – Namen ohne Punkt gibt's nur im Heimnetz
         return True
     try:
-        ip = ipaddress.ip_address(host)
+        return _bad_ip(ipaddress.ip_address(host))
     except ValueError:
         return False
-    return ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved
 
 
-async def _download(session: aiohttp.ClientSession, url: str, limit: int) -> tuple[bytes, str] | None:
+def _resolve(host: str, port: int) -> list[str]:
+    """Alle IP-Adressen zu einem Namen (läuft im Hintergrund-Thread)."""
+    return list({info[4][0] for info in socket.getaddrinfo(host, port, type=socket.SOCK_STREAM)})
+
+
+async def _check_url(hass: HomeAssistant, url: str) -> bool:
+    """🔒 Nur echte Internet-Adressen: kein Heimnetz, auch nicht über einen Namen, der auf eine private IP zeigt."""
+    parsed = urlparse(url)
+    if parsed.scheme not in ("http", "https") or not parsed.hostname or _is_local(parsed.hostname):
+        return False
+    try:
+        ips = await hass.async_add_executor_job(_resolve, parsed.hostname, parsed.port or (443 if parsed.scheme == "https" else 80))
+    except (OSError, UnicodeError) as err:
+        _LOGGER.debug("Name nicht auflösbar (%s): %s", parsed.hostname, err)
+        return False
+    try:
+        return bool(ips) and not any(_bad_ip(ipaddress.ip_address(ip.split("%")[0])) for ip in ips)
+    except ValueError:
+        return False
+
+
+async def _download(hass: HomeAssistant, session: aiohttp.ClientSession, url: str, limit: int) -> tuple[bytes, str] | None:
+    """Laden mit Prüfung – auch jede Umleitung wird einzeln geprüft (höchstens 5)."""
     try:
         async with asyncio.timeout(15):
-            resp = await session.get(url, headers={"User-Agent": USER_AGENT}, allow_redirects=True)
-            if resp.status != 200:
-                return None
-            raw = await resp.content.read(limit + 1)
-            if len(raw) > limit:
-                return None
-            return raw, resp.headers.get("Content-Type", "")
+            for _ in range(6):
+                if not await _check_url(hass, url):
+                    _LOGGER.info("🔒 Adresse im Heimnetz oder ungültig – nicht geladen: %s", url)
+                    return None
+                resp = await session.get(url, headers={"User-Agent": USER_AGENT}, allow_redirects=False)
+                if resp.status in (301, 302, 303, 307, 308) and resp.headers.get("Location"):
+                    url = urljoin(url, resp.headers["Location"])
+                    resp.release()
+                    continue
+                if resp.status != 200:
+                    return None
+                raw = await resp.content.read(limit + 1)
+                if len(raw) > limit:
+                    return None
+                return raw, resp.headers.get("Content-Type", "")
+            return None  # zu viele Umleitungen
     except (TimeoutError, aiohttp.ClientError, ValueError) as err:
         _LOGGER.debug("Laden fehlgeschlagen (%s): %s", url, err)
         return None
@@ -211,7 +251,7 @@ async def async_import(hass: HomeAssistant, manager: Any, text: str) -> dict[str
         if _is_local(parsed.hostname):
             raise ValueError("Links ins eigene Heimnetz werden nicht geöffnet.")
         session = async_get_clientsession(hass)
-        got = await _download(session, first, MAX_PAGE)
+        got = await _download(hass, session, first, MAX_PAGE)
         if got is None:
             raise ValueError("Die Seite konnte nicht geladen werden. Kopier lieber die Zutaten als Text rein.")
         page = got[0].decode("utf-8", errors="replace")
@@ -221,7 +261,7 @@ async def async_import(hass: HomeAssistant, manager: Any, text: str) -> dict[str
         result.update(source="link", name=info["name"], items=info["items"], steps=info.get("steps"))
         img_url = info.get("image_url")
         if isinstance(img_url, str) and img_url.startswith("http"):
-            img = await _download(session, img_url, MAX_IMAGE)
+            img = await _download(hass, session, img_url, MAX_IMAGE)
             if img and (img[0][:3] == b"\xff\xd8\xff" or img[0][:8] == b"\x89PNG\r\n\x1a\n" or img[0][8:12] == b"WEBP"):
                 mime = "image/png" if img[0][:4] == b"\x89PNG" else "image/webp" if img[0][8:12] == b"WEBP" else "image/jpeg"
                 result["image"] = f"data:{mime};base64,{base64.b64encode(img[0]).decode()}"

@@ -2,7 +2,8 @@
  * Einkaufsliste Card – die Familien-Einkaufsliste für Home Assistant
  * Wird automatisch von der Integration "einkaufsliste" geladen.
  */
-const EL_VERSION = "2.34.0";
+const EL_VERSION = "2.35.0";
+const EL_START_STORE_ICONS = new Set(["mdi:cart", "mdi:lotion"]); // so bekommen Geschäfte beim Einrichten ihr Icon – zählt als „automatisch“
 const EGAL_CHIP = `<span class="chip" style="--c:#888">🤷 Egal wo</span>`; // Artikel ohne Geschäft: überall kaufen
 
 // Doppelt-Finder: Wörter, die dasselbe meinen (alles klein, ohne Leer-/Sonderzeichen)
@@ -305,6 +306,15 @@ function editDistance(a, b) {
     }
   }
   return d[m][n];
+}
+
+// ✍️ Wann eingetragen: heute „vor 5 Min“, sonst der Wochentag „Mo.“ (älter als eine Woche: „Mo. 21.09.“)
+function fmtWhen(iso) {
+  const d = new Date(iso);
+  const diff = dayDiff(new Date(), d);
+  if (diff <= 0) return fmtSince(iso);
+  const wd = `${WD_SHORT[pyWd(d)]}.`;
+  return diff < 7 ? wd : `${wd} ${String(d.getDate()).padStart(2, "0")}.${String(d.getMonth() + 1).padStart(2, "0")}.`;
 }
 
 function fmtSince(iso) {
@@ -676,9 +686,27 @@ async function elCameraShot() {
     shot.type = "button";
     shot.title = "Foto machen";
     shot.style.cssText = "width:74px;height:74px;border-radius:50%;border:5px solid #fff;background:rgba(255,255,255,.35);cursor:pointer;padding:0";
-    const spacer = document.createElement("span");
-    spacer.style.minWidth = "56px";
-    bar.append(cancel, shot, spacer);
+    // 🔄 Vorder-/Rückkamera wechseln
+    let facing = "environment";
+    const flip = ovButton("🔄");
+    flip.title = "Kamera wechseln";
+    flip.style.minWidth = "56px";
+    flip.onclick = async () => {
+      const want = facing === "environment" ? "user" : "environment";
+      try {
+        const next = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { exact: want }, width: { ideal: 1920 }, height: { ideal: 1080 } }, audio: false })
+          .catch(() => navigator.mediaDevices.getUserMedia({ video: { facingMode: want }, audio: false }));
+        stream.getTracks().forEach((t) => t.stop());
+        stream = next;
+        video.srcObject = stream;
+        facing = want;
+        video.style.transform = facing === "user" ? "scaleX(-1)" : ""; // Selfie wie im Spiegel
+      } catch (_) {
+        flip.textContent = "🚫";
+        setTimeout(() => { flip.textContent = "🔄"; }, 1500);
+      }
+    };
+    bar.append(cancel, shot, flip);
     ov.append(video, bar);
     let over = false;
     const finish = (file) => {
@@ -772,6 +800,7 @@ function askText(title, placeholder = "") {
     setTimeout(() => inp.focus(), 50);
   });
 }
+const elAppTheme = () => { try { return localStorage.getItem("einkaufsliste_theme") || "auto"; } catch (_) { return "auto"; } };
 const PIN_KEY = "einkaufsliste_pin_until";
 const pinUnlocked = () => { try { return Number(localStorage.getItem(PIN_KEY) || 0) > Date.now(); } catch (_) { return false; } };
 const pinRemember = () => { try { localStorage.setItem(PIN_KEY, String(Date.now() + 10 * 60000)); } catch (_) { /* egal */ } };
@@ -1101,6 +1130,7 @@ ha-card.compact .group { margin-top:4px; }
 .rtools [data-act="photo-view"] ha-icon { color:var(--primary-color,#03a9f4); }
 .rtools [data-act="recipe-cook"] ha-icon { color:var(--error-color,#e53935); }
 .rtools [data-act="recipe-share"] ha-icon { color:var(--success-color,#43a047); }
+.rtools [data-act="recipe-apply"] ha-icon, [data-act="recipe-apply"] ha-icon { color:var(--success-color,#43a047); } /* 🛒 Auf die Liste: Wagen grün */
 .bclist { display:flex; flex-wrap:wrap; gap:6px; }
 .bcchip { display:inline-flex; align-items:center; gap:2px; font-size:.85em; padding:0 0 0 8px; border:1px solid var(--divider-color, rgba(127,127,127,.35)); border-radius:8px; --mdc-icon-size:18px; }
 .chklist { display:flex; flex-direction:column; gap:6px; margin:8px 0; }
@@ -1116,6 +1146,17 @@ ha-card.compact .group { margin-top:4px; }
 .subtabs .tab ha-icon { --mdc-icon-size:18px; }
 .xferfmt { margin:4px 0 10px; padding-left:20px; }
 .missed { background:color-mix(in srgb, var(--warning-color,#ffa600) 12%, transparent); border-radius:10px; padding:8px 12px; margin:4px 0 10px; }
+.prodrow.marked { outline:2px solid var(--primary-color,#03a9f4); outline-offset:-2px; background:color-mix(in srgb, var(--primary-color,#03a9f4) 10%, transparent); }
+.prodrow:focus { outline:2px solid var(--primary-color,#03a9f4); outline-offset:-2px; }
+.stats { display:flex; flex-direction:column; gap:2px; }
+.statrow { display:flex; align-items:center; gap:10px; padding:6px 8px; border-radius:8px; background:var(--secondary-background-color, rgba(127,127,127,.06)); }
+.statrow .grow { flex:1; min-width:0; }
+.elcredits { text-align:center; } .elcredits p { margin:8px 0; }
+.ellogo { background:#fff; border-radius:14px; padding:10px; display:inline-block; max-width:100%; box-shadow:0 1px 4px rgba(0,0,0,.12); }
+.ellogo img { display:block; max-width:100%; width:280px; height:auto; }
+.elcbtns { display:flex; flex-wrap:wrap; gap:8px; justify-content:center; margin:12px 0; }
+.elcbtn { color:var(--primary-text-color); background:var(--secondary-background-color, rgba(127,127,127,.12)); border-radius:12px; padding:10px 14px; text-decoration:none; font-weight:500; }
+.elcsmall { opacity:.7; font-size:.9em; }
 .catordlist { display:flex; flex-direction:column; gap:2px; margin:4px 0 6px; }
 .catord { display:flex; align-items:center; gap:8px; padding:3px 6px; border-radius:8px; background:var(--secondary-background-color, rgba(127,127,127,.06)); }
 .catord .con { min-width:1.6em; opacity:.6; font-variant-numeric:tabular-nums; }
@@ -1492,7 +1533,10 @@ function applyQueued(data, list, hass) {
         break;
       }
       case "einkaufsliste/item/toggle":
-        if (it) { it.checked = typeof m.checked === "boolean" ? m.checked : !it.checked; it.checked_at = now; it.checked_by = me; it._queued = true; }
+        if (it) {
+          it.checked = typeof m.checked === "boolean" ? m.checked : !it.checked; it.checked_at = now; it.checked_by = me; it._queued = true;
+          if (it.checked && !it.store_id && m.store_id) it.store_id = m.store_id; // 🤷 „Egal wo“ hier abgehakt
+        }
         break;
       case "einkaufsliste/item/update":
         if (it) { for (const k of ["name", "quantity", "note", "for_whom", "store_id", "category_id"]) if (k in m) it[k] = m[k]; it._queued = true; }
@@ -1501,7 +1545,7 @@ function applyQueued(data, list, hass) {
         data.items = data.items.filter((i) => i.id !== m.item_id);
         break;
       case "einkaufsliste/item/move":
-        if (it) { it.store_id = m.store_id; it._queued = true; }
+        if (it) { it.store_id = m.store_id || null; it._queued = true; }
         break;
       case "einkaufsliste/item/out":
         if (it) { it.out_at = now; it._queued = true; }
@@ -1684,6 +1728,7 @@ class EinkaufslisteCard extends HTMLElement {
     clearInterval(this._clock);
     this._clock = setInterval(() => {
       if (this._view === "list" && !this._editing && this._data) this._renderList(); // „vor 5 Min“ aktuell halten
+      this._updateLockBtn(); // 🔒 nach 10 Minuten verschwindet der Sperr-Knopf von selbst
     }, 60000);
     if (this._hass && !this._unsub && !this._subscribing) this._subscribe();
   }
@@ -1808,7 +1853,7 @@ class EinkaufslisteCard extends HTMLElement {
       <style>${STYLE}</style>
       <ha-card>
         <div class="head">
-          <div class="title"><ha-icon id="titleIcon" icon="mdi:cart-variant" data-act="guide" title="📖 Anleitung – antippen"></ha-icon><span id="mascot" data-act="guide" title="📖 Anleitung – antippen" hidden></span><span class="live" id="liveDot" title="Verbindung"></span><span class="badge" id="count" hidden></span><span class="t" id="title" hidden></span><button class="iconbtn" id="btnScan" type="button" data-act="scan" title="Barcode scannen" hidden><ha-icon icon="mdi:barcode-scan"></ha-icon></button></div>
+          <div class="title"><ha-icon id="titleIcon" icon="mdi:cart-variant" data-act="guide" title="📖 Anleitung – antippen"></ha-icon><span id="mascot" data-act="guide" title="📖 Anleitung – antippen" hidden></span><span class="live" id="liveDot" title="Verbindung"></span><span class="badge" id="count" hidden></span><span class="t" id="title" hidden></span><button class="iconbtn" id="btnScan" type="button" data-act="scan" title="Barcode scannen" hidden><ha-icon icon="mdi:barcode-scan"></ha-icon></button><button class="iconbtn" id="btnLock" type="button" data-act="pin-lock" title="Einstellungen jetzt sperren" hidden><ha-icon icon="mdi:lock-open-variant-outline"></ha-icon></button></div>
           <button class="iconbtn" id="btnShop" data-act="shopmode" title="Laden-Modus"><ha-icon icon="mdi:cart-outline"></ha-icon></button>
           <button class="iconbtn" id="btnRecipes" data-act="view" data-view="recipes" title="Rezepte"><ha-icon icon="mdi:chef-hat"></ha-icon></button>
           <button class="iconbtn" id="btnSettings" data-act="view" data-view="settings" title="Geschäfte & Kategorien"><ha-icon icon="mdi:cog-outline"></ha-icon></button>
@@ -1871,6 +1916,14 @@ class EinkaufslisteCard extends HTMLElement {
     this.shadowRoot.addEventListener("paste", (e) => this._onPaste(e));
     this.$("inName").addEventListener("input", () => { if (!this.$("inName").value.trim()) this._pendingBarcode = null; this._onNameInput(); this._renderSuggest(); this._updateTools(); if (!this._editing) this._renderList(); });
     root.addEventListener("click", (e) => this._onClick(e), true);
+    root.addEventListener("dblclick", (e) => { // 🖥️ Doppelklick im Katalog = bearbeiten
+      const row = e.target.closest?.(".prodrow");
+      if (!row) return;
+      this._prodEdit = row.dataset.key;
+      this._renderProducts();
+      setTimeout(() => this.$("peName")?.focus(), 30);
+    });
+    root.addEventListener("keydown", (e) => { if (this._prodKey(e)) e.preventDefault(); });
     this._setupTabScroll(this.$("tabs"));
     this._setupLongPress(this.$("list"));
     root.addEventListener("change", (e) => this._onChange(e));
@@ -2012,13 +2065,15 @@ class EinkaufslisteCard extends HTMLElement {
   }
 
   // 🏪 Icon eines Geschäfts: selbst ausgesucht, sonst das Icon der Zone, sonst der Einkaufswagen
+  // 🏪 Icon: selbst ausgesucht > Icon der Zone > Start-Icon vom Einrichten (🛒, bei DM 🧴) > 🛒
   _storeIcon(store) {
-    if (store?.icon && store.icon !== "mdi:cart") return store.icon;
+    const own = store?.icon;
+    if (own && !EL_START_STORE_ICONS.has(own)) return own;
     for (const zid of storeZones(store)) {
       const ic = this._hass?.states?.[zid]?.attributes?.icon;
       if (ic && ic !== "mdi:map-marker") return ic;
     }
-    return "mdi:cart";
+    return own || "mdi:cart";
   }
 
   _selectOptions(list, selected, empty) {
@@ -2117,6 +2172,7 @@ class EinkaufslisteCard extends HTMLElement {
     const cnt = this.$("count");
     cnt.hidden = open.length === 0;
     cnt.textContent = open.length;
+    this._updateLockBtn();
     this._renderMascot(open.length);
 
     const isList = this._view === "list";
@@ -2388,7 +2444,10 @@ class EinkaufslisteCard extends HTMLElement {
     const pk = this._pk(item.name, item.note);
     const codes = this._barcodesOf(pk);
     if (codes.length && !this._shopMode) meta.push(`<span class="bc" title="Barcode hinterlegt: ${esc(codes.join(", "))}">▥</span>`);
-    if (c.show_added_by && item.added_by) meta.push(`<span title="Eingetragen von">✍️ ${esc(this._who(item.added_by))}</span>`);
+    // ✍️ Wer & wann: „✍️ Anna, Mo.“ (heute: „vor 5 Min“)
+    const when = c.show_dates && !item.checked && !this._shopMode && item.added_at ? fmtWhen(item.added_at) : "";
+    if (c.show_added_by && item.added_by) meta.push(`<span title="Eingetragen von"><span translate="no">✍️ ${esc(this._who(item.added_by))}</span>${when ? `, <span>${when}</span>` : ""}</span>`);
+    else if (when) meta.push(`<span>${when}</span>`);
     if (c.show_dates && item.checked) meta.push(`<span title="Abgehakt von">✓ ${item.checked_by ? esc(this._who(item.checked_by)) : "automatisch"}</span>`);
     const rgrp = recipe && this._rgroup(recipe.group);
     if (recipe) meta.push(rgrp?.color ? `<span class="chip" style="--c:${esc(rgrp.color)}">🍽️ ${esc(recipe.name)}</span>` : `<span>🍽️ ${esc(recipe.name)}</span>`);
@@ -2396,7 +2455,6 @@ class EinkaufslisteCard extends HTMLElement {
       if (item.checked) {
         // (wer abgehakt hat, steht schon oben)
       } else {
-        meta.push(`<span>${fmtSince(item.added_at)}</span>`);
         const auto = this._autoCheckDate(item);
         if (auto) meta.push(`<span title="Wird an diesem Tag automatisch abgehakt">🧹 ${fmtDay(auto)}</span>`);
       }
@@ -2535,6 +2593,7 @@ class EinkaufslisteCard extends HTMLElement {
         ${here && this._missedAt(item.name, here.id) >= 2 ? `<span class="movewarn">⚠️ Schon ${this._missedAt(item.name, here.id) + 1}× nicht bekommen – lieber woanders?</span>` : ""}
         ${here ? `<button class="tab outbtn" data-act="move-out" title="Bleibt offen hier – alle sehen „war aus“"><ha-icon icon="mdi:refresh"></ha-icon>Nächstes Mal wieder hier</button><span class="movetxt">oder ab zu:</span>` : ""}
         ${targets.map((s) => `<button class="tab" style="--c:${esc(s.color)}" data-act="move-to" data-store="${s.id}"${known.includes(s.id) ? ` title="Gibt's da auch"` : ""}><span class="dot"></span>${esc(s.name)}${known.includes(s.id) ? " ✓" : ""}</button>`).join("")}
+        ${item.store_id ? `<button class="tab" style="--c:#888" data-act="move-to" data-store="" title="Steht dann in jedem Geschäft – abgehakt wird's da, wo du es kaufst"><span class="dot"></span>🤷 Egal wo</button>` : ""}
         <button class="iconbtn" data-act="move-cancel" title="Abbrechen"><ha-icon icon="mdi:close"></ha-icon></button>
       </div>`;
   }
@@ -2828,7 +2887,10 @@ class EinkaufslisteCard extends HTMLElement {
     if (it && !it.checked) { try { navigator.vibrate?.(35); } catch (_) { /* egal */ } }
     this._pending.add(id);
     this.shadowRoot.querySelector(`.item[data-id="${id}"]`)?.classList.add("pending");
-    this._ws({ type: "einkaufsliste/item/toggle", item_id: id })
+    // 🤷 „Egal wo“ im Reiter eines Geschäfts abgehakt -> gehört ab jetzt zu diesem Geschäft
+    const here = this._fixedStore || (this._activeTab !== "all" && this._activeTab !== "none" ? this._activeTab : null);
+    const atStore = it && !it.checked && !it.store_id && here && this._store(here) ? here : null;
+    this._ws({ type: "einkaufsliste/item/toggle", item_id: id, ...(atStore ? { store_id: atStore } : {}) })
       .catch(() => {})
       .finally(() => { this._pending.delete(id); this._renderAll(); });
   }
@@ -2913,6 +2975,7 @@ class EinkaufslisteCard extends HTMLElement {
 
   // ---------------------------------------------------------------- Einstellungen
   _renderSettings() {
+    queueMicrotask(() => this._emitNav());
     this._parkForm();
     const d = this._data;
     const s = d.settings;
@@ -2966,7 +3029,7 @@ class EinkaufslisteCard extends HTMLElement {
         ${row("stores", e, k, d.stores.length)}
         <div class="srow" data-kind="stores" data-id="${e.id}">
           <ha-icon class="prev" icon="${esc(this._storeIcon(e))}"></ha-icon>
-          <input class="icon grow" data-field="icon" value="${esc(e.icon && e.icon !== "mdi:cart" ? stripMdi(e.icon) : "")}" placeholder="Icon, z. B. baguette" title="Leer lassen = Icon der Zone (wenn sie eins hat), sonst Einkaufswagen">
+          <input class="icon grow" data-field="icon" value="${esc(e.icon && !EL_START_STORE_ICONS.has(e.icon) ? stripMdi(e.icon) : "")}" placeholder="Icon, z. B. baguette" title="Leer lassen = Icon der Zone (wenn sie eins hat), sonst Einkaufswagen">
         </div>
         <div class="picker" hidden></div>
         ${this._catOrderHtml(e)}
@@ -3039,16 +3102,23 @@ class EinkaufslisteCard extends HTMLElement {
           ? `<p class="hint">Hier stehen Produkte, die neu gescannt wurden. Kurz prüfen: Stimmt der Name? Dann <b>✔ Passt</b>. Sonst antippen und korrigieren – Speichern zählt auch als geprüft.</p>`
           : `<p class="hint">Alle Produkte, die die Liste kennt. Antippen = ändern oder ganz löschen. Umbenennen zieht Fotos, Barcodes, Artikel und Rezepte mit.</p>`}
         <div class="srow"><ha-icon class="prev" icon="mdi:magnify"></ha-icon><input class="grow" id="prodSearch" placeholder="Produkt suchen …" value="${esc(this._prodFilter || "")}"></div>
+        ${this._prodTab === "scanned" ? "" : `<div class="srow"><ha-icon class="prev" icon="mdi:filter-variant"></ha-icon><select class="grow" id="prodFilterSel" title="Filter">${this._prodFilterOptions()}</select>
+          <button class="btn" data-act="prod-add" title="Neues Produkt in den Katalog"><ha-icon icon="mdi:plus"></ha-icon>Neues Produkt</button></div>
+        ${elIsPc() ? `<p class="hint">⌨️ Klick = markieren · Doppelklick oder Enter = bearbeiten · ↑↓ = blättern · Esc = zurück</p>` : ""}`}
         <div id="prodList"><p class="hint">Lade Produkte …</p></div>`}` },
-      { key: "tools", icon: "mdi:toolbox-outline", title: "Werkzeuge", info: "Alles ok?, Import, Verlauf, Aufräumen", group: true },
+      { key: "tools", icon: "mdi:toolbox-outline", title: "Werkzeuge", info: "Alles ok?, Import, Verlauf, Aufräumen, Ressourcen", group: true },
       { key: "appx", icon: "mdi:cellphone-cog", title: "App & Aussehen", info: "Offline-App, Maskottchen, PIN", group: true },
+      { key: "credits", icon: "mdi:hand-heart-outline", title: "Credits", info: `v${EL_VERSION} · von Mister-M`, html: () => this._creditsHtml() },
+      { key: "stats", parent: "tools", icon: "mdi:chart-donut", title: "Ressourcen", info: "Speicher & Umfang", html: () => `
+        <p class="hint">So viel Platz braucht die Einkaufsliste in deinem Home Assistant.</p>
+        <div id="statsBox"><p class="hint">Lade …</p></div>` },
       { key: "check", parent: "tools", icon: "mdi:check-decagram-outline", title: "Alles ok?", info: "prüfen & reparieren", html: () => `
         <p class="hint">Sucht nach kaputten oder unvollständigen Einträgen: Produkte ohne Kategorie, Artikel ohne Geschäft, fehlende oder übrige Fotos, Barcodes ohne Produkt und Verweise auf Gelöschtes. Jeder Fund steht einzeln da – mit Haken und wie repariert wird. Repariert wird nur, was du anhakst.</p>
         <div class="btnrow"><button class="btn primary" data-act="check-run"><ha-icon icon="mdi:magnify"></ha-icon>Jetzt prüfen</button></div>
         <div id="checkRes"></div>` },
       { key: "transfer", parent: "tools", icon: "mdi:database-import-outline", title: "Import & Sicherung", info: "Rezepte, andere Apps, Backup", html: () => this._xferHtml() },
       { key: "app", parent: "appx", icon: "mdi:cellphone-arrow-down", title: "Offline-App", info: "Liste auch ohne Netz", html: () => `
-        <p class="hint">Eine eigene kleine App nur für die Einkaufsliste. Sie öffnet sich auch <b>ohne Netz</b> (z. B. im Funkloch im Laden), zeigt den letzten Stand, lässt dich abhaken und eintragen und schickt alles nach, sobald wieder Netz da ist.</p>
+        <p class="hint">Eine eigene kleine App nur für die Einkaufsliste. Sie öffnet sich auch <b>ohne Netz</b> (z. B. im Funkloch im Geschäft), zeigt den letzten Stand, lässt dich abhaken und eintragen und schickt alles nach, sobald wieder Netz da ist.</p>
         <ol class="hint xferfmt">
           <li>Auf dem Handy im <b>Browser</b> (Chrome oder Safari, nicht in der HA-App) deine Home-Assistant-Adresse von unterwegs öffnen, z. B. die Nabu-Casa-Adresse, und <code>/einkaufsliste/app/</code> anhängen.</li>
           <li>Einmal mit deinem Home-Assistant-Benutzer <b>anmelden</b>.</li>
@@ -3066,6 +3136,10 @@ class EinkaufslisteCard extends HTMLElement {
         <div class="mascotprev">${mascotSvg("happy", null)}${mascotSvg("busy", null)}${mascotSvg("full", null)}${mascotSvg("sleep", null)}</div>
         <p><b>${this._data.settings?.mascot ? "🛒😊 Das Maskottchen ist an." : "Das Maskottchen ist aus."}</b> Der Schalter gilt für <b>alle</b> – auf allen Handys, im Dashboard und in der App.</p>
         <div class="btnrow"><button class="btn primary" data-act="mascot-toggle"><ha-icon icon="${this._data.settings?.mascot ? "mdi:emoticon-neutral-outline" : "mdi:emoticon-happy-outline"}"></ha-icon>${this._data.settings?.mascot ? "Ausschalten" : "Einschalten"}</button></div>` },
+      ...(window.__elOfflineApp ? [{ key: "theme", parent: "appx", icon: "mdi:theme-light-dark", title: "Hell / Dunkel", info: { light: "☀️ Hell", dark: "🌙 Dunkel" }[elAppTheme()] || "🌓 Automatisch", html: () => `
+        <p class="hint">Nur für die Offline-App auf diesem Gerät. „Automatisch“ richtet sich nach dem Handy – so wie Home Assistant auch.</p>
+        <div class="btnrow themebtns">${[["auto", "🌓 Automatisch"], ["light", "☀️ Hell"], ["dark", "🌙 Dunkel"]].map(([v, l]) =>
+          `<button class="btn ${elAppTheme() === v ? "primary" : ""}" data-act="app-theme" data-v="${v}">${l}</button>`).join("")}</div>` }] : []),
       { key: "pin", parent: "appx", icon: this._data.settings?.pin ? "mdi:lock-outline" : "mdi:lock-open-variant-outline", title: "Schutz", info: this._data.settings?.pin ? "PIN ist an" : "PIN fürs Zahnrad", html: () => this._pinHtml() },
       { key: "log", parent: "tools", icon: "mdi:history", title: "Verlauf", info: "wer, wann, was, wie", html: () => this._logSectionHtml() },
       { key: "cleanup", parent: "tools", icon: "mdi:broom", title: "Aufräumen", info: `${WD_SHORT[s.cleanup_weekday]} ${s.cleanup_time} Uhr`, html: () => `
@@ -3108,6 +3182,7 @@ class EinkaufslisteCard extends HTMLElement {
         ${cur.group ? `<div class="tiles">${sections.filter((x) => x.parent === cur.key).map(tile).join("")}</div>` : cur.html()}
       </div>`;
     if (cur.key === "log") { this._renderLogList(); this._loadLog(); }
+    if (cur.key === "stats") this._loadStats();
     if (cur.key === "products" && this._prodTab !== "delete") { this._renderProducts(); this._loadProducts(); }
     if (cur.key === "recipes" && this._recTab !== "groups") this._renderSetRecipeList();
     if (cur.key === "transfer" && this._xferTab === "apps") this._loadTodoLists();
@@ -3116,6 +3191,19 @@ class EinkaufslisteCard extends HTMLElement {
   }
 
   // 🔒 PIN fürs Zahnrad
+  // 🔒 Sofort-Sperren: nur da, wenn eine PIN vergeben ist und das Zahnrad gerade offen ist
+  _updateLockBtn() {
+    const btn = this.$("btnLock");
+    if (btn) btn.hidden = !(this._data?.settings?.pin && pinUnlocked());
+  }
+
+  _lockNow() {
+    try { localStorage.removeItem(PIN_KEY); } catch (_) { /* egal */ }
+    if (this._view === "settings") { this._view = "list"; this._setSec = null; }
+    this._toast("🔒 Gesperrt – das Zahnrad braucht jetzt wieder die PIN");
+    this._renderAll();
+  }
+
   async _unlockSettings() {
     const pin = await askPin();
     if (pin == null) return;
@@ -3184,6 +3272,7 @@ class EinkaufslisteCard extends HTMLElement {
         <div class="syncbox">
         <p class="hint"><b>🔁 Automatisch herüberholen</b>: Alles, was auf der gewählten Liste landet, wandert <b>sofort</b> in die Einkaufsliste – ganz ohne Automation. Unten auswählen: 🗑️ dort löschen · 🔗 bei beiden behalten (Abhaken wird in beide Richtungen abgeglichen) · 🔄 voller Abgleich (zusätzlich kommt alles aus der Einkaufsliste auch dorthin, ohne Geschäft und Notiz). Für <b>Alexa</b>: in Home Assistant die Integration „Alexa Devices“ einrichten und hier deren Einkaufsliste wählen. Dann reicht „Alexa, setz Milch auf die Einkaufsliste“.</p>
         ${sync ? `<p><b>✅ An:</b> <span translate="no">${esc(sync.name || sync.entity_id)}</span> → ${syncStore ? `<span translate="no">${esc(syncStore)}</span>` : "<span>Egal wo</span>"}<span> · ${{ move: "herüberholen & dort löschen", keep: "bei beiden behalten", sync: "voller Abgleich" }[sync.mode || "move"]}</span>${sync.count ? `<span> · schon ${sync.count}× herübergeholt</span>` : ""}${sync.ok === false ? `<br><span>⚠️ Die Liste ist gerade nicht erreichbar – es geht weiter, sobald sie wieder da ist.</span>` : ""}</p>` : ""}
+        ${!admin ? `<p class="hint">🔒 Einschalten oder ändern kann das nur ein Admin – es verändert eine andere Liste in Home Assistant.</p>` : `
         <div class="srow"><ha-icon class="prev" icon="mdi:sync"></ha-icon><select class="grow" id="syncTodo"><option value="">Lade Listen …</option></select></div>
         <div class="srow"><ha-icon class="prev" icon="mdi:swap-horizontal"></ha-icon><select class="grow" id="syncMode" title="Wie abgeglichen wird">
           ${[["move", "🗑️ Holen & dort löschen"], ["keep", "🔗 Bei beiden behalten"], ["sync", "🔄 Voller Abgleich"]]
@@ -3191,6 +3280,7 @@ class EinkaufslisteCard extends HTMLElement {
         </select></div>
         <div class="srow"><ha-icon class="prev" icon="mdi:store-outline"></ha-icon><select class="grow" id="syncStore">${this._selectOptions(this._data.stores, sync?.store_id || null, "🛒 Egal wo")}</select></div>
         <div class="btnrow"><button class="btn primary" data-act="sync-on"><ha-icon icon="mdi:sync"></ha-icon>${sync ? "Ändern" : "Einschalten"}</button>${sync ? `<button class="btn" data-act="sync-off"><ha-icon icon="mdi:sync-off"></ha-icon>Ausschalten</button>` : ""}</div>
+        `}
         </div>
         <p class="hint" style="margin-top:14px"><b>Einmal herüberholen</b>: Die Artikel einer anderen HA-Liste (z. B. der eingebauten Einkaufsliste oder einer Google-/Bring!-Liste, die in HA eingebunden ist) herüberholen. Die alte Liste bleibt, wie sie ist.</p>
         <div class="srow"><ha-icon class="prev" icon="mdi:format-list-checks"></ha-icon><select class="grow" id="xferTodo"><option value="">Lade Listen …</option></select></div>
@@ -3218,12 +3308,17 @@ class EinkaufslisteCard extends HTMLElement {
   _mailHtml() {
     const mail = this._data.settings?.mail_import;
     const store = mail?.store_id ? this._store(mail.store_id)?.name : null;
+    if (!this._hass?.user?.is_admin) {
+      return `<div class="syncbox"><p class="hint"><b>📧 Per E-Mail</b>: Eine Mail an das Einkaufs-Postfach – jede Zeile wird ein Artikel.</p>
+        ${mail ? `<p><b>✅ An:</b> <span translate="no">${esc(mail.name)}</span></p>` : ""}
+        <p class="hint">🔒 Einrichten oder ändern kann das nur ein Admin – es liest und löscht Mails in einem Postfach.</p></div>`;
+    }
     return `
         <div class="syncbox">
         <p class="hint"><b>📧 Per E-Mail</b>: Eine Mail an dein Einkaufs-Postfach – jede Zeile wird ein Artikel. Dafür in Home Assistant die Integration „IMAP“ mit einer eigenen Mail-Adresse einrichten. Nur Mails von den <b>erlaubten Absendern</b> zählen.</p>
         <ul class="hint xferfmt">
           <li><b>Geschäft im Betreff</b> (z. B. „Aldi“ oder „Einkauf bei Aldi“) → alles aus der Mail kommt dorthin.</li>
-          <li><b>Geschäft als Überschrift</b> in der Mail (z. B. „Aldi:“, darunter die Sachen, dann „DM:“ …) → gilt bis zur nächsten Überschrift.</li>
+          <li><b>Geschäft als Überschrift</b> in der Mail (z. B. „Aldi:“, darunter die Artikel, dann „DM:“ …) → gilt bis zur nächsten Überschrift.</li>
           <li>Sonst gilt das Geschäft unten. Mengen wie „6 Eier“ oder „2 L Milch“ werden erkannt.</li>
           <li>Als gelesen markiert oder gelöscht werden nur Mails, aus denen wirklich etwas auf die Liste kam.</li>
         </ul>
@@ -3240,6 +3335,7 @@ class EinkaufslisteCard extends HTMLElement {
   }
 
   async _loadMailSources() {
+    if (!this._hass?.user?.is_admin) return; // 🔒 nur für Admins
     let list = [];
     try { list = await this._ws({ type: "einkaufsliste/mail/sources" }); } catch (_) { /* Meldung kam schon */ }
     const sel = this.$("mailSrc");
@@ -3438,12 +3534,74 @@ class EinkaufslisteCard extends HTMLElement {
     this._renderProducts();
   }
 
+  // 🔽 Filter im Katalog
+  _prodFilterOptions() {
+    const d = this._data, f = this._prodSel || "";
+    const opt = (v, l) => `<option value="${esc(v)}" ${v === f ? "selected" : ""}>${l}</option>`;
+    return opt("", "🔽 Alle Produkte") + opt("~nocat", "📦 Ohne Kategorie") + opt("~nostore", "🛒 Ohne Geschäft")
+      + opt("~open", "🛍️ Steht auf der Liste") + opt("~photo", "📷 Mit Foto") + opt("~nophoto", "📷 Ohne Foto")
+      + opt("~barcode", "▥ Mit Barcode") + opt("~nobarcode", "▥ Ohne Barcode")
+      + `<optgroup label="Geschäft">${d.stores.map((st) => opt(`s:${st.id}`, `🏪 ${esc(st.name)}`)).join("")}</optgroup>`
+      + `<optgroup label="Kategorie">${d.categories.map((c) => opt(`c:${c.id}`, `🏷️ ${esc(c.name)}`)).join("")}</optgroup>`;
+  }
+
+  _prodFilterFn() {
+    const f = this._prodSel || "";
+    if (!f) return () => true;
+    if (f.startsWith("s:")) { const id = f.slice(2); return (p) => p.store_id === id || (p.stores || []).includes(id); }
+    if (f.startsWith("c:")) { const id = f.slice(2); return (p) => p.category_id === id; }
+    return {
+      "~nocat": (p) => !this._cat(p.category_id), "~nostore": (p) => !this._store(p.store_id), "~open": (p) => !!p.open,
+      "~photo": (p) => !!p.photos, "~nophoto": (p) => !p.photos, "~barcode": (p) => p.barcodes.length > 0, "~nobarcode": (p) => !p.barcodes.length,
+    }[f] || (() => true);
+  }
+
+  // ⌨️ Katalog am PC: markieren, blättern, bearbeiten
+  _prodMark(key, focus = true) {
+    this._prodMarked = key;
+    const box = this.$("prodList");
+    if (!box) return;
+    box.querySelectorAll(".prodrow").forEach((r) => r.classList.toggle("marked", r.dataset.key === key));
+    const row = [...box.querySelectorAll(".prodrow")].find((r) => r.dataset.key === key);
+    if (row && focus) { row.focus({ preventScroll: true }); row.scrollIntoView({ block: "nearest" }); }
+  }
+
+  _prodKey(e) {
+    const box = this.$("prodList");
+    if (!box || !box.isConnected || this._view !== "settings") return false;
+    if (e.key === "Escape" && this._prodEdit) {
+      const k = this._prodEdit;
+      this._prodEdit = null;
+      this._renderProducts();
+      this._prodMark(k);
+      return true;
+    }
+    const inRow = e.target?.classList?.contains("prodrow");
+    if (!inRow && !(e.target === this.$("prodSearch") && e.key === "ArrowDown")) return false;
+    const rows = [...box.querySelectorAll(".prodrow")];
+    if (!rows.length) return false;
+    const pos = rows.findIndex((r) => r.dataset.key === this._prodMarked);
+    if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+      const to = Math.max(0, Math.min(rows.length - 1, pos < 0 ? 0 : pos + (e.key === "ArrowDown" ? 1 : -1)));
+      this._prodMark(rows[to].dataset.key);
+      return true;
+    }
+    if (e.key === "Enter" && pos >= 0) {
+      this._prodEdit = rows[pos].dataset.key;
+      this._renderProducts();
+      setTimeout(() => this.$("peName")?.focus(), 30);
+      return true;
+    }
+    return false;
+  }
+
   _renderProducts() {
     const box = this.$("prodList");
     if (!box || !this._products) return;
     const q = (this._prodFilter || "").trim().toLowerCase();
     const scannedTab = this._prodTab === "scanned";
-    let list = this._products.filter((p) => (!scannedTab || p.scanned) && (!q || `${p.name} ${p.note || ""}`.toLowerCase().includes(q)));
+    const ff = scannedTab ? () => true : this._prodFilterFn();
+    let list = this._products.filter((p) => (!scannedTab || p.scanned) && ff(p) && (!q || `${p.name} ${p.note || ""}`.toLowerCase().includes(q)));
     if (scannedTab) list = list.sort((a, b) => String(b.scanned_at || "").localeCompare(String(a.scanned_at || "")));
     if (!list.length) { box.innerHTML = `<p class="hint">${q ? `Nichts gefunden zu „${esc(q)}“.` : scannedTab ? "Alles geprüft – nichts Neues gescannt. 👍" : "Noch keine Produkte."}</p>`; return; }
     const shown = list.slice(0, 80);
@@ -3478,7 +3636,7 @@ class EinkaufslisteCard extends HTMLElement {
           </div>
         </div>`;
       }
-      return `<div class="srow delrow prodrow" data-act="prod-edit" data-key="${esc(p.key)}">
+      return `<div class="srow delrow prodrow ${this._prodMarked === p.key ? "marked" : ""}" tabindex="0" data-act="prod-edit" data-key="${esc(p.key)}">
         <div class="grow delname"><b>${esc(p.name)}${p.note ? ` · ${esc(p.note)}` : ""}</b><small class="pmeta">${p.scanned && !scannedTab ? "<span>📷 neu gescannt</span>" : ""}${bits || "–"}</small></div>
         ${scannedTab ? `<button class="btn primary" data-act="prod-confirm" data-key="${esc(p.key)}" title="Name stimmt">✔ Passt</button>` : `<ha-icon icon="mdi:chevron-right"></ha-icon>`}
       </div>`;
@@ -4597,6 +4755,12 @@ class EinkaufslisteCard extends HTMLElement {
       .elg-sec summary::after { content:"＋"; float:right; opacity:.6; }
       .elg-sec[open] summary::after { content:"－"; }
       .elg-sec > div { padding:0 14px 12px; }
+      .elcredits { text-align:center; } .elcredits p { margin:8px 0; }
+      .ellogo { background:#fff; border-radius:14px; padding:10px; display:inline-block; max-width:100%; }
+      .ellogo img { display:block; max-width:100%; width:280px; height:auto; }
+      .elcbtns { display:flex; flex-wrap:wrap; gap:8px; justify-content:center; margin:10px 0; }
+      .elcbtn { color:#fff; background:rgba(255,255,255,.14); border-radius:12px; padding:10px 14px; text-decoration:none; font-weight:500; }
+      .elcsmall { opacity:.7; font-size:.9em; }
       .elg-sec ul, .elg-sec ol { margin:4px 0; padding-left:20px; }
       .elg-sec li { margin:4px 0; }
       .elg b { color:#fff; }
@@ -4659,7 +4823,15 @@ class EinkaufslisteCard extends HTMLElement {
         <li>Die <b>Zahl</b> = so viele Sachen sind noch offen.</li>
         <li>Rechts: <b>Wagen</b> = Laden-Modus · <b>Kochmütze</b> = Rezepte.</li>
         <li>Ein <b>blauer Balken</b> oben = es gibt ein Update, das muss jemand mit Admin-Zugang in Home Assistant fertig machen.</li></ul>`)}
+      ${sec("🙏", "Credits", this._creditsHtml(false))}
     </div>`}`;
+    // 📖 Alle Kapitel zu – geht eins auf, klappt das vorige zu
+    ov.querySelectorAll("details.elg-sec").forEach((d) => {
+      d.open = false;
+      d.addEventListener("toggle", () => {
+        if (d.open) ov.querySelectorAll("details.elg-sec[open]").forEach((o) => { if (o !== d) o.open = false; });
+      });
+    });
     ov.querySelector(".elg-copy")?.addEventListener("click", () => {
       const inp = ov.querySelector(".elg-url");
       const btn = ov.querySelector(".elg-copy");
@@ -4676,6 +4848,46 @@ class EinkaufslisteCard extends HTMLElement {
     document.addEventListener("keydown", onKey);
     bClose.onclick = close;
     ov.addEventListener("click", (e) => { if (e.target === ov) close(); });
+  }
+
+  // 📊 Ressourcen: Dateigrößen und wie viel drinsteht
+  async _loadStats() {
+    let st;
+    try { st = await this._ws({ type: "einkaufsliste/stats" }); } catch (_) { return; }
+    const box = this.$("statsBox");
+    if (!box || !st) return;
+    const mb = (b) => (b >= 1048576 ? `${(b / 1048576).toFixed(1).replace(".", ",")} MB` : `${Math.max(1, Math.round(b / 1024))} KB`);
+    const row = (icon, label, val) => `<div class="statrow"><ha-icon icon="${icon}"></ha-icon><span class="grow">${label}</span><b translate="no">${val}</b></div>`;
+    box.innerHTML = `<div class="stats">
+      ${row("mdi:database-outline", "Daten (Liste, Produkte, Rezepte, Verlauf)", mb(st.data_bytes))}
+      ${row("mdi:image-multiple-outline", `Fotos (${st.photo_files})`, mb(st.photo_bytes))}
+      ${row("mdi:harddisk", "Zusammen", mb(st.data_bytes + st.photo_bytes))}
+      ${row("mdi:format-list-checks", "Artikel auf der Liste (offen)", `${st.items} (${st.open})`)}
+      ${row("mdi:package-variant-closed", "Bekannte Produkte", st.products)}
+      ${row("mdi:chef-hat", "Rezepte", st.recipes)}
+      ${row("mdi:barcode", "Barcodes", st.barcodes)}
+      ${row("mdi:history", `Verlauf (${st.log_days} Tage)`, st.log)}
+    </div>
+    <p class="hint">Rechenleistung braucht die Einkaufsliste nur kurz, wenn jemand etwas ändert – sonst schläft sie. Viel Platz belegen fast nur die Fotos; der Verlauf räumt sich nach ${st.log_days} Tagen selbst auf.</p>`;
+  }
+
+  // 🙏 Credits – in ⚙️ und in der Anleitung (dort dunkel)
+  _creditsHtml(en = EL_LANG !== "de") {
+    const repo = "https://github.com/misterm2310/einkaufslisten-card";
+    const t = (de, eng) => (en ? eng : de);
+    return `<div class="elcredits" translate="no">
+      <div class="ellogo"><img src="${EL_BASE}/mister-m.webp?v=${EL_VERSION}" alt="Mister-M" loading="lazy"></div>
+      <p class="elcv"><b>${t("Einkaufsliste", "Shopping list")}</b> v${EL_VERSION}</p>
+      <p>${t("Gemacht von <b>Mister-M</b> – mit Hilfe von Claude 🤖", "Made by <b>Mister-M</b> – with help from Claude 🤖")}</p>
+      <p>${t("Ich versuche, Updates und Fehler-Korrekturen zeitnah zu erledigen.", "I try to ship updates and fixes promptly.")}</p>
+      <div class="elcbtns">
+        <a class="elcbtn" href="${repo}" target="_blank" rel="noopener">🐙 GitHub</a>
+        <a class="elcbtn" href="${repo}/issues" target="_blank" rel="noopener">🐞 ${t("Fehler melden / Wunsch äußern", "Report a bug / request a feature")}</a>
+      </div>
+      <p>🔒 ${t("Alle Daten bleiben in deinem Home Assistant. Ins Internet geht nur, was du selbst anstößt: ein gescannter Barcode (Nachschlagen bei Open Food Facts) oder ein Rezept-Link.",
+        "All data stays in your Home Assistant. Only what you trigger yourself goes to the internet: a scanned barcode (looked up at Open Food Facts) or a recipe link.")}</p>
+      <p class="elcsmall">${t("Lizenz", "License")}: MIT</p>
+    </div>`;
   }
 
   // 📱 Abschnitt „Als App aufs Handy“ – mit Adresse zum Kopieren (auch für alle ohne Zahnrad)
@@ -4754,6 +4966,7 @@ class EinkaufslisteCard extends HTMLElement {
         <li>The <b>number</b> = this many things are still open.</li>
         <li>Right: <b>cart</b> = shop mode · <b>chef's hat</b> = recipes.</li>
         <li>A <b>blue bar</b> at the top = there's an update that someone with admin access has to finish in Home Assistant.</li></ul>`)}
+      ${sec("🙏", "Credits", this._creditsHtml(true))}
     </div>`;
   }
 
@@ -5088,7 +5301,7 @@ class EinkaufslisteCard extends HTMLElement {
         const item = open.find((i) => i.store_id === store.id) || open[0];
         if (!item) return `ℹ️ ${res.name} steht nicht auf der Liste`;
         try {
-          await this._ws({ type: "einkaufsliste/item/toggle", item_id: item.id, checked: true, via: "scan" });
+          await this._ws({ type: "einkaufsliste/item/toggle", item_id: item.id, checked: true, via: "scan", ...(!item.store_id ? { store_id: store.id } : {}) });
           stats.checked++;
           return `✅ ${item.name} abgehakt`;
         } catch (err) {
@@ -5169,6 +5382,11 @@ class EinkaufslisteCard extends HTMLElement {
     if (t.id === "recipeSearch" || t.id === "recipeSearchS") {
       this._recipeFilter = t.value;
       if (t.id === "recipeSearch") this._renderRecipeList(); else this._renderSetRecipeList();
+      return;
+    }
+    if (t.id === "prodFilterSel") {
+      this._prodSel = t.value;
+      this._renderProducts();
       return;
     }
     if (t.id === "prodSearch") {
@@ -5400,6 +5618,16 @@ class EinkaufslisteCard extends HTMLElement {
         this._editing = id;
         this._renderList();
         break;
+      case "app-theme": { // 🌓 Offline-App: Hell / Dunkel / Automatisch
+        try { localStorage.setItem("einkaufsliste_theme", el.dataset.v); } catch (_) { /* egal */ }
+        window.dispatchEvent(new CustomEvent("einkaufsliste-theme", { detail: el.dataset.v }));
+        this._schemeKey = null;
+        setTimeout(() => { this._applyScheme(this._hass); this._renderSettings(); }, 50);
+        break;
+      }
+      case "pin-lock":
+        this._lockNow();
+        break;
       case "scan":
         this._scanButton();
         break;
@@ -5622,6 +5850,12 @@ class EinkaufslisteCard extends HTMLElement {
         const target = this._store(el.dataset.store);
         this._moving = null;
         const from = this._store(item?.store_id);
+        if (!target) { // 🤷 nach „Egal wo“
+          this._ws({ type: "einkaufsliste/item/move", item_id: itemId, store_id: null })
+            .then(() => this._toast(`🤷 ${item?.name || "Artikel"} steht jetzt bei „Egal wo“ – also in jedem Geschäft`))
+            .catch(() => this._renderList());
+          break;
+        }
         this._ws({ type: "einkaufsliste/item/move", item_id: itemId, store_id: target.id })
           .then(() => this._toast(`🔁 ${item?.name || "Artikel"}: ${from ? `bei ${from.name} abgehakt, ` : ""}jetzt bei ${target.name} offen`))
           .catch(() => this._renderList());
@@ -5695,9 +5929,21 @@ class EinkaufslisteCard extends HTMLElement {
         this.$("otherView").scrollIntoView?.({ block: "nearest" });
         break;
       case "prod-edit":
+        if (elIsPc() && this._prodTab !== "scanned" && e.detail < 2) { this._prodMark(el.dataset.key); break; } // 🖥️ 1× Klick = markieren
         this._prodEdit = el.dataset.key;
         this._renderProducts();
         break;
+      case "prod-add": {
+        const f = this._prodSel || "";
+        askText("📦 Neues Produkt", "Wie heißt das Produkt?").then((name) => name && this._ws({ type: "einkaufsliste/product/add", name, store_id: f.startsWith("s:") ? f.slice(2) : null, category_id: f.startsWith("c:") ? f.slice(2) : null })
+          .then(async (p) => {
+            this._toast(`📦 „${p.name}“ ist im Katalog`);
+            await this._loadProducts();
+            this._prodEdit = p.key;
+            this._renderProducts();
+          })).catch(() => {});
+        break;
+      }
       case "prod-cancel":
         this._prodEdit = null;
         this._renderProducts();

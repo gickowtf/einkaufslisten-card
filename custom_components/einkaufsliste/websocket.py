@@ -73,6 +73,8 @@ def async_register(hass: HomeAssistant) -> None:
         ws_log_settings,
         ws_log_clear,
         ws_missed_hide,
+        ws_product_add,
+        ws_stats,
     ):
         websocket_api.async_register_command(hass, handler)
 
@@ -215,6 +217,7 @@ def ws_item_update(hass, connection, msg):
         vol.Optional("via"): vol.In(VIA),
         vol.Required("item_id"): str,
         vol.Optional("checked"): bool,
+        vol.Optional("store_id"): OPT_STR,  # 🤷 „Egal wo“ in diesem Geschäft abgehakt
     }
 )
 @callback
@@ -225,7 +228,8 @@ def ws_item_toggle(hass, connection, msg):
         connection,
         msg,
         lambda m: m.set_checked(
-            msg["item_id"], msg.get("checked"), who, connection.user.id if connection.user else None
+            msg["item_id"], msg.get("checked"), who, connection.user.id if connection.user else None,
+            msg.get("store_id") or None,
         ),
     )
 
@@ -235,14 +239,14 @@ def ws_item_toggle(hass, connection, msg):
         vol.Required("type"): "einkaufsliste/item/move",
         vol.Optional("via"): vol.In(VIA),
         vol.Required("item_id"): str,
-        vol.Required("store_id"): str,
+        vol.Required("store_id"): OPT_STR,  # None = 🤷 „Egal wo“
     }
 )
 @callback
 def ws_item_move(hass, connection, msg):
     who = _user_name(hass, connection)
     uid = connection.user.id if connection.user else None
-    _run(hass, connection, msg, lambda m: m.move_item(msg["item_id"], msg["store_id"], who, uid))
+    _run(hass, connection, msg, lambda m: m.move_item(msg["item_id"], msg["store_id"] or None, who, uid))
 
 
 @websocket_api.websocket_command(
@@ -543,6 +547,7 @@ async def ws_import_todo(hass, connection, msg):
     {vol.Required("type"): "einkaufsliste/todo_sync/set", vol.Optional("entity_id"): OPT_STR, vol.Optional("store_id"): OPT_STR,
      vol.Optional("mode"): vol.In(["move", "keep", "sync"])}
 )
+@websocket_api.require_admin
 @callback
 def ws_todo_sync(hass, connection, msg):
     """🔁 To-do-Liste zum automatischen Herüberholen wählen (ohne entity_id = aus)."""
@@ -550,6 +555,7 @@ def ws_todo_sync(hass, connection, msg):
 
 
 @websocket_api.websocket_command({vol.Required("type"): "einkaufsliste/mail/sources"})
+@websocket_api.require_admin
 @callback
 def ws_mail_sources(hass, connection, msg):
     """📧 Eingerichtete IMAP-Postfächer."""
@@ -565,6 +571,7 @@ def ws_mail_sources(hass, connection, msg):
         vol.Optional("after"): vol.In(["keep", "seen", "delete"]),
     }
 )
+@websocket_api.require_admin
 @callback
 def ws_mail_import(hass, connection, msg):
     """📧 „Per E-Mail auf die Liste“ einstellen (ohne entry_id = aus)."""
@@ -765,6 +772,21 @@ def ws_log_get(hass, connection, msg):
 @callback
 def ws_log_settings(hass, connection, msg):
     _run(hass, connection, msg, lambda m: m.set_log_days(msg["days"]))
+
+
+@websocket_api.websocket_command(
+    {vol.Required("type"): "einkaufsliste/product/add", vol.Required("name"): str,
+     vol.Optional("category_id"): OPT_STR, vol.Optional("store_id"): OPT_STR}
+)
+@callback
+def ws_product_add(hass, connection, msg):
+    _run(hass, connection, msg, lambda m: m.add_product(msg["name"], msg.get("category_id"), msg.get("store_id")))
+
+
+@websocket_api.websocket_command({vol.Required("type"): "einkaufsliste/stats"})
+@websocket_api.async_response
+async def ws_stats(hass, connection, msg):
+    await _run_async(hass, connection, msg, lambda m: m.async_stats())
 
 
 @websocket_api.websocket_command(

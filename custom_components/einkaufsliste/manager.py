@@ -582,6 +582,24 @@ class EinkaufslisteManager:
         return out
 
     # ------------------------------------------------------------------ Produkt-Katalog
+    def add_product(self, name: str, category_id: str | None = None, store_id: str | None = None) -> dict[str, Any]:
+        """📦 Neues Produkt direkt im Katalog – ohne es auf die Liste zu setzen."""
+        name = _nice(name or "")
+        if not name or len(name) > 80:
+            raise ValueError("Wie heißt das Produkt?")
+        key = name.lower()
+        if key in self.history:
+            raise ValueError(f"„{self.history[key]['name']}“ gibt es schon.")
+        self.history[key] = {
+            "name": name,
+            "count": 0,
+            "store_id": store_id if self.store_by_id(store_id) else None,
+            "category_id": category_id if self.category_by_id(category_id) else self.guess_category(name),
+            "last_used": _now_iso(),
+        }
+        self._changed()
+        return next((p for p in self.products() if p["key"] == product_key(name, None)), {"key": key, "name": name})
+
     def products(self) -> list[dict[str, Any]]:
         """Alle bekannten Produkte (Name + Notiz) mit Foto-, Barcode- und Verlaufs-Infos."""
         out: dict[str, dict[str, Any]] = {}
@@ -1278,13 +1296,25 @@ class EinkaufslisteManager:
         checked: bool | None = None,
         by: str | None = None,
         by_id: str | None = None,
+        at_store: str | None = None,
     ) -> dict[str, Any]:
-        """Abhaken oder wieder auf die Liste nehmen (None = umschalten)."""
+        """Abhaken oder wieder auf die Liste nehmen (None = umschalten).
+
+        at_store: 🤷 ein „Egal wo“-Artikel wird in diesem Geschäft abgehakt -> gehört ab jetzt dorthin
+        (dort unter „Erledigt“, bei den anderen weg; wieder draufgesetzt landet er dort).
+        """
         item = self.get_item(item_id)
         if checked is None:
             checked = not item["checked"]
         if checked == item["checked"]:
             return item
+        if checked and item["store_id"] is None and not item.get("recipe_id") and self.store_by_id(at_store):
+            old = self._find_same(item["name"], item.get("note"), item.get("for_whom"), at_store, None)
+            if old is not None and old is not item and old["checked"]:
+                self.items.remove(old)  # der alte abgehakte Eintrag dort wird ersetzt
+                self._relink(old["id"], item["id"])
+            if old is None or old["checked"]:
+                item["store_id"] = at_store
         self._log("check" if checked else "readd", item, who=by)
         if checked and item.get("recipe_id"):
             # Rezept-Zutaten verschwinden beim Abhaken ganz von der Liste
@@ -1319,11 +1349,26 @@ class EinkaufslisteManager:
         beim nächsten Mal in jedem Geschäft wieder antippen kann.
         """
         item = self.get_item(item_id)
-        target = self._check_store(store_id)
-        if target is None:
-            raise ValueError("Wohin soll der Artikel?")
+        target = self._check_store(None if store_id == "~none" else store_id)
         if target == item["store_id"]:
             return item
+        if target is None:  # 🤷 nach „Egal wo“: steht dann in jedem Geschäft – einfach umziehen
+            source = (self.store_by_id(item["store_id"]) or {}).get("name", "?")
+            twin = self._find_same(item["name"], item.get("note"), item.get("for_whom"), None, item.get("recipe_id"))
+            if twin is not None and twin is not item:
+                if not item["checked"] and twin["checked"]:
+                    twin.update(checked=False, checked_at=None, checked_by=None, added_at=_now_iso(), added_by=by, added_by_id=by_id)
+                if item.get("quantity"):
+                    twin["quantity"] = item["quantity"]
+                self.items.remove(item)
+                self._relink(item["id"], twin["id"])
+                new = twin
+            else:
+                item["store_id"] = None
+                new = item
+            self._log("move", new, f"{source} → Egal wo", who=by)
+            self._changed()
+            return new
         now = _now_iso()
         source_name = (self.store_by_id(item["store_id"]) or {}).get("name", "Egal wo")
         target_name = self.store_by_id(target)["name"]
@@ -1520,6 +1565,30 @@ class EinkaufslisteManager:
         self._changed()
 
     # ------------------------------------------------------------ ✅ Alles ok?
+    async def async_stats(self) -> dict[str, Any]:
+        """📊 Wie viel Platz braucht die Einkaufsliste? (Dateien auf der Platte + wie viel drinsteht)"""
+        data_file = Path(self.hass.config.path(".storage", STORAGE_KEY))
+        photo_dir = self.photo_dir
+
+        def _sizes() -> tuple[int, int, int]:
+            data = data_file.stat().st_size if data_file.exists() else 0
+            files = list(photo_dir.glob("*.jpg")) if photo_dir.exists() else []
+            return data, sum(f.stat().st_size for f in files), len(files)
+
+        data_bytes, photo_bytes, photo_files = await self.hass.async_add_executor_job(_sizes)
+        return {
+            "data_bytes": data_bytes,
+            "photo_bytes": photo_bytes,
+            "photo_files": photo_files,
+            "items": len(self.items),
+            "open": sum(1 for i in self.items if not i["checked"]),
+            "products": len(self.history),
+            "recipes": len(self.recipes),
+            "barcodes": len(self.barcodes),
+            "log": len(self.log),
+            "log_days": self.log_days,
+        }
+
     async def async_check(self, fix: bool = False, fixes: dict[str, str] | None = None) -> dict[str, Any]:
         """✅ Alles ok? – sucht kaputte oder unvollständige Einträge.
 
