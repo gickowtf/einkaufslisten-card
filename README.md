@@ -60,7 +60,7 @@ Für eine zweite Ansicht mit großen Produktkacheln, Geschäften und einklappbar
 type: custom:einkaufsliste-tiles-card
 ```
 
-Beide Karten verwenden dieselbe Liste. Ein Tipp auf eine Kachel hakt den Artikel ab oder setzt ihn wieder auf die Liste; **⋯** öffnet die bekannten Aktionen. Suche und Hinzufügen teilen sich das obere Eingabefeld. Rezepte und Einstellungen bleiben über die Schaltflächen unten erreichbar. Die eigenständige Offline-App verwendet weiterhin die klassische Ansicht.
+Beide Karten verwenden dieselbe Liste. Die Kacheln zeigen Geschäft in dessen konfigurierter Farbe, Menge, Notiz und Angebote. Ein Tipp auf eine Kachel hakt den Artikel ab oder setzt ihn wieder auf die Liste; **⋯** öffnet die bekannten Aktionen. Suche und Hinzufügen teilen sich das obere Eingabefeld. Rezepte und Einstellungen bleiben über die Schaltflächen unten erreichbar. In der Offline-App ist die Kachelansicht voreingestellt und lässt sich oben auf die klassische Liste umschalten.
 
 > 🙌 Eine Ressource musst du **nicht** von Hand eintragen, das macht die Integration selbst.
 > Sieht die Karte nach einem Update komisch aus? In der App einmal nach unten ziehen oder im Browser Strg+F5.
@@ -109,6 +109,7 @@ Die Produktnamen kommen aus **Open Food Facts**, **Open Beauty Facts** und **Ope
 ## 📱 Offline-App
 
 Die **komplette Karte** als eigene App auf dem Startbildschirm – mit Rezepten, Koch-Modus, Gar-Zeiten, Einstellungen und Kamera-Scanner. Sie öffnet auch **ohne Netz** mit dem letzten Stand.
+Oben in der App wechselst du mit **Listenansicht** beziehungsweise **Kachelansicht** zwischen den beiden Ansichten. Die Auswahl bleibt auf diesem Gerät gespeichert; beide Ansichten nutzen dieselben Daten und dieselbe Offline-Warteschlange.
 
 1. Die Adresse kopieren: in **⚙️ → App & Aussehen → Offline-App** oder in der **Anleitung** (Einkaufswagen oben links) – so kommen auch alle ohne Zahnrad dran.
 2. Im Handy-**Browser** einfügen (Chrome oder Safari, nicht die HA-App).
