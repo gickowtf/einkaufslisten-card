@@ -2,9 +2,11 @@
  * Einkaufsliste Card – die Familien-Einkaufsliste für Home Assistant
  * Wird automatisch von der Integration "einkaufsliste" geladen.
  */
-const EL_VERSION = "2.39.1";
+const EL_VERSION = "2.39.2";
 // 🆕 Was ist neu in dieser Version (deutsch, englisch) – bei jedem Update neu schreiben
 const EL_NEWS = [
+  ["🛒 Im <b>Laden-Modus</b> sind die Kacheln dreispaltig und der Barcode-Scanner hakt passende Artikel auf der Liste ab.",
+   "🛒 In <b>shopping mode</b>, tiles use three columns and the barcode scanner checks matching items off the list."],
   ["🛒 Die <b>Kachelansicht</b> hat jetzt zwei Spalten und mehr Platz für Geschäftsfarben, Menge, Notizen und Angebote. In der Offline-App kannst du oben zwischen Kacheln und Liste wechseln.",
    "🛒 The <b>tile view</b> now has two columns and more room for store colours, quantities, notes and offers. In the offline app you can switch between tiles and list at the top."],
   ["🧾 <b>Einkaufs-Protokoll</b> (in ⚙️ → App & Aussehen einschalten): nach dem Einkauf Geschäft und Betrag eintragen. Die Auswertung zeigt die Kosten pro Geschäft, pro Monat und zusammen – mit Filtern für Person, Geschäft und Datum. Der 🧾-Knopf sitzt oben in der Karte und im Verlauf.",
@@ -2295,9 +2297,11 @@ class EinkaufslisteCard extends HTMLElement {
     this.$("addForm").classList.toggle("fixed", !!this._fixedStore);
     const scanBtn = this.$("btnScan");
     scanBtn.hidden = !this._hasAppScanner();
+    const shopStore = this._shopMode && this._view === "list" && this._store(this._fixedStore || this._activeTab);
     const nearStore = this._lastNear && this._store(this._lastNear);
-    scanBtn.classList.toggle("instore", !!nearStore);
-    scanBtn.title = nearStore ? `Scannen & abhaken (${nearStore.name})` : "Barcode scannen";
+    const checkOff = this._shopMode && this._view === "list";
+    scanBtn.classList.toggle("instore", !!shopStore || !!nearStore || checkOff);
+    scanBtn.title = shopStore ? `Scannen & abhaken (${shopStore.name})` : checkOff || nearStore ? "Scannen & abhaken" : "Barcode scannen";
     this._updateTools();
     st.hidden = !!this._fixedStore;
     const prevStore = st.value;
@@ -5538,8 +5542,12 @@ class EinkaufslisteCard extends HTMLElement {
 
   // ▥ antippen: im Laden = abhaken, zu Hause = eintragen
   _scanButton() {
-    const near = this._formMode !== "recipe" && this._lastNear && this._store(this._lastNear);
-    if (near) return this._scanCheckOff(near);
+    if (this._formMode !== "recipe") {
+      const near = this._lastNear && this._store(this._lastNear);
+      if (this._shopMode && this._view === "list")
+        return this._scanCheckOff(this._store(this._fixedStore || this._activeTab) || near || null);
+      if (near) return this._scanCheckOff(near);
+    }
     this._appScan({
       title: "🛒 Barcode scannen",
       altLabel: "📦 Mehrere scannen",
@@ -5641,7 +5649,7 @@ class EinkaufslisteCard extends HTMLElement {
   _scanCheckOff(store) {
     const stats = { checked: 0 };
     this._appScan({
-      title: `✅ Scannen & abhaken · ${store.name}`,
+      title: `✅ Scannen & abhaken${store ? ` · ${store.name}` : ""}`,
       description: "Packung scannen, bevor sie in den Wagen kommt.",
       altLabel: "✔ Fertig",
       series: true,
@@ -5649,12 +5657,19 @@ class EinkaufslisteCard extends HTMLElement {
         const res = await this._lookup(code);
         if (!res.found) return res.offline ? "📴 Ohne Netz kenne ich nur schon gemerkte Barcodes" : "🤔 Diesen Barcode kenne ich noch nicht";
         const want = this._pk(res.name, res.note);
-        let open = this._data.items.filter((i) => !i.checked && this._pk(i.name, i.note) === want);
-        if (!open.length && !res.note) open = this._data.items.filter((i) => !i.checked && i.name.toLowerCase() === res.name.toLowerCase());
-        const item = open.find((i) => i.store_id === store.id) || open[0];
+        const available = this._data.items.filter((i) => !i.checked && (!store || !i.store_id || i.store_id === store.id));
+        let open = available.filter((i) => this._pk(i.name, i.note) === want);
+        if (!open.length) {
+          const sameName = available.filter((i) => i.name.toLowerCase() === res.name.toLowerCase());
+          // Eine beim Einkauf ergänzte Notiz (z. B. Angebot) ändert den Barcode-Schlüssel.
+          // Bei mehreren Varianten nicht raten, welche Packung gemeint ist.
+          if (sameName.length === 1) open = sameName;
+          else if (sameName.length > 1) return `ℹ️ Mehrere Varianten von ${res.name} – bitte von Hand abhaken`;
+        }
+        const item = store ? open.find((i) => i.store_id === store.id) || open[0] : open[0];
         if (!item) return `ℹ️ ${res.name} steht nicht auf der Liste`;
         try {
-          await this._ws({ type: "einkaufsliste/item/toggle", item_id: item.id, checked: true, via: "scan", ...(!item.store_id ? { store_id: store.id } : {}) });
+          await this._ws({ type: "einkaufsliste/item/toggle", item_id: item.id, checked: true, via: "scan", ...(!item.store_id && store ? { store_id: store.id } : {}) });
           stats.checked++;
           return `✅ ${item.name} abgehakt`;
         } catch (err) {
@@ -6836,6 +6851,11 @@ const TILE_STYLE = `
   .tile-category .chevron { margin-left:auto; transition:transform .15s; }
   .tile-category[aria-expanded="false"] .chevron { transform:rotate(-90deg); }
   .tile-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:9px; padding:0 4px; }
+  .shop .tile-grid { grid-template-columns:repeat(3,minmax(0,1fr)); }
+  .shop .tile-grid .tile-hit { min-height:104px; padding:10px 7px 8px; gap:5px; }
+  .shop .tile-grid .tile-name { font-size:14px; }
+  .shop .tile-grid .tile-note { -webkit-line-clamp:2; line-clamp:2; }
+  .shop .tile-grid .tile-offer, .shop .tile-grid .tile-offer-link { display:none; }
   .tile-grid .item.tile { position:relative; min-width:0; display:flex; flex-direction:column; border:0; border-radius:16px; background:var(--tile-bg); color:var(--tile-fg); overflow:hidden; box-shadow:0 2px 4px #0004; }
   .tile-grid .item.tile.done { filter:saturate(.45); opacity:.75; }
   .tile-grid .item.tile.pending { opacity:.55; }
@@ -6900,15 +6920,15 @@ class EinkaufslisteTilesCard extends EinkaufslisteCard {
   }
 
   _tileHtml(item) {
-    const label = [item.name, item.quantity, item.note].filter(Boolean).join(" · ");
     const store = this._store(item.store_id);
     const siblings = this._grpMap?.get(item.id) || [];
     const stores = siblings.length > 1 ? siblings.map((i) => this._store(i.store_id)?.name || "Egal wo") : [store?.name || "Egal wo"];
-    const offers = !item.checked ? this._offersFor(item) : [];
+    const offers = !item.checked && !this._shopMode ? this._offersFor(item) : [];
     const offer = item.offer && !item.offer.expired ? item.offer : null;
     const note = offer?.part ? String(item.note || "").replace(offer.part, "").replace(/^\s*·\s*|\s*·\s*$/g, "").trim() : item.note;
+    const label = [item.name, item.quantity, note].filter(Boolean).join(" · ");
     const price = offer?.p != null && Number.isFinite(Number(offer.p)) ? ` · ${Number(offer.p).toFixed(2).replace(".", ",")} €` : "";
-    const offerText = offer ? `🏷️ Angebot${price}` : offers.length ? `🏷️ ${offers.length} Angebot${offers.length === 1 ? "" : "e"}` :
+    const offerText = this._shopMode ? "" : offer ? `🏷️ Angebot${price}` : offers.length ? `🏷️ ${offers.length} Angebot${offers.length === 1 ? "" : "e"}` :
       !item.checked && item.offer?.expired ? "⌛ Angebot vorbei" : "";
     return `<div class="item tile ${item.checked ? "done" : ""} ${this._pending.has(item.id) ? "pending" : ""}" data-id="${esc(item.id)}" style="${this._tileColors(store?.color)}">
       <button type="button" class="tile-hit" data-act="toggle" title="${esc(label)} – ${item.checked ? "Wieder auf die Liste" : "Abhaken"}" aria-label="${esc(label)} – ${item.checked ? "Wieder auf die Liste" : "Abhaken"}">
@@ -6928,7 +6948,7 @@ class EinkaufslisteTilesCard extends EinkaufslisteCard {
     if (!this._data || !this.$("list")) return;
     this._grpMap = new Map();
     const all = this._data.items.filter((i) => this._matchesTab(i));
-    const typed = (splitMany(this.$("inName").value).pop() || "").trim().toLowerCase();
+    const typed = this._shopMode ? "" : (splitMany(this.$("inName").value).pop() || "").trim().toLowerCase();
     const filter = (splitQty(typed).name || typed).trim();
     const matches = (i) => !filter || [i.name, i.note, i.for_whom].some((s) => String(s || "").toLowerCase().includes(filter));
     let open = all.filter((i) => !i.checked && matches(i));
