@@ -2,9 +2,11 @@
  * Einkaufsliste Card – die Familien-Einkaufsliste für Home Assistant
  * Wird automatisch von der Integration "einkaufsliste" geladen.
  */
-const EL_VERSION = "2.38.1";
+const EL_VERSION = "2.39.0";
 // 🆕 Was ist neu in dieser Version (deutsch, englisch) – bei jedem Update neu schreiben
 const EL_NEWS = [
+  ["🛒 Die neue <b>Kachelansicht</b> zeigt Geschäftsfarben, Menge, Notizen und Angebote. In der Offline-App kannst du oben zwischen Kacheln und Liste wechseln.",
+   "🛒 The new <b>tile view</b> shows store colours, quantities, notes and offers. In the offline app you can switch between tiles and list at the top."],
   ["🧾 <b>Einkaufs-Protokoll</b> (in ⚙️ → App & Aussehen einschalten): nach dem Einkauf Geschäft und Betrag eintragen. Die Auswertung zeigt die Kosten pro Geschäft, pro Monat und zusammen – mit Filtern für Person, Geschäft und Datum. Der 🧾-Knopf sitzt oben in der Karte und im Verlauf.",
    "🧾 <b>Purchase log</b> (switch on in ⚙️ → App & appearance): after shopping, enter the store and the amount. The overview shows the cost per store, per month and in total – with filters for person, store and date. The 🧾 button is at the top of the card and in the history."],
   ["🗂️ Artikel aus <b>Angeboten, E-Mail, Alexa/To-do und Text einfügen</b> landen jetzt automatisch in der passenden Kategorie (wie beim letzten Mal, sonst nach dem Wörterbuch).",
@@ -6823,7 +6825,7 @@ const TILE_STYLE = `
   #addForm .toolbar, #addForm .row2 { opacity:.85; }
   #tabs { order:1; margin:0 0 12px; gap:8px; }
   #tabs .tab { background:var(--tile-muted); border:0; border-radius:11px; padding:9px 13px; color:#31c17d; white-space:nowrap; font-size:15px; }
-  #tabs .tab.active { background:var(--tile-green); color:white; }
+  #tabs .tab.active { background:var(--tile-bg,var(--tile-green)); color:var(--tile-fg,white); }
   #tabs .tab .dot, #tabs .tab .bubble { display:none; }
   #list { order:2; padding:0 0 10px; }
   .tile-sort { display:flex; justify-content:flex-end; margin:3px 4px 12px; }
@@ -6834,13 +6836,17 @@ const TILE_STYLE = `
   .tile-category .chevron { margin-left:auto; transition:transform .15s; }
   .tile-category[aria-expanded="false"] .chevron { transform:rotate(-90deg); }
   .tile-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:9px; padding:0 4px; }
-  .tile-grid .item.tile { position:relative; min-width:0; display:block; border:0; border-radius:16px; background:var(--tile-green); color:#fff; overflow:hidden; box-shadow:0 2px 4px #0004; }
-  .tile-grid .item.tile.done { background:#3d5749; color:#dce6dd; }
+  .tile-grid .item.tile { position:relative; min-width:0; display:flex; flex-direction:column; border:0; border-radius:16px; background:var(--tile-bg,var(--tile-green)); color:var(--tile-fg,#fff); overflow:hidden; box-shadow:0 2px 4px #0004; }
+  .tile-grid .item.tile.done { filter:saturate(.45); opacity:.75; }
   .tile-grid .item.tile.pending { opacity:.55; }
-  .tile-grid .tile-hit { width:100%; min-height:116px; display:flex; flex-direction:column; justify-content:center; align-items:center; gap:10px; padding:12px 5px; border:0; background:none; color:inherit; cursor:pointer; font:inherit; }
-  .tile-grid .tile-hit ha-icon { --mdc-icon-size:43px; }
-  .tile-grid .tile-name { display:block; max-width:100%; overflow-wrap:anywhere; text-align:center; font-size:15px; line-height:1.2; }
-  .tile-grid .tile-qty { font-size:12px; opacity:.9; }
+  .tile-grid .tile-hit { width:100%; min-height:132px; flex:1; display:flex; flex-direction:column; align-items:stretch; gap:7px; padding:13px 10px 10px; border:0; background:none; color:inherit; cursor:pointer; font:inherit; text-align:left; }
+  .tile-grid .tile-name { display:block; padding-right:18px; overflow-wrap:anywhere; font-size:17px; font-weight:600; line-height:1.2; }
+  .tile-grid .tile-note { display:-webkit-box; -webkit-box-orient:vertical; -webkit-line-clamp:3; line-clamp:3; overflow:hidden; overflow-wrap:anywhere; font-size:12px; line-height:1.25; opacity:.95; }
+  .tile-grid .tile-meta { display:flex; flex-wrap:wrap; align-items:center; gap:4px; margin-top:auto; }
+  .tile-grid .tile-qty, .tile-grid .tile-offer, .tile-grid .tile-store { border-radius:7px; padding:3px 5px; background:var(--tile-chip,#ffffff30); color:inherit; font-size:11px; line-height:1.2; overflow-wrap:anywhere; }
+  .tile-grid .tile-offer { font-weight:700; }
+  .tile-grid .tile-store { max-width:100%; }
+  .tile-grid .tile-offer-link { align-self:flex-start; margin:0 10px 10px; border:1px solid currentColor; border-radius:7px; padding:3px 6px; background:transparent; color:inherit; font:inherit; font-size:11px; cursor:pointer; }
   .tile-grid .tile-more { position:absolute; top:2px; right:2px; z-index:1; width:30px; height:30px; border:0; border-radius:50%; background:transparent; color:inherit; cursor:pointer; opacity:.9; }
   .tile-grid .tile-more ha-icon { --mdc-icon-size:19px; }
   .tile-grid .tile-wide { grid-column:1/-1; min-width:0; }
@@ -6853,14 +6859,6 @@ const TILE_STYLE = `
   #footer { order:3; }
   @media (max-width:330px) { .tile-grid { grid-template-columns:repeat(2,minmax(0,1fr)); } }
 `;
-
-const TILE_ICONS = [
-  [/apfel|äpfel/i, "food-apple-outline"], [/traube/i, "fruit-grapes-outline"],
-  [/möhre|karotte/i, "carrot"], [/banane/i, "fruit-pear"],
-  [/pizza/i, "pizza"], [/wurst|würstchen/i, "sausage"],
-  [/brot|brötchen/i, "bread-slice-outline"], [/käse/i, "cheese"],
-  [/milch/i, "cup-outline"], [/tomate|paprika|gurke|kohlrabi/i, "food-variant"],
-];
 
 class EinkaufslisteTilesCard extends EinkaufslisteCard {
   static getConfigElement() { return document.createElement("einkaufsliste-card-editor"); }
@@ -6884,28 +6882,42 @@ class EinkaufslisteTilesCard extends EinkaufslisteCard {
     const open = (fn) => this._data.items.filter((i) => !i.checked && fn(i)).length;
     const active = this._activeTab;
     const names = [{ id:"all", name:"Alle", count:open(() => true) },
-      ...this._data.stores.map((s) => ({ id:s.id, name:s.name, count:open((i) => i.store_id === s.id || !i.store_id) }))];
+      ...this._data.stores.map((s) => ({ id:s.id, name:s.name, color:s.color, count:open((i) => i.store_id === s.id || !i.store_id) }))];
     if (this._data.items.some((i) => !i.store_id) || active === "none")
       names.push({ id:"none", name:"Egal wo", count:open((i) => !i.store_id) });
     const left = tabs.scrollLeft;
-    tabs.innerHTML = names.map((s) => `<button class="tab ${active === s.id ? "active" : ""}" data-act="tab" data-tab="${esc(s.id)}">${esc(s.name)} (${s.count})</button>`).join("");
+    tabs.innerHTML = names.map((s) => `<button class="tab ${active === s.id ? "active" : ""}" data-act="tab" data-tab="${esc(s.id)}" style="${this._tileColors(s.color)}">${esc(s.name)} (${s.count})</button>`).join("");
     tabs.scrollLeft = left;
     this._markSeen();
   }
 
-  _tileIcon(item) {
-    const name = item.name || "";
-    return "mdi:" + (TILE_ICONS.find(([rx]) => rx.test(name))?.[1]
-      || stripMdi(this._cat(item.category_id)?.icon) || "basket-outline");
+  _tileColors(color) {
+    const raw = String(color || "").trim();
+    const hex = /^#[\da-f]{3}(?:[\da-f]{3})?$/i.test(raw) ? raw : "#1bab69";
+    const full = hex.length === 4 ? hex.slice(1).split("").map((c) => c + c).join("") : hex.slice(1);
+    const rgb = [0, 2, 4].map((i) => parseInt(full.slice(i, i + 2), 16) / 255);
+    const linear = rgb.map((v) => v <= .04045 ? v / 12.92 : ((v + .055) / 1.055) ** 2.4);
+    const light = .2126 * linear[0] + .7152 * linear[1] + .0722 * linear[2] > .179;
+    return `--tile-bg:${hex};--tile-fg:${light ? "#17201b" : "#fff"};--tile-chip:${light ? "#00000020" : "#ffffff30"}`;
   }
 
   _tileHtml(item) {
     const label = [item.name, item.quantity, item.note].filter(Boolean).join(" · ");
-    return `<div class="item tile ${item.checked ? "done" : ""} ${this._pending.has(item.id) ? "pending" : ""}" data-id="${esc(item.id)}">
+    const store = this._store(item.store_id);
+    const siblings = this._grpMap?.get(item.id) || [];
+    const stores = siblings.length > 1 ? siblings.map((i) => this._store(i.store_id)?.name || "Egal wo") : [store?.name || "Egal wo"];
+    const offers = !item.checked ? this._offersFor(item) : [];
+    const offer = item.offer && !item.offer.expired ? item.offer : null;
+    const note = offer?.part ? String(item.note || "").replace(offer.part, "").replace(/^\s*·\s*|\s*·\s*$/g, "").trim() : item.note;
+    const price = offer?.p != null && Number.isFinite(Number(offer.p)) ? ` · ${Number(offer.p).toFixed(2).replace(".", ",")} €` : "";
+    const offerText = offer ? `🏷️ Angebot${price}` : offers.length ? `🏷️ ${offers.length} Angebot${offers.length === 1 ? "" : "e"}` :
+      !item.checked && item.offer?.expired ? "⌛ Angebot vorbei" : "";
+    return `<div class="item tile ${item.checked ? "done" : ""} ${this._pending.has(item.id) ? "pending" : ""}" data-id="${esc(item.id)}" style="${this._tileColors(store?.color)}">
       <button type="button" class="tile-hit" data-act="toggle" title="${esc(label)} – ${item.checked ? "Wieder auf die Liste" : "Abhaken"}" aria-label="${esc(label)} – ${item.checked ? "Wieder auf die Liste" : "Abhaken"}">
-        <ha-icon icon="${esc(this._tileIcon(item))}"></ha-icon><span class="tile-name">${esc(item.name)}</span>
-        ${item.quantity ? `<span class="tile-qty">${esc(item.quantity)}</span>` : ""}
-      </button><button type="button" class="tile-more" data-act="tile-menu" aria-label="Weitere Aktionen für ${esc(item.name)}" title="Bearbeiten und weitere Aktionen"><ha-icon icon="mdi:dots-horizontal"></ha-icon></button></div>
+        <span class="tile-name">${esc(item.name)}</span>
+        ${note ? `<span class="tile-note" title="${esc(note)}">📝 ${esc(note)}</span>` : ""}
+        <span class="tile-meta">${offerText ? `<span class="tile-offer">${esc(offerText)}</span>` : ""}${item.quantity ? `<span class="tile-qty">${esc(item.quantity)}</span>` : ""}${stores.map((name) => `<span class="tile-store">${esc(name)}</span>`).join("")}</span>
+      </button>${offers.length ? `<button type="button" class="tile-offer-link" data-act="offers-show" data-id="${esc(item.id)}">Angebote ansehen</button>` : ""}<button type="button" class="tile-more" data-act="tile-menu" aria-label="Weitere Aktionen für ${esc(item.name)}" title="Bearbeiten und weitere Aktionen"><ha-icon icon="mdi:dots-horizontal"></ha-icon></button></div>
       ${this._editing === item.id ? `<div class="tile-wide">${this._editHtml(item)}</div>` : ""}
       ${this._wherePick?.id === item.id ? `<div class="tile-wide">${this._whereHtml(item)}</div>` : ""}
       ${this._menuId === item.id ? `<div class="tile-wide">${this._menuHtml(item)}</div>` : ""}
