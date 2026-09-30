@@ -2,13 +2,15 @@
  * Einkaufsliste Card – die Familien-Einkaufsliste für Home Assistant
  * Wird automatisch von der Integration "einkaufsliste" geladen.
  */
-const EL_VERSION = "2.39.0";
+const EL_VERSION = "2.39.1";
 // 🆕 Was ist neu in dieser Version (deutsch, englisch) – bei jedem Update neu schreiben
 const EL_NEWS = [
-  ["🏷️ <b>Angebote überarbeitet:</b> Das Angebot steht jetzt in einem <b>eigenen Feld</b> („🏷️ 1,19 € bis Sa.“, bei Start in der Zukunft „ab Mo.“) – die Notiz bleibt unberührt, Foto und Barcode bleiben beim Produkt. Nach Ablauf steht <b>1 Tag</b> „⌛ Angebot vorbei“, dann ist es weg. Neu: Knopf <b>„Angebot weg“</b> im Menü beim langen Drücken. Beim Übernehmen aus einem Angebot kommt der <b>Angebotsname</b> als Artikel auf die Liste und das <b>ursprüngliche Produkt wird abgehakt</b>. Artikel aus Angeboten werden beim Abhaken <b>ganz gelöscht</b>.",
-   "🏷️ <b>Offers reworked:</b> the offer now sits in its <b>own field</b> (“🏷️ 1.19 € until Sat”, “from Mon” if it starts in the future) – the note stays untouched, photo and barcode stay with the product. After it ends, “⌛ Offer over” shows for <b>1 day</b>, then it's gone. New: <b>“Remove offer”</b> button in the long-press menu. When you take an offer, the <b>offer's product name</b> goes on the list and the <b>original product is checked off</b>. Items from offers are <b>deleted completely</b> when you check them off."],
-  ["▥ <b>Barcode beim Eintragen:</b> Neben dem Foto-Symbol gibt es jetzt ein <b>▥ mit Plus</b> – damit gibst du einem neuen Produkt gleich beim Eintragen einen Barcode (HA-App und Offline-App).",
-   "▥ <b>Barcode when adding:</b> next to the photo icon there's now a <b>▥ with a plus</b> – give a new product a barcode right when you add it (HA app and offline app)."],
+  ["🏷️ <b>Angebote feiner abgestimmt:</b> Ein Artikel, der erst durch ein Angebot entstanden ist, verschwindet mit dem Angebot – 1 Tag nach Ablauf („⌛ Angebot vorbei“) wird er gelöscht und <b>dein ursprüngliches Produkt kommt wieder auf die Liste</b> (mit dem alten Eingabe-Datum). Hängt das Angebot an <b>deinem Produkt</b>, bleibt es bestehen – nur das Angebot fällt weg.",
+   "🏷️ <b>Offers fine-tuned:</b> an item that was created by an offer disappears with the offer – 1 day after it ends (“⌛ Offer over”) it is deleted and <b>your original product goes back on the list</b> (with its old entry date). If the offer is attached to <b>your own product</b>, it stays – only the offer goes away."],
+  ["🏷️ <b>Angebote überarbeitet (2.39.0):</b> Das Angebot steht in einem <b>eigenen Feld</b> („🏷️ 1,19 € bis Sa.“, bei späterem Start „ab Mo.“) – die Notiz bleibt unberührt. Beim Übernehmen kommt der <b>Angebotsname</b> auf die Liste und das <b>ursprüngliche Produkt wird abgehakt</b>; Artikel aus Angeboten sind beim Abhaken <b>ganz gelöscht</b>.",
+   "🏷️ <b>Offers reworked (2.39.0):</b> the offer sits in its <b>own field</b> (“🏷️ 1.19 € until Sat”, “from Mon” if it starts later) – the note stays untouched. When you take an offer, the <b>offer's name</b> goes on the list and the <b>original product is checked off</b>; items from offers are <b>deleted completely</b> when checked off."],
+  ["▥ <b>Barcode beim Eintragen:</b> Neben dem Foto-Symbol gibt es ein <b>▥ mit Plus</b> – damit gibst du einem neuen Produkt gleich beim Eintragen einen Barcode (HA-App und Offline-App).",
+   "▥ <b>Barcode when adding:</b> next to the photo icon there's a <b>▥ with a plus</b> – give a new product a barcode right when you add it (HA app and offline app)."],
 ];
 const EL_START_STORE_ICONS = new Set(["mdi:cart", "mdi:lotion"]); // so bekommen Geschäfte beim Einrichten ihr Icon – zählt als „automatisch“
 const EGAL_CHIP = `<span class="chip" style="--c:#888">🤷 Egal wo</span>`; // Artikel ohne Geschäft: überall kaufen
@@ -2561,7 +2563,6 @@ class EinkaufslisteCard extends HTMLElement {
         ${this._hasAppScanner() ? b("barcode-assign", "mdi:barcode-scan", codes ? "Barcode ✓" : "Barcode", codes ? "#8e24aa" : "") : ""}
         ${codes ? b("menu-info", "mdi:information-outline", "Infos", "#00acc1") : ""}
         ${this._offersFor(item).length ? b("menu-offers", "mdi:tag-outline", "Angebote", "#e53935") : ""}
-        ${item.offer ? b("menu-offer-remove", "mdi:tag-off-outline", "Angebot weg", "#e53935") : ""}
         <button class="iconbtn" data-act="menu-close" title="Schließen"><ha-icon icon="mdi:close"></ha-icon></button>
       </div>`;
   }
@@ -5033,7 +5034,7 @@ class EinkaufslisteCard extends HTMLElement {
         <li>Unter dem Artikel steht klein: das <b>Geschäft in seiner Farbe</b>, die <b>📝 Notiz</b> (gelb hinterlegt), ▥ (Barcode da), wer eingetragen und wer abgehakt hat.</li>
         <li><b>🏷️</b> vorn am Artikel = gerade im Angebot (nur wenn in den Einstellungen eingeschaltet). Antippen oder lange drücken → <b>Angebote</b>: Geschäft, Preis, wie lange. <b>🛒 Hier kaufen</b> legt den Angebots-Artikel in diesem Geschäft an (mit Name und „🏷️ Preis bis Tag“ in einem eigenen Feld) und hakt das ursprüngliche Produkt ab. Artikel aus Angeboten sind danach beim Abhaken ganz weg.</li>
         <li><b>Angebote suchen:</b> Einfach das Produkt oben eintippen (z. B. „Kaffee“) – unter den Vorschlägen steht <b>🏷️ Angebote für „Kaffee“ anzeigen</b>. Dort mit <b>➕ Auf die Liste</b> gleich beim richtigen Geschäft eintragen.</li>
-        <li><b>⌛ Angebot vorbei</b> = das Angebot ist abgelaufen. Der Artikel bleibt auf der Liste, nur der Angebotspreis ist weg; der Hinweis steht 1 Tag. Früher weg? Lange drücken → <b>Angebot weg</b>.</li>
+        <li><b>⌛ Angebot vorbei</b> = das Angebot ist abgelaufen. Der Artikel bleibt auf der Liste, nur der Angebotspreis ist weg; der Hinweis steht 1 Tag. Ein Artikel, der erst durch das Angebot entstanden ist, wird dann gelöscht und dein ursprüngliches Produkt kommt wieder auf die Liste.</li>
         <li>Ehrlich gesagt: Die Angebote kommen inoffiziell von Marktguru und können jederzeit aufhören zu funktionieren.</li></ul>`)}
       ${sec("🛍️", "Im Laden", `<ul>
         <li>Der <b>Wagen oben rechts</b> schaltet den <b>Laden-Modus</b> ein: große Zeilen, nur Abhaken, nur das Wichtigste.</li>
@@ -5191,7 +5192,7 @@ class EinkaufslisteCard extends HTMLElement {
         <li>Below the item in small print: the <b>store in its color</b>, the <b>📝 note</b> (yellow background), ▥ (has a barcode), who added it and who checked it off.</li>
         <li><b>🏷️</b> at the front of an item = on offer right now (only if turned on in the settings). Tap or long-press → <b>Offers</b>: store, price, how long. <b>🛒 Buy here</b> creates the offer item at that store (with its name and “🏷️ price until day” in its own field) and checks off the original product. Items from offers are gone completely when you check them off.</li>
         <li><b>Searching offers:</b> just type the product at the top (e.g. “coffee”) – below the suggestions there's <b>🏷️ Show offers for “coffee”</b>. Use <b>➕ Add to list</b> to put it on the list at the right store.</li>
-        <li><b>⌛ Offer over</b> = the offer has expired. The item stays on the list, only the offer price is gone; the note shows for 1 day. Sooner? Long-press → <b>Remove offer</b>.</li>
+        <li><b>⌛ Offer over</b> = the offer has expired. The item stays on the list, only the offer price is gone; the note shows for 1 day. An item that was created by the offer is then deleted and your original product goes back on the list.</li>
         <li>Honestly: the offers come unofficially from Marktguru and may stop working at any time.</li></ul>`)}
       ${sec("🛍️", "In the store", `<ul>
         <li>The <b>cart at the top right</b> switches on <b>shop mode</b>: big rows, checking off only, just the essentials.</li>
@@ -6149,13 +6150,6 @@ class EinkaufslisteCard extends HTMLElement {
       case "offers-search":
         this._searchOffers(el.dataset.q);
         break;
-      case "menu-offer-remove": {
-        this._menuId = null;
-        this._renderList();
-        this._ws({ type: "einkaufsliste/offers/remove", item_id: el.dataset.id })
-          .then(() => this._toast("🏷️ Angebot vom Artikel genommen")).catch(() => {});
-        break;
-      }
       case "menu-offers":
       case "offers-show": {
         const item = this._data.items.find((i) => i.id === (el.dataset.id || el.closest(".item")?.dataset.id));
