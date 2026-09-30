@@ -85,7 +85,7 @@ Den Ordner `custom_components/einkaufsliste` nach `/config/custom_components/ein
 - ✨ = neu seit deinem letzten Blick, die rote Zahl am Reiter zeigt, wie viel Neues dort steht.
 - Oben links der **Einkaufswagen** öffnet eine Anleitung für die ganze Familie – samt App-Link zum Kopieren.
 
-**Im Laden:** Der Wagen oben rechts schaltet den **Laden-Modus** ein. Kein Netz? Einfach weiter abhaken, der Punkt oben wird orange ⏳ und alles wird nachgeschickt.
+**Im Laden:** Der Wagen oben rechts schaltet den **Laden-Modus** ein. In der Kachelansicht erscheinen dann drei kompakte Spalten ohne Angebote. Kein Netz? Einfach weiter abhaken, der Punkt oben wird orange ⏳ und alles wird nachgeschickt.
 
 **Rezepte:** Anlegen in ⚙️ → Rezepte (Zutaten genau wie auf der Liste eintragen, oder eine Zutaten-Liste bzw. einen Rezept-Link einfügen). Die **Kochmütze** oben: **Auf die Liste** → anhaken, was fehlt → fertig. Dazu 👥 Personen oder 🍕 Bleche umrechnen, **🔥 Kochen** (Schritt für Schritt), **Teilen** (z. B. WhatsApp) und **⏲️ Gar-Zeiten**. Abgehakte Rezept-Zutaten verschwinden ganz.
 
@@ -95,7 +95,7 @@ Den Ordner `custom_components/einkaufsliste` nach `/config/custom_components/ein
 
 Der ▥-Knopf oben weiß, wo du bist:
 - 🏠 **Zu Hause:** Packung scannen → Name, Marke und Kategorie sind ausgefüllt → ✔. Mit **„📦 Mehrere scannen“** kommt jede Packung sofort auf die Liste. Unbekannte landen als „❓ Unbekannt“ drauf – einmal umbenennen, dann kennt die Liste den Barcode.
-- 🛒 **Im Laden** (Geschäft mit 📍 Zone): Jede gescannte Packung wird auf der Liste abgehakt.
+- 🛒 **Im Laden** (Laden-Modus eingeschaltet oder Geschäft mit 📍 Zone): Eine bekannte gescannte Packung wird abgehakt, wenn sie offen auf der Liste steht. Im Geschäftsreiter bleibt der Scan auf dieses Geschäft und „Egal wo“ beschränkt; bei „Alle“ gilt die gesamte Liste. Unbekannte Barcodes werden nicht automatisch als Einkauf erledigt.
 
 **Wo geht das?**
 - In der **Home-Assistant-App** (Android/iPhone) mit deren Scanner – klappt auch über `http://`.
