@@ -1181,5 +1181,13 @@
 "🧾 Eingetragen": "🧾 Saved",
 "🧾 bezahlt": "🧾 paid",
 "hat % bezahlt": "paid %",
-"Einkauf bei {}": "Purchase at {0}"
+"Einkauf bei {}": "Purchase at {0}",
+"Angebot weg": "Remove offer",
+"🏷️ Angebot vom Artikel genommen": "🏷️ Offer removed from the item",
+"Barcode zum neuen Produkt": "Barcode for the new product",
+"Barcode ist dabei – antippen zum Entfernen": "Barcode is attached – tap to remove",
+"▥ Barcode wieder entfernt": "▥ Barcode removed again",
+"▥ Barcode ist dabei – tipp den Namen ein und tippe ✅, dann merke ich ihn mir!": "▥ Barcode attached – type the name and tap ✅, then I'll remember it!",
+"▥ Barcode für das neue Produkt": "▥ Barcode for the new product",
+"▥ Mit Barcode bitte einzeln eintragen – der Barcode gehört ja zu einem Produkt.": "▥ With a barcode please add one at a time – the barcode belongs to one product."
 }

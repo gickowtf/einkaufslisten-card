@@ -505,50 +505,86 @@ class EinkaufslisteManager:
 
     @staticmethod
     def offer_note(offer: dict[str, Any]) -> str:
-        """„🏷️ 1,19 € bis Sa.“"""
+        """„🏷️ 1,19 € bis Sa.“ – liegt der Start in der Zukunft: „🏷️ 1,19 € ab Mo.“"""
         price = f"{float(offer.get('p') or 0):.2f}".replace(".", ",")
-        to = dt_util.parse_datetime(str(offer.get("to") or ""))
-        day = ["Mo.", "Di.", "Mi.", "Do.", "Fr.", "Sa.", "So."][dt_util.as_local(to).weekday()] if to else None
-        return f"🏷️ {price} €" + (f" bis {day}" if day else "")
+        names = ["Mo.", "Di.", "Mi.", "Do.", "Fr.", "Sa.", "So."]
+        start = dt_util.parse_datetime(str(offer.get("from") or ""))
+        end = dt_util.parse_datetime(str(offer.get("to") or ""))
+        if start is not None and start > dt_util.utcnow():
+            return f"🏷️ {price} € ab {names[dt_util.as_local(start).weekday()]}"
+        if end is not None:
+            return f"🏷️ {price} € bis {names[dt_util.as_local(end).weekday()]}"
+        return f"🏷️ {price} €"
 
     def take_offer(self, offer: dict[str, Any], item_id: str | None = None, name: str | None = None,
                    store_id: str | None = None, by: str | None = None, by_id: str | None = None) -> dict[str, Any]:
-        """🛒 Angebot übernehmen: Artikel ins Geschäft des Angebots (oder neu drauf), Preis als Notiz."""
+        """🛒 Angebot übernehmen: neuer Artikel mit dem Namen des Angebots (im Geschäft des Angebots),
+        das Angebot steht in einem eigenen Feld (nicht in der Notiz), das ursprüngliche Produkt wird abgehakt.
+        Artikel aus Angeboten verschwinden beim Abhaken ganz."""
         store_id = self._check_store(store_id)
-        part = self.offer_note(offer)
-        if item_id:
-            item = self.get_item(item_id)
+        original = self.get_item(item_id) if item_id else None
+        if original is None and name:  # „Angebote suchen“: offenes Produkt mit diesem Namen auf der Liste?
+            low = name.strip().lower()
+            original = next((i for i in self.items if not i["checked"] and not i.get("from_offer")
+                             and not i.get("recipe_id") and i["name"].strip().lower() == low), None)
+        offer_name = (offer.get("d") or name or (original or {}).get("name") or "").strip()
+        if original is not None and (not offer_name or offer_name.lower() == original["name"].strip().lower()):
+            item = original  # gleicher Name: kein zweiter Artikel, das Angebot hängt am vorhandenen
             if item["store_id"] != store_id and not item["checked"]:
                 item = self.move_item(item["id"], store_id or "~none", by, by_id)
+            original = None
         else:
-            item = self.add_item(name or offer.get("d") or "", store_id=store_id, added_by=by, added_by_id=by_id)
-        old = (item.get("offer") or {}).get("part")
-        note = item.get("note") or ""
-        if old and old in note:
-            note = note.replace(" · " + old, "").replace(old, "").strip(" ·")
-        item["note"] = " · ".join(x for x in (note, part) if x)
-        item["offer"] = {"to": offer.get("to"), "part": part, "r": offer.get("r"), "p": offer.get("p")}
-        self._log("update", item, f"Angebot {offer.get('r') or ''} {part}".strip(), who=by)
+            item = self.add_item(offer_name, store_id=store_id, added_by=by, added_by_id=by_id)
+        item["from_offer"] = True
+        item["offer"] = {"to": offer.get("to"), "from": offer.get("from"), "r": offer.get("r"), "p": offer.get("p")}
+        self._log("update", item, f"Angebot {offer.get('r') or ''} {self.offer_note(offer)}".strip(), who=by)
+        if original is not None and not original["checked"]:
+            self.set_checked(original["id"], True, by, by_id)  # das eigentliche Produkt ist „erledigt“
         self._changed()
         return item
 
     @callback
+    def remove_offer(self, item_id: str, by: str | None = None) -> dict[str, Any]:
+        """🏷️✖ Angebot wieder vom Artikel nehmen (der Artikel bleibt)."""
+        item = self.get_item(item_id)
+        off = item.get("offer")
+        if off:
+            part = off.get("part") or ""
+            note = item.get("note") or ""
+            if part and part in note:  # alte Artikel: Angebot steckte noch in der Notiz
+                note = note.replace(" · " + part, "").replace(part, "").strip(" ·")
+                item["note"] = note or None
+            item.pop("offer", None)
+            item.pop("from_offer", None)
+            self._log("update", item, "Angebot entfernt", who=by)
+            self._changed()
+        return item
+
+    @callback
     def expire_offers(self, now: datetime | None = None) -> int:
-        """⌛ Abgelaufene Angebote: Artikel bleibt, nur die Angebots-Notiz fällt weg („⌛ Angebot vorbei“)."""
+        """⌛ Abgelaufene Angebote: Artikel bleibt, das Angebot fällt weg; „⌛ Angebot vorbei“ steht noch 1 Tag."""
         now = now or dt_util.utcnow()
         n = 0
         for item in self.items:
             off = item.get("offer")
-            if not off or off.get("expired") or not off.get("to"):
+            if not off:
+                continue
+            if off.get("expired"):
+                gone = dt_util.parse_datetime(str(off["expired"]))
+                if gone is not None and now - gone >= timedelta(days=1):
+                    item.pop("offer", None)  # 1 Tag „Angebot vorbei“ ist um – ganz raus
+                    n += 1
+                continue
+            if not off.get("to"):
                 continue
             to = dt_util.parse_datetime(str(off["to"]))
             if to is None or to > now:
                 continue
             part = off.get("part") or ""
             note = item.get("note") or ""
-            if part and part in note:
+            if part and part in note:  # alte Artikel (vor 2.39): Angebot steckte in der Notiz
                 note = note.replace(" · " + part, "").replace(part, "").strip(" ·")
-            item["note"] = note or None
+                item["note"] = note or None
             item["offer"] = {"expired": now.isoformat()}
             n += 1
         if n:
@@ -1499,8 +1535,8 @@ class EinkaufslisteManager:
             if old is None or old["checked"]:
                 item["store_id"] = at_store
         self._log("check" if checked else "readd", item, who=by)
-        if checked and item.get("recipe_id"):
-            # Rezept-Zutaten verschwinden beim Abhaken ganz von der Liste
+        if checked and (item.get("recipe_id") or item.get("from_offer")):
+            # Rezept-Zutaten und Artikel aus Angeboten verschwinden beim Abhaken ganz von der Liste
             self.items.remove(item)
             self._changed()
             return {**item, "checked": True, "checked_at": _now_iso(), "checked_by": by, "removed": True}

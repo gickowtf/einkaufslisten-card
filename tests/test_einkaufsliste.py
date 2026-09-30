@@ -2086,20 +2086,46 @@ async def test_offers_marktguru(hass: HomeAssistant, setup, aioclient_mock) -> N
 
 
 async def test_offer_take_and_expire(hass: HomeAssistant, setup) -> None:
-    """🛒 „Hier kaufen“ / neu auf die Liste mit Preis-Notiz; ⌛ abgelaufen -> Artikel bleibt, Notiz weg."""
+    """🛒 Angebot: eigener Artikel mit Angebots-Feld (Notiz bleibt heil), Original abgehakt, 1 Tag „vorbei“."""
     from datetime import timedelta as td
     m = mgr(hass)
     aldi, netto = m.find_store("Aldi"), m.find_store("Netto")
     assert m.store_for_retailer("ALDI SÜD") == aldi and m.store_for_retailer("Kaufland") is None
+    now = dt_util.utcnow()
+    soon = (now + td(days=2)).isoformat()
+    # Datumsregel: Start in der Zukunft -> „ab“, sonst „bis“
+    assert " bis " in m.offer_note({"p": 1.19, "to": soon, "from": (now - td(days=1)).isoformat()})
+    assert " ab " in m.offer_note({"p": 1.19, "to": soon, "from": (now + td(days=1)).isoformat()})
+    # gleicher Name: das Angebot hängt am vorhandenen Artikel, die Notiz bleibt
     butter = m.add_item("Butter", store_id=netto, note="Irisch")
-    soon = (dt_util.utcnow() + td(days=2)).isoformat()
-    new = m.take_offer({"p": 1.19, "to": soon, "r": "ALDI SÜD"}, item_id=butter["id"], store_id=aldi)
-    assert new["store_id"] == aldi and new["note"].startswith("Irisch · 🏷️ 1,19 €") and " bis " in new["note"]
-    kaffee = m.take_offer({"p": 4.99, "to": soon, "r": "Lidl", "d": "Jacobs Krönung"}, name="Kaffee", store_id=None)
-    assert kaffee["name"] == "Kaffee" and kaffee["store_id"] is None and kaffee["note"].startswith("🏷️ 4,99 €")
-    assert m.expire_offers(dt_util.utcnow() + td(days=3)) == 2
-    assert new["note"] == "Irisch" and new["offer"].get("expired") and not new["checked"]
-    assert kaffee["note"] is None and not kaffee["checked"]
+    same = m.take_offer({"p": 1.19, "to": soon, "r": "ALDI SÜD", "d": "Butter"}, item_id=butter["id"], store_id=aldi)
+    assert same["store_id"] == aldi and same["name"] == "Butter" and same["note"] == "Irisch" and same["offer"]["p"] == 1.19
+    # anderer Name: neuer Artikel, das ursprüngliche Produkt wird abgehakt
+    kaffee = m.add_item("Kaffee", store_id=None)
+    jac = m.take_offer({"p": 4.99, "to": soon, "r": "Lidl", "d": "Jacobs Krönung"}, item_id=kaffee["id"], store_id=None)
+    assert jac["name"] == "Jacobs Krönung" and jac["note"] is None and jac["from_offer"] and jac["offer"]["p"] == 4.99
+    assert kaffee["checked"] and kaffee in m.items
+    # „Angebote suchen“: offenes Produkt mit dem Suchnamen wird abgehakt, sonst nur der Angebotsartikel
+    tee = m.add_item("Tee", store_id=None)
+    m.take_offer({"p": 2.0, "r": "Lidl", "d": "Teekanne"}, name="Tee")
+    assert tee["checked"]
+    m.take_offer({"p": 3.0, "r": "Lidl", "d": "Eis"}, name="Gibtsnicht")
+    # Angebot entfernen: Artikel bleibt
+    eis = m.find_item("Eis")
+    m.remove_offer(eis["id"])
+    assert "offer" not in eis and not eis.get("from_offer") and eis in m.items
+    # Ablauf: Artikel bleibt, Angebot -> „vorbei“; nach 1 Tag ganz raus
+    assert m.expire_offers(now + td(days=3)) == 2
+    assert same["offer"].get("expired") and jac["offer"].get("expired") and not jac["checked"]
+    assert m.expire_offers(now + td(days=3, hours=12)) == 0 and "offer" in jac
+    assert m.expire_offers(now + td(days=4, hours=1)) >= 2 and "offer" not in jac and "offer" not in same
+    # Artikel aus Angeboten: beim Abhaken ganz weg
+    res = m.set_checked(jac["id"], True)
+    assert res.get("removed") and jac not in m.items
+    # normale Artikel bleiben unter „Erledigt“
+    plain = m.add_item("Mehl", store_id=netto)
+    m.set_checked(plain["id"], True)
+    assert plain in m.items and plain["checked"]
 
 
 async def test_add_item_guesses_category_everywhere(hass, setup):
