@@ -528,14 +528,21 @@ class EinkaufslisteManager:
             original = next((i for i in self.items if not i["checked"] and not i.get("from_offer")
                              and not i.get("recipe_id") and i["name"].strip().lower() == low), None)
         offer_name = (offer.get("d") or name or (original or {}).get("name") or "").strip()
+        created = False
         if original is not None and (not offer_name or offer_name.lower() == original["name"].strip().lower()):
-            item = original  # gleicher Name: kein zweiter Artikel, das Angebot hängt am vorhandenen
+            item = original  # gleicher Name = dein Produkt: das Angebot hängt nur daran, es wird nie gelöscht
             if item["store_id"] != store_id and not item["checked"]:
                 item = self.move_item(item["id"], store_id or "~none", by, by_id)
             original = None
         else:
+            before = len(self.items)
             item = self.add_item(offer_name, store_id=store_id, added_by=by, added_by_id=by_id)
-        item["from_offer"] = True
+            created = len(self.items) > before  # gab es den Artikel schon, ist er dein Produkt
+        if created:
+            item["from_offer"] = True  # erst durch das Angebot entstanden: verschwindet mit dem Angebot
+            if original is not None:  # dein ursprüngliches Produkt merken, damit es danach zurückkommt
+                item["orig"] = {"id": original["id"], "added_at": original.get("added_at"),
+                                "added_by": original.get("added_by"), "added_by_id": original.get("added_by_id")}
         item["offer"] = {"to": offer.get("to"), "from": offer.get("from"), "r": offer.get("r"), "p": offer.get("p")}
         self._log("update", item, f"Angebot {offer.get('r') or ''} {self.offer_note(offer)}".strip(), who=by)
         if original is not None and not original["checked"]:
@@ -544,27 +551,13 @@ class EinkaufslisteManager:
         return item
 
     @callback
-    def remove_offer(self, item_id: str, by: str | None = None) -> dict[str, Any]:
-        """🏷️✖ Angebot wieder vom Artikel nehmen (der Artikel bleibt)."""
-        item = self.get_item(item_id)
-        off = item.get("offer")
-        if off:
-            part = off.get("part") or ""
-            note = item.get("note") or ""
-            if part and part in note:  # alte Artikel: Angebot steckte noch in der Notiz
-                note = note.replace(" · " + part, "").replace(part, "").strip(" ·")
-                item["note"] = note or None
-            item.pop("offer", None)
-            item.pop("from_offer", None)
-            self._log("update", item, "Angebot entfernt", who=by)
-            self._changed()
-        return item
-
-    @callback
     def expire_offers(self, now: datetime | None = None) -> int:
-        """⌛ Abgelaufene Angebote: Artikel bleibt, das Angebot fällt weg; „⌛ Angebot vorbei“ steht noch 1 Tag."""
+        """⌛ Abgelaufene Angebote: „⌛ Angebot vorbei“ steht noch 1 Tag. Danach fällt das Angebot weg –
+        bei deinem Produkt bleibt der Artikel, ein durch das Angebot entstandener Artikel wird gelöscht
+        und dein ursprüngliches Produkt kommt wieder auf die Liste (Datum der ersten Eingabe bleibt)."""
         now = now or dt_util.utcnow()
         n = 0
+        gone_items: list[dict[str, Any]] = []
         for item in self.items:
             off = item.get("offer")
             if not off:
@@ -572,7 +565,10 @@ class EinkaufslisteManager:
             if off.get("expired"):
                 gone = dt_util.parse_datetime(str(off["expired"]))
                 if gone is not None and now - gone >= timedelta(days=1):
-                    item.pop("offer", None)  # 1 Tag „Angebot vorbei“ ist um – ganz raus
+                    if item.get("from_offer"):
+                        gone_items.append(item)  # 1 Tag „Angebot vorbei“ ist um – Angebots-Artikel raus
+                    else:
+                        item.pop("offer", None)
                     n += 1
                 continue
             if not off.get("to"):
@@ -587,6 +583,17 @@ class EinkaufslisteManager:
                 item["note"] = note or None
             item["offer"] = {"expired": now.isoformat()}
             n += 1
+        for item in gone_items:
+            self.items.remove(item)
+            self._log("remove", item, "Angebot vorbei", who="automatisch")
+            orig = item.get("orig") or {}
+            old = next((i for i in self.items if i["id"] == orig.get("id")), None)
+            if old is not None and old["checked"] and not any(
+                    i is not old and not i["checked"] and i["name"].lower() == old["name"].lower()
+                    and i["store_id"] == old["store_id"] for i in self.items):
+                self.set_checked(old["id"], False, None, None)  # dein Produkt zurück auf die Liste …
+                old.update(added_at=orig.get("added_at") or old.get("added_at"),  # … mit dem alten Datum
+                           added_by=orig.get("added_by"), added_by_id=orig.get("added_by_id"))
         if n:
             self._changed()
         return n

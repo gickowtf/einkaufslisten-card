@@ -81,7 +81,6 @@ def async_register(hass: HomeAssistant) -> None:
         ws_offers_refresh,
         ws_offers_search,
         ws_offers_take,
-        ws_offers_remove,
         ws_product_add,
         ws_stats,
     ):
@@ -873,14 +872,6 @@ def ws_offers_take(hass, connection, msg):
     uid = connection.user.id if connection.user else None
     _run(hass, connection, msg, lambda m: m.take_offer(msg["offer"], msg.get("item_id") or None, msg.get("name") or None,
                                                        msg.get("store_id") or None, who, uid))
-
-
-@websocket_api.websocket_command({vol.Required("type"): "einkaufsliste/offers/remove", vol.Required("item_id"): str})
-@callback
-def ws_offers_remove(hass, connection, msg):
-    """🏷️✖ Angebot wieder vom Artikel nehmen."""
-    who = _user_name(hass, connection)
-    _run(hass, connection, msg, lambda m: m.remove_offer(msg["item_id"], who))
 
 
 @websocket_api.websocket_command({vol.Required("type"): "einkaufsliste/stats"})
