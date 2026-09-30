@@ -2,13 +2,25 @@
  * Einkaufsliste Card – die Familien-Einkaufsliste für Home Assistant
  * Wird automatisch von der Integration "einkaufsliste" geladen.
  */
-const EL_VERSION = "2.39.0";
+const EL_VERSION = "2.39.2";
 // 🆕 Was ist neu in dieser Version (deutsch, englisch) – bei jedem Update neu schreiben
 const EL_NEWS = [
   ["🏷️ <b>Angebote überarbeitet:</b> Das Angebot steht jetzt in einem <b>eigenen Feld</b> („🏷️ 1,19 € bis Sa.“, bei Start in der Zukunft „ab Mo.“) – die Notiz bleibt unberührt, Foto und Barcode bleiben beim Produkt. Nach Ablauf steht <b>1 Tag</b> „⌛ Angebot vorbei“, dann ist es weg. Neu: Knopf <b>„Angebot weg“</b> im Menü beim langen Drücken. Beim Übernehmen aus einem Angebot kommt der <b>Angebotsname</b> als Artikel auf die Liste und das <b>ursprüngliche Produkt wird abgehakt</b>. Artikel aus Angeboten werden beim Abhaken <b>ganz gelöscht</b>.",
    "🏷️ <b>Offers reworked:</b> the offer now sits in its <b>own field</b> (“🏷️ 1.19 € until Sat”, “from Mon” if it starts in the future) – the note stays untouched, photo and barcode stay with the product. After it ends, “⌛ Offer over” shows for <b>1 day</b>, then it's gone. New: <b>“Remove offer”</b> button in the long-press menu. When you take an offer, the <b>offer's product name</b> goes on the list and the <b>original product is checked off</b>. Items from offers are <b>deleted completely</b> when you check them off."],
   ["▥ <b>Barcode beim Eintragen:</b> Neben dem Foto-Symbol gibt es jetzt ein <b>▥ mit Plus</b> – damit gibst du einem neuen Produkt gleich beim Eintragen einen Barcode (HA-App und Offline-App).",
    "▥ <b>Barcode when adding:</b> next to the photo icon there's now a <b>▥ with a plus</b> – give a new product a barcode right when you add it (HA app and offline app)."],
+  ["🛒 Im <b>Laden-Modus</b> sind die Kacheln dreispaltig und der Barcode-Scanner hakt passende Artikel auf der Liste ab.",
+   "🛒 In <b>shopping mode</b>, tiles use three columns and the barcode scanner checks matching items off the list."],
+  ["🛒 Die <b>Kachelansicht</b> hat jetzt zwei Spalten und mehr Platz für Geschäftsfarben, Menge, Notizen und Angebote. In der Offline-App kannst du oben zwischen Kacheln und Liste wechseln.",
+   "🛒 The <b>tile view</b> now has two columns and more room for store colours, quantities, notes and offers. In the offline app you can switch between tiles and list at the top."],
+  ["🧾 <b>Einkaufs-Protokoll</b> (in ⚙️ → App & Aussehen einschalten): nach dem Einkauf Geschäft und Betrag eintragen. Die Auswertung zeigt die Kosten pro Geschäft, pro Monat und zusammen – mit Filtern für Person, Geschäft und Datum. Der 🧾-Knopf sitzt oben in der Karte und im Verlauf.",
+   "🧾 <b>Purchase log</b> (switch on in ⚙️ → App & appearance): after shopping, enter the store and the amount. The overview shows the cost per store, per month and in total – with filters for person, store and date. The 🧾 button is at the top of the card and in the history."],
+  ["🗂️ Artikel aus <b>Angeboten, E-Mail, Alexa/To-do und Text einfügen</b> landen jetzt automatisch in der passenden Kategorie (wie beim letzten Mal, sonst nach dem Wörterbuch).",
+   "🗂️ Items from <b>offers, e-mail, Alexa/to-do and pasted text</b> now land in the right category automatically (as last time, otherwise by the dictionary)."],
+  ["🎨 Im <b>Menü beim langen Drücken</b> auf einen Artikel sind Menge, Kategorie, Foto, Barcode, Infos und Angebote jetzt farbig – aber nur, wenn dort etwas hinterlegt ist.",
+   "🎨 In the <b>menu when you long-press</b> an item, quantity, category, photo, barcode, info and offers are now coloured – but only if something is stored there."],
+  ["🆕 <b>„Was ist neu“</b> – diese Liste, in ⚙️ und in der Anleitung.",
+   "🆕 <b>“What's new”</b> – this list, in ⚙️ and in the guide."],
 ];
 const EL_START_STORE_ICONS = new Set(["mdi:cart", "mdi:lotion"]); // so bekommen Geschäfte beim Einrichten ihr Icon – zählt als „automatisch“
 const EGAL_CHIP = `<span class="chip" style="--c:#888">🤷 Egal wo</span>`; // Artikel ohne Geschäft: überall kaufen
@@ -2292,9 +2304,11 @@ class EinkaufslisteCard extends HTMLElement {
     this.$("addForm").classList.toggle("fixed", !!this._fixedStore);
     const scanBtn = this.$("btnScan");
     scanBtn.hidden = !this._hasAppScanner();
+    const shopStore = this._shopMode && this._view === "list" && this._store(this._fixedStore || this._activeTab);
     const nearStore = this._lastNear && this._store(this._lastNear);
-    scanBtn.classList.toggle("instore", !!nearStore);
-    scanBtn.title = nearStore ? `Scannen & abhaken (${nearStore.name})` : "Barcode scannen";
+    const checkOff = this._shopMode && this._view === "list";
+    scanBtn.classList.toggle("instore", !!shopStore || !!nearStore || checkOff);
+    scanBtn.title = shopStore ? `Scannen & abhaken (${shopStore.name})` : checkOff || nearStore ? "Scannen & abhaken" : "Barcode scannen";
     this._updateTools();
     st.hidden = !!this._fixedStore;
     const prevStore = st.value;
@@ -5557,8 +5571,12 @@ class EinkaufslisteCard extends HTMLElement {
 
   // ▥ antippen: im Laden = abhaken, zu Hause = eintragen
   _scanButton() {
-    const near = this._formMode !== "recipe" && this._lastNear && this._store(this._lastNear);
-    if (near) return this._scanCheckOff(near);
+    if (this._formMode !== "recipe") {
+      const near = this._lastNear && this._store(this._lastNear);
+      if (this._shopMode && this._view === "list")
+        return this._scanCheckOff(this._store(this._fixedStore || this._activeTab) || near || null);
+      if (near) return this._scanCheckOff(near);
+    }
     this._appScan({
       title: "🛒 Barcode scannen",
       altLabel: "📦 Mehrere scannen",
@@ -5660,7 +5678,7 @@ class EinkaufslisteCard extends HTMLElement {
   _scanCheckOff(store) {
     const stats = { checked: 0 };
     this._appScan({
-      title: `✅ Scannen & abhaken · ${store.name}`,
+      title: `✅ Scannen & abhaken${store ? ` · ${store.name}` : ""}`,
       description: "Packung scannen, bevor sie in den Wagen kommt.",
       altLabel: "✔ Fertig",
       series: true,
@@ -5668,12 +5686,19 @@ class EinkaufslisteCard extends HTMLElement {
         const res = await this._lookup(code);
         if (!res.found) return res.offline ? "📴 Ohne Netz kenne ich nur schon gemerkte Barcodes" : "🤔 Diesen Barcode kenne ich noch nicht";
         const want = this._pk(res.name, res.note);
-        let open = this._data.items.filter((i) => !i.checked && this._pk(i.name, i.note) === want);
-        if (!open.length && !res.note) open = this._data.items.filter((i) => !i.checked && i.name.toLowerCase() === res.name.toLowerCase());
-        const item = open.find((i) => i.store_id === store.id) || open[0];
+        const available = this._data.items.filter((i) => !i.checked && (!store || !i.store_id || i.store_id === store.id));
+        let open = available.filter((i) => this._pk(i.name, i.note) === want);
+        if (!open.length) {
+          const sameName = available.filter((i) => i.name.toLowerCase() === res.name.toLowerCase());
+          // Eine beim Einkauf ergänzte Notiz (z. B. Angebot) ändert den Barcode-Schlüssel.
+          // Bei mehreren Varianten nicht raten, welche Packung gemeint ist.
+          if (sameName.length === 1) open = sameName;
+          else if (sameName.length > 1) return `ℹ️ Mehrere Varianten von ${res.name} – bitte von Hand abhaken`;
+        }
+        const item = store ? open.find((i) => i.store_id === store.id) || open[0] : open[0];
         if (!item) return `ℹ️ ${res.name} steht nicht auf der Liste`;
         try {
-          await this._ws({ type: "einkaufsliste/item/toggle", item_id: item.id, checked: true, via: "scan", ...(!item.store_id ? { store_id: store.id } : {}) });
+          await this._ws({ type: "einkaufsliste/item/toggle", item_id: item.id, checked: true, via: "scan", ...(!item.store_id && store ? { store_id: store.id } : {}) });
           stats.checked++;
           return `✅ ${item.name} abgehakt`;
         } catch (err) {
@@ -6856,6 +6881,181 @@ const EDITOR_LABELS = {
   language: "🌍 Sprache / Language",
 };
 
+// Eine zweite Darstellung derselben Liste. Alle Aktionen, Daten und Offline-Befehle
+// bleiben in der normalen Card; nur die Listenansicht wird als Kachelraster gerendert.
+const TILE_STYLE = `
+  :host { --tile-accent:var(--primary-color,#03a9f4); display:block; }
+  ha-card { display:flex; flex-direction:column; background:var(--card-background-color,#2d2d2d); color:var(--primary-text-color,#e7ebe6); padding:12px 10px 8px; }
+  #listView { display:flex; flex-direction:column; min-width:0; }
+  #addForm { order:0; margin:2px 0 10px; }
+  #addForm #inName { min-height:54px; border:1px solid var(--divider-color,#879087); border-radius:16px; background:transparent; color:var(--primary-text-color); font-size:18px; padding-left:16px; }
+  #addForm #inName::placeholder { color:var(--secondary-text-color,#b7c0b8); }
+  #addForm .addbtn { border-radius:14px; background:var(--tile-accent); }
+  #addForm .toolbar, #addForm .row2 { opacity:.85; }
+  #tabs { order:1; margin:0 0 12px; gap:8px; }
+  #tabs .tab { background:color-mix(in srgb,var(--tile-bg) 20%,var(--card-background-color,#2d2d2d)); border:1px solid var(--tile-bg); border-radius:11px; padding:9px 13px; color:var(--primary-text-color); white-space:nowrap; font-size:15px; }
+  #tabs .tab.active { background:var(--tile-bg); color:var(--tile-fg); }
+  #tabs .tab .dot, #tabs .tab .bubble { display:none; }
+  #list { order:2; padding:0 0 10px; }
+  .tile-sort { display:flex; justify-content:flex-end; margin:3px 4px 12px; }
+  .tile-sort button { border:0; background:none; color:var(--tile-accent); font:inherit; font-size:15px; padding:8px 0 8px 12px; cursor:pointer; }
+  .tile-group { margin:0 0 24px; }
+  .tile-category { width:100%; display:flex; align-items:center; gap:9px; padding:11px 4px 15px; border:0; background:none; color:var(--primary-text-color); font:inherit; font-size:21px; text-align:left; cursor:pointer; }
+  .tile-category ha-icon:first-child { color:var(--tile-bg); }
+  .tile-category .chevron { margin-left:auto; transition:transform .15s; }
+  .tile-category[aria-expanded="false"] .chevron { transform:rotate(-90deg); }
+  .tile-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:9px; padding:0 4px; }
+  .shop .tile-grid { grid-template-columns:repeat(3,minmax(0,1fr)); }
+  .shop .tile-grid .tile-hit { min-height:104px; padding:10px 7px 8px; gap:5px; }
+  .shop .tile-grid .tile-name { font-size:14px; }
+  .shop .tile-grid .tile-note { -webkit-line-clamp:2; line-clamp:2; }
+  .shop .tile-grid .tile-offer, .shop .tile-grid .tile-offer-link { display:none; }
+  .tile-grid .item.tile { position:relative; min-width:0; display:flex; flex-direction:column; border:0; border-radius:16px; background:var(--tile-bg); color:var(--tile-fg); overflow:hidden; box-shadow:0 2px 4px #0004; }
+  .tile-grid .item.tile.done { filter:saturate(.45); opacity:.75; }
+  .tile-grid .item.tile.pending { opacity:.55; }
+  .tile-grid .tile-hit { width:100%; min-height:132px; flex:1; display:flex; flex-direction:column; align-items:stretch; gap:7px; padding:13px 10px 10px; border:0; background:none; color:inherit; cursor:pointer; font:inherit; text-align:left; }
+  .tile-grid .tile-name { display:block; padding-right:18px; overflow-wrap:anywhere; font-size:17px; font-weight:600; line-height:1.2; }
+  .tile-grid .tile-note { display:-webkit-box; -webkit-box-orient:vertical; -webkit-line-clamp:3; line-clamp:3; overflow:hidden; overflow-wrap:anywhere; font-size:12px; line-height:1.25; opacity:.95; }
+  .tile-grid .tile-meta { display:flex; flex-wrap:wrap; align-items:center; gap:4px; margin-top:auto; }
+  .tile-grid .tile-qty, .tile-grid .tile-offer, .tile-grid .tile-store { border-radius:7px; padding:3px 5px; background:var(--tile-chip,#ffffff30); color:inherit; font-size:11px; line-height:1.2; overflow-wrap:anywhere; }
+  .tile-grid .tile-offer { font-weight:700; }
+  .tile-grid .tile-store { max-width:100%; }
+  .tile-grid .tile-offer-link { align-self:flex-start; margin:0 10px 10px; border:1px solid currentColor; border-radius:7px; padding:3px 6px; background:transparent; color:inherit; font:inherit; font-size:11px; cursor:pointer; }
+  .tile-grid .tile-more { position:absolute; top:2px; right:2px; z-index:1; width:30px; height:30px; border:0; border-radius:50%; background:transparent; color:inherit; cursor:pointer; opacity:.9; }
+  .tile-grid .tile-more ha-icon { --mdc-icon-size:19px; }
+  .tile-grid .tile-wide { grid-column:1/-1; min-width:0; }
+  .tile-grid .tile-wide .menurow { display:flex; flex-wrap:wrap; }
+  .tile-done-title { width:100%; border:0; background:none; color:var(--primary-text-color); padding:12px 4px; text-align:left; font:inherit; font-size:18px; cursor:pointer; }
+  .tile-done-title ha-icon { float:right; }
+  .tile-empty { padding:24px 12px; text-align:center; color:var(--secondary-text-color); }
+  #otherView { order:1; }
+  #footer { order:3; }
+`;
+
+class EinkaufslisteTilesCard extends EinkaufslisteCard {
+  static getConfigElement() { return document.createElement("einkaufsliste-card-editor"); }
+  static getStubConfig() { return { title: "Einkaufsliste" }; }
+
+  _build() {
+    super._build();
+    const style = document.createElement("style");
+    style.textContent = TILE_STYLE;
+    this.shadowRoot.append(style);
+    this.$("inName").placeholder = "Suchst du etwas?";
+    this._tileClosed = new Set();
+    this._tileSort = "category";
+    this._renderList();
+  }
+
+  _renderTabs() {
+    const tabs = this.$("tabs");
+    if (this._fixedStore) { tabs.hidden = true; this._markSeen(); return; }
+    tabs.hidden = false;
+    const open = (fn) => this._data.items.filter((i) => !i.checked && fn(i)).length;
+    const active = this._activeTab;
+    const names = [{ id:"all", name:"Alle", count:open(() => true) },
+      ...this._data.stores.map((s) => ({ id:s.id, name:s.name, color:s.color, count:open((i) => i.store_id === s.id || !i.store_id) }))];
+    if (this._data.items.some((i) => !i.store_id) || active === "none")
+      names.push({ id:"none", name:"Egal wo", count:open((i) => !i.store_id) });
+    const left = tabs.scrollLeft;
+    tabs.innerHTML = names.map((s) => `<button class="tab ${active === s.id ? "active" : ""}" data-act="tab" data-tab="${esc(s.id)}" style="${this._tileColors(s.color)}">${esc(s.name)} (${s.count})</button>`).join("");
+    tabs.scrollLeft = left;
+    this._markSeen();
+  }
+
+  _tileColors(color) {
+    const raw = String(color || "").trim();
+    const hex = /^#[\da-f]{3}(?:[\da-f]{3})?$/i.test(raw) ? raw : "#607d8b";
+    const full = hex.length === 4 ? hex.slice(1).split("").map((c) => c + c).join("") : hex.slice(1);
+    const rgb = [0, 2, 4].map((i) => parseInt(full.slice(i, i + 2), 16) / 255);
+    const linear = rgb.map((v) => v <= .04045 ? v / 12.92 : ((v + .055) / 1.055) ** 2.4);
+    const light = .2126 * linear[0] + .7152 * linear[1] + .0722 * linear[2] > .179;
+    return `--tile-bg:${hex};--tile-fg:${light ? "#17201b" : "#fff"};--tile-chip:${light ? "#00000020" : "#ffffff30"}`;
+  }
+
+  _tileHtml(item) {
+    const store = this._store(item.store_id);
+    const siblings = this._grpMap?.get(item.id) || [];
+    const stores = siblings.length > 1 ? siblings.map((i) => this._store(i.store_id)?.name || "Egal wo") : [store?.name || "Egal wo"];
+    const offers = !item.checked && !this._shopMode ? this._offersFor(item) : [];
+    const offer = item.offer?.p != null && !item.offer.expired ? item.offer : null;
+    const note = offer?.part ? String(item.note || "").replace(offer.part, "").replace(/^\s*·\s*|\s*·\s*$/g, "").trim() : item.note;
+    const label = [item.name, item.quantity, note].filter(Boolean).join(" · ");
+    const offerText = this._shopMode ? "" : offer ? this._offerLabel(offer).replace(/<[^>]+>/g, "") : offers.length ? `🏷️ ${offers.length} Angebot${offers.length === 1 ? "" : "e"}` :
+      !item.checked && item.offer?.expired && Date.now() - new Date(item.offer.expired) < DAY ? "⌛ Angebot vorbei" : "";
+    return `<div class="item tile ${item.checked ? "done" : ""} ${this._pending.has(item.id) ? "pending" : ""}" data-id="${esc(item.id)}" style="${this._tileColors(store?.color)}">
+      <button type="button" class="tile-hit" data-act="toggle" title="${esc(label)} – ${item.checked ? "Wieder auf die Liste" : "Abhaken"}" aria-label="${esc(label)} – ${item.checked ? "Wieder auf die Liste" : "Abhaken"}">
+        <span class="tile-name">${esc(item.name)}</span>
+        ${note ? `<span class="tile-note" title="${esc(note)}">📝 ${esc(note)}</span>` : ""}
+        <span class="tile-meta">${offerText ? `<span class="tile-offer">${esc(offerText)}</span>` : ""}${item.quantity ? `<span class="tile-qty">${esc(item.quantity)}</span>` : ""}${stores.map((name) => `<span class="tile-store">${esc(name)}</span>`).join("")}</span>
+      </button>${offers.length ? `<button type="button" class="tile-offer-link" data-act="offers-show" data-id="${esc(item.id)}">Angebote ansehen</button>` : ""}<button type="button" class="tile-more" data-act="tile-menu" aria-label="Weitere Aktionen für ${esc(item.name)}" title="Bearbeiten und weitere Aktionen"><ha-icon icon="mdi:dots-horizontal"></ha-icon></button></div>
+      ${this._editing === item.id ? `<div class="tile-wide">${this._editHtml(item)}</div>` : ""}
+      ${this._wherePick?.id === item.id ? `<div class="tile-wide">${this._whereHtml(item)}</div>` : ""}
+      ${this._menuId === item.id ? `<div class="tile-wide">${this._menuHtml(item)}</div>` : ""}
+      ${this._qtyEdit === item.id ? `<div class="tile-wide">${this._qtyHtml(item)}</div>` : ""}
+      ${this._moving === item.id ? `<div class="tile-wide">${this._moveHtml(item)}</div>` : ""}
+      ${this._catPick === item.id ? `<div class="tile-wide">${this._catPickHtml(item)}</div>` : ""}`;
+  }
+
+  _renderList() {
+    if (!this._data || !this.$("list")) return;
+    this._grpMap = new Map();
+    const all = this._data.items.filter((i) => this._matchesTab(i));
+    const typed = this._shopMode ? "" : (splitMany(this.$("inName").value).pop() || "").trim().toLowerCase();
+    const filter = (splitQty(typed).name || typed).trim();
+    const matches = (i) => !filter || [i.name, i.note, i.for_whom].some((s) => String(s || "").toLowerCase().includes(filter));
+    let open = all.filter((i) => !i.checked && matches(i));
+    let done = all.filter((i) => i.checked && matches(i));
+    if (this._activeTab === "all" && !this._fixedStore) {
+      open = this._groupStores(open);
+      done = this._groupStores(done);
+    }
+    const html = [`<div class="tile-sort"><button type="button" data-act="tile-sort" title="Sortierung ändern">${this._tileSort === "name" ? "Name" : "Kategorie"} ☰</button></div>`];
+    if (this._conflict) html.push(this._conflictHtml());
+    if (this._missHint) html.push(this._missHintHtml());
+    if (!open.length) html.push(`<div class="tile-empty">${filter ? `Keine Treffer für „${esc(filter)}“` : "Die Liste ist leer – oben etwas eintragen ✍️"}</div>`);
+    const cats = this._tileSort === "name" ? [{ id:"all", name:"Alle Produkte", icon:"mdi:format-list-bulleted" }]
+      : [...(this._fixedStore || (this._activeTab !== "all" && this._activeTab !== "none") ? this._storeCats(this._fixedStore || this._activeTab) : this._data.categories),
+          { id:"none", name:"Ohne Kategorie", icon:"mdi:tag-outline" }];
+    for (const cat of cats) {
+      const items = open.filter((i) => cat.id === "all" || (i.category_id || "none") === cat.id)
+        .sort((a, b) => a.name.localeCompare(b.name, "de"));
+      if (!items.length) continue;
+      const closed = this._tileClosed?.has(cat.id);
+      html.push(`<section class="tile-group"><button class="tile-category" type="button" data-act="tile-cat" data-cat="${esc(cat.id)}" aria-expanded="${!closed}" style="${this._tileColors(cat.color)}">
+        <ha-icon icon="${esc(cat.icon || "mdi:tag-outline")}"></ha-icon><span>${esc(cat.name)}</span><ha-icon class="chevron" icon="mdi:chevron-down"></ha-icon></button>
+        ${closed ? "" : `<div class="tile-grid">${items.map((i) => this._tileHtml(i)).join("")}</div>`}</section>`);
+    }
+    if (this._config.show_checked && done.length) html.push(`<section class="tile-group"><button class="tile-done-title" type="button" data-act="toggle-done" aria-expanded="${!!this._doneOpen}">Erledigt (${done.length}) <ha-icon icon="mdi:chevron-down"></ha-icon></button>
+      ${this._doneOpen ? `<div class="tile-grid">${done.sort((a, b) => a.name.localeCompare(b.name, "de")).map((i) => this._tileHtml(i)).join("")}</div>` : ""}</section>`);
+    this.$("list").innerHTML = html.join("");
+    if (this._editing) this.$("edName")?.focus();
+  }
+
+  _onClick(e) {
+    const el = e.target.closest?.("[data-act]");
+    if (el?.dataset.act === "tile-menu") {
+      const id = el.closest(".item")?.dataset.id;
+      this._menuId = this._menuId === id ? null : id;
+      this._renderList();
+      return;
+    }
+    if (el?.dataset.act === "tile-cat") {
+      const id = el.dataset.cat;
+      if (this._tileClosed.has(id)) this._tileClosed.delete(id); else this._tileClosed.add(id);
+      this._renderList();
+      return;
+    }
+    if (el?.dataset.act === "tile-sort") {
+      this._tileSort = this._tileSort === "name" ? "category" : "name";
+      this._tileClosed.clear();
+      this._renderList();
+      return;
+    }
+    super._onClick(e);
+  }
+}
+
 class EinkaufslisteCardEditor extends HTMLElement {
   setConfig(config) { this._config = { store: "all", ...config }; this._render(); }
   set hass(hass) {
@@ -6915,6 +7115,7 @@ class EinkaufslisteCardEditor extends HTMLElement {
 }
 
 if (!customElements.get("einkaufsliste-card")) customElements.define("einkaufsliste-card", EinkaufslisteCard);
+if (!customElements.get("einkaufsliste-tiles-card")) customElements.define("einkaufsliste-tiles-card", EinkaufslisteTilesCard);
 if (!customElements.get("einkaufsliste-card-editor")) customElements.define("einkaufsliste-card-editor", EinkaufslisteCardEditor);
 
 window.customCards = window.customCards || [];
@@ -6923,6 +7124,15 @@ if (!window.customCards.some((c) => c.type === "einkaufsliste-card")) {
     type: "einkaufsliste-card",
     name: "Einkaufsliste",
     description: "Familien-Einkaufsliste mit Geschäften, Kategorien, Rezepten und Live-Sync.",
+    preview: false,
+    documentationURL: "https://github.com/misterm2310/einkaufslisten-card",
+  });
+}
+if (!window.customCards.some((c) => c.type === "einkaufsliste-tiles-card")) {
+  window.customCards.push({
+    type: "einkaufsliste-tiles-card",
+    name: "Einkaufsliste · Kacheln",
+    description: "Dieselbe Einkaufsliste mit großen Produktkacheln, Geschäften und Kategorien.",
     preview: false,
     documentationURL: "https://github.com/misterm2310/einkaufslisten-card",
   });

@@ -54,6 +54,14 @@ Dazu viele Kleinigkeiten: Fotos pro Produkt, Spitznamen („Tempos“ = Taschent
 type: custom:einkaufsliste-card
 ```
 
+Für eine zweite Ansicht mit großen Produktkacheln, Geschäften und einklappbaren Kategorien:
+
+```yaml
+type: custom:einkaufsliste-tiles-card
+```
+
+Beide Karten verwenden dieselbe Liste. Die Kacheln stehen in zwei Spalten und zeigen Geschäft in dessen konfigurierter Farbe, Menge, Notiz und Angebote. Die Kopfzeile bleibt oben; Geschäftsreiter und Kategorieicons verwenden ihre konfigurierten Farben. Ein Tipp auf eine Kachel hakt den Artikel ab oder setzt ihn wieder auf die Liste; **⋯** öffnet die bekannten Aktionen. Suche und Hinzufügen teilen sich das obere Eingabefeld. Rezepte und Einstellungen bleiben über die Schaltflächen oben erreichbar. In der Offline-App ist die Kachelansicht voreingestellt und lässt sich oben auf die klassische Liste umschalten.
+
 > 🙌 Eine Ressource musst du **nicht** von Hand eintragen, das macht die Integration selbst.
 > Sieht die Karte nach einem Update komisch aus? In der App einmal nach unten ziehen oder im Browser Strg+F5.
 
@@ -77,7 +85,7 @@ Den Ordner `custom_components/einkaufsliste` nach `/config/custom_components/ein
 - ✨ = neu seit deinem letzten Blick, die rote Zahl am Reiter zeigt, wie viel Neues dort steht.
 - Oben links der **Einkaufswagen** öffnet eine Anleitung für die ganze Familie – samt App-Link zum Kopieren.
 
-**Im Laden:** Der Wagen oben rechts schaltet den **Laden-Modus** ein. Kein Netz? Einfach weiter abhaken, der Punkt oben wird orange ⏳ und alles wird nachgeschickt.
+**Im Laden:** Der Wagen oben rechts schaltet den **Laden-Modus** ein. In der Kachelansicht erscheinen dann drei kompakte Spalten ohne Angebote. Kein Netz? Einfach weiter abhaken, der Punkt oben wird orange ⏳ und alles wird nachgeschickt.
 
 **Rezepte:** Anlegen in ⚙️ → Rezepte (Zutaten genau wie auf der Liste eintragen, oder eine Zutaten-Liste bzw. einen Rezept-Link einfügen). Die **Kochmütze** oben: **Auf die Liste** → anhaken, was fehlt → fertig. Dazu 👥 Personen oder 🍕 Bleche umrechnen, **🔥 Kochen** (Schritt für Schritt), **Teilen** (z. B. WhatsApp) und **⏲️ Gar-Zeiten**. Abgehakte Rezept-Zutaten verschwinden ganz.
 
@@ -87,7 +95,7 @@ Den Ordner `custom_components/einkaufsliste` nach `/config/custom_components/ein
 
 Der ▥-Knopf oben weiß, wo du bist:
 - 🏠 **Zu Hause:** Packung scannen → Name, Marke und Kategorie sind ausgefüllt → ✔. Mit **„📦 Mehrere scannen“** kommt jede Packung sofort auf die Liste. Unbekannte landen als „❓ Unbekannt“ drauf – einmal umbenennen, dann kennt die Liste den Barcode.
-- 🛒 **Im Laden** (Geschäft mit 📍 Zone): Jede gescannte Packung wird auf der Liste abgehakt.
+- 🛒 **Im Laden** (Laden-Modus eingeschaltet oder Geschäft mit 📍 Zone): Eine bekannte gescannte Packung wird abgehakt, wenn sie offen auf der Liste steht. Im Geschäftsreiter bleibt der Scan auf dieses Geschäft und „Egal wo“ beschränkt; bei „Alle“ gilt die gesamte Liste. Unbekannte Barcodes werden nicht automatisch als Einkauf erledigt.
 
 **Wo geht das?**
 - In der **Home-Assistant-App** (Android/iPhone) mit deren Scanner – klappt auch über `http://`.
@@ -101,6 +109,7 @@ Die Produktnamen kommen aus **Open Food Facts**, **Open Beauty Facts** und **Ope
 ## 📱 Offline-App
 
 Die **komplette Karte** als eigene App auf dem Startbildschirm – mit Rezepten, Koch-Modus, Gar-Zeiten, Einstellungen und Kamera-Scanner. Sie öffnet auch **ohne Netz** mit dem letzten Stand.
+Oben in der App wechselst du mit **Listenansicht** beziehungsweise **Kachelansicht** zwischen den beiden Ansichten. Die Auswahl bleibt auf diesem Gerät gespeichert; beide Ansichten nutzen dieselben Daten und dieselbe Offline-Warteschlange.
 
 1. Die Adresse kopieren: in **⚙️ → App & Aussehen → Offline-App** oder in der **Anleitung** (Einkaufswagen oben links) – so kommen auch alle ohne Zahnrad dran.
 2. Im Handy-**Browser** einfügen (Chrome oder Safari, nicht die HA-App).

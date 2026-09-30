@@ -49,6 +49,14 @@ Plus lots of small things: photos per product, nicknames (“Kleenex” = tissue
 type: custom:einkaufsliste-card
 ```
 
+For an optional tile view of the same shopping list:
+
+```yaml
+type: custom:einkaufsliste-tiles-card
+```
+
+The tile view has two columns and shows store colours, quantities, notes and offers. Store tabs and category icons use their configured colours. Tap a tile to check off an item; **⋯** opens the usual actions. In shop mode the tiles switch to three compact columns without offers. The offline app starts with tiles and lets you switch back to the classic list at the top.
+
 > 🙌 No need to add a resource by hand – the integration does it.
 > Card looks odd after an update? Pull down to refresh in the app or press Ctrl+F5 in the browser.
 
@@ -72,7 +80,7 @@ Copy `custom_components/einkaufsliste` to `/config/custom_components/einkaufslis
 - ✨ = new since you last looked; the red number on a tab shows how much is new there.
 - The **shopping cart** at the top left opens a guide for the whole family – including the app link to copy.
 
-**In the store:** the cart at the top right switches on **shop mode**. No connection? Keep checking off, the dot turns orange ⏳ and everything is sent later.
+**In the store:** the cart at the top right switches on **shop mode**. In the tile view, this shows three compact columns without offers. No connection? Keep checking off, the dot turns orange ⏳ and everything is sent later.
 
 **Recipes:** create them in ⚙️ → Recipes (ingredients just like on the list, or paste an ingredient list or a recipe link). The **chef's hat** at the top: **Add to list** → tick what's missing → done. Also 👥 people or 🍕 trays scaling, **🔥 Cook** (step by step), **Share** (e.g. WhatsApp) and **⏲️ cooking times**. Checked recipe ingredients disappear completely.
 
@@ -82,7 +90,7 @@ Copy `custom_components/einkaufsliste` to `/config/custom_components/einkaufslis
 
 The ▥ button at the top knows where you are:
 - 🏠 **At home:** scan a pack → name, brand and category are filled in → ✔. With **“📦 Scan several”** every pack goes straight onto the list. Unknown ones are added as “❓ Unknown” – rename once and the list knows the barcode.
-- 🛒 **In the store** (store with a 📍 zone): every scanned pack is checked off on the list.
+- 🛒 **In the store** (shop mode or a store with a 📍 zone): a known barcode checks off a matching open item. A store tab limits the search to that store and “Anywhere”; the “All” tab searches the entire list. Unknown or ambiguous matches are not checked off automatically.
 
 **Where does it work?**
 - In the **Home Assistant app** (Android/iPhone) with its scanner – works over `http://` too.
@@ -96,6 +104,7 @@ Product names come from **Open Food Facts**, **Open Beauty Facts** and **Open Pr
 ## 📱 Offline app
 
 The **complete card** as its own app on your home screen – with recipes, cook mode, cooking times, settings and camera scanner. It opens **without a connection** with the last state.
+Use **List view** or **Tile view** at the top to switch layouts. The choice is saved on that device; both views share the same data and offline queue.
 
 1. Copy the address: in **⚙️ → App & look → Offline app** or in the **guide** (shopping cart at the top left) – so everyone without the gear can get it too.
 2. Paste it into the phone's **browser** (Chrome or Safari, not the HA app).

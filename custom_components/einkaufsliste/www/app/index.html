@@ -543,6 +543,9 @@ function makeHass() {
 
 // ---------------------------------------------------------------- 🖼️ Seite
 let card = null;
+let navFootListener = null;
+const VIEW_KEY = "einkaufsliste_app_view";
+let appView = (() => { try { return localStorage.getItem(VIEW_KEY) === "list" ? "list" : "tiles"; } catch (_) { return "tiles"; } })();
 function toast(msg) {
   document.querySelectorAll("body > .toast").forEach((t) => t.remove());
   const el = document.createElement("div"); el.className = "toast"; el.textContent = msg;
@@ -551,8 +554,10 @@ function toast(msg) {
 window.addEventListener("hass-notification", (e) => toast(e.detail?.message || ""));
 function update() {
   const wrap = document.getElementById("wrap");
+  const cardTag = appView === "tiles" ? "einkaufsliste-tiles-card" : "einkaufsliste-card";
   if (!auth) {
     card = null;
+    if (navFootListener) { window.removeEventListener("einkaufsliste-nav", navFootListener); navFootListener = null; }
     wrap.innerHTML = `<div class="login"><img src="icon-192.png" alt=""><h1>${T("Einkaufsliste", "Shopping list")}</h1>
       <p>${T("Einmal mit deinem Home-Assistant-Benutzer anmelden. Danach funktioniert die Liste auch ohne Netz.", "Log in once with your Home Assistant user. After that the list also works without a connection.")}</p>
       ${navigator.onLine === false ? `<p class="small">${T("Zum ersten Anmelden braucht es einmal Netz.", "The first login needs a connection once.")}</p>`
@@ -561,13 +566,22 @@ function update() {
     document.getElementById("loginBtn")?.addEventListener("click", startLogin);
     return;
   }
-  if (!customElements.get("einkaufsliste-card")) {
+  if (!customElements.get(cardTag)) {
     if (!wrap.querySelector(".loading")) wrap.innerHTML = `<p class="small loading" style="text-align:center;margin-top:30vh">⏳ ${T("Lade …", "Loading …")}</p>`;
     return;
   }
   if (!card) {
-    wrap.innerHTML = `<div class="bar"><span class="pill" id="pill"></span><span class="grow"></span><span>v${VERSION}</span></div>`;
-    card = document.createElement("einkaufsliste-card");
+    if (navFootListener) window.removeEventListener("einkaufsliste-nav", navFootListener);
+    wrap.innerHTML = `<div class="bar"><span class="pill" id="pill"></span><span class="grow"></span><button type="button" id="viewBtn"></button><span>v${VERSION}</span></div>`;
+    const viewBtn = document.getElementById("viewBtn");
+    viewBtn.textContent = appView === "tiles" ? T("Listenansicht", "List view") : T("Kachelansicht", "Tile view");
+    viewBtn.addEventListener("click", () => {
+      appView = appView === "tiles" ? "list" : "tiles";
+      try { localStorage.setItem(VIEW_KEY, appView); } catch (_) { /* privater Speicher */ }
+      card = null;
+      update();
+    });
+    card = document.createElement(cardTag);
     card.setConfig({ title: "Einkaufsliste" });
     wrap.append(card);
     // 🚪 Abmelden ganz unten – damit man beim Abhaken nicht aus Versehen draufkommt
@@ -577,7 +591,8 @@ function update() {
     wrap.append(foot);
     // 🚪 Abmelden nur unten in der Einkaufsliste und auf der ersten Seite der Einstellungen
     const showFoot = () => { foot.hidden = !(card._view === "list" || (card._view === "settings" && !card._setSec)); };
-    window.addEventListener("einkaufsliste-nav", () => setTimeout(showFoot, 0));
+    navFootListener = () => setTimeout(() => { if (foot.isConnected) showFoot(); }, 0);
+    window.addEventListener("einkaufsliste-nav", navFootListener);
     showFoot();
     document.getElementById("logoutBtn").addEventListener("click", () => {
       if (confirm(T("Abmelden? Noch nicht gesendete Änderungen gehen verloren.", "Log out? Changes not sent yet will be lost."))) logout(false);
@@ -634,7 +649,7 @@ function logout(silent) {
   const s = document.createElement("script");
   s.type = "module";
   s.src = "/einkaufsliste_files/einkaufsliste-card.js?v=" + VERSION;
-  s.onload = () => customElements.whenDefined("einkaufsliste-card").then(update);
+  s.onload = () => customElements.whenDefined("einkaufsliste-tiles-card").then(update);
   document.head.append(s);
   update();
   connect();
