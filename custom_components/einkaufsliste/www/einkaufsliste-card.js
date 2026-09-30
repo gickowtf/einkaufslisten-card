@@ -6810,6 +6810,169 @@ const EDITOR_LABELS = {
   language: "🌍 Sprache / Language",
 };
 
+// Eine zweite Darstellung derselben Liste. Alle Aktionen, Daten und Offline-Befehle
+// bleiben in der normalen Card; nur die Listenansicht wird als Kachelraster gerendert.
+const TILE_STYLE = `
+  :host { --tile-green:#1bab69; --tile-muted:#30453a; display:block; }
+  ha-card { display:flex; flex-direction:column; background:#2d2d2d; color:#e7ebe6; padding:12px 10px 0; }
+  #listView { display:flex; flex-direction:column; min-width:0; }
+  #addForm { order:0; margin:2px 0 10px; }
+  #addForm #inName { min-height:54px; border:1px solid #879087; border-radius:16px; background:transparent; color:#eef2ec; font-size:18px; padding-left:16px; }
+  #addForm #inName::placeholder { color:#b7c0b8; }
+  #addForm .addbtn { border-radius:14px; background:var(--tile-green); }
+  #addForm .toolbar, #addForm .row2 { opacity:.85; }
+  #tabs { order:1; margin:0 0 12px; gap:8px; }
+  #tabs .tab { background:var(--tile-muted); border:0; border-radius:11px; padding:9px 13px; color:#31c17d; white-space:nowrap; font-size:15px; }
+  #tabs .tab.active { background:var(--tile-green); color:white; }
+  #tabs .tab .dot, #tabs .tab .bubble { display:none; }
+  #list { order:2; padding:0 0 10px; }
+  .tile-sort { display:flex; justify-content:flex-end; margin:3px 4px 12px; }
+  .tile-sort button { border:0; background:none; color:#32c680; font:inherit; font-size:15px; padding:8px 0 8px 12px; cursor:pointer; }
+  .tile-group { margin:0 0 24px; }
+  .tile-category { width:100%; display:flex; align-items:center; gap:9px; padding:11px 4px 15px; border:0; background:none; color:#e7ebe6; font:inherit; font-size:21px; text-align:left; cursor:pointer; }
+  .tile-category ha-icon { color:#30ba79; }
+  .tile-category .chevron { margin-left:auto; transition:transform .15s; }
+  .tile-category[aria-expanded="false"] .chevron { transform:rotate(-90deg); }
+  .tile-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:9px; padding:0 4px; }
+  .tile-grid .item.tile { position:relative; min-width:0; display:block; border:0; border-radius:16px; background:var(--tile-green); color:#fff; overflow:hidden; box-shadow:0 2px 4px #0004; }
+  .tile-grid .item.tile.done { background:#3d5749; color:#dce6dd; }
+  .tile-grid .item.tile.pending { opacity:.55; }
+  .tile-grid .tile-hit { width:100%; min-height:116px; display:flex; flex-direction:column; justify-content:center; align-items:center; gap:10px; padding:12px 5px; border:0; background:none; color:inherit; cursor:pointer; font:inherit; }
+  .tile-grid .tile-hit ha-icon { --mdc-icon-size:43px; }
+  .tile-grid .tile-name { display:block; max-width:100%; overflow-wrap:anywhere; text-align:center; font-size:15px; line-height:1.2; }
+  .tile-grid .tile-qty { font-size:12px; opacity:.9; }
+  .tile-grid .tile-more { position:absolute; top:2px; right:2px; z-index:1; width:30px; height:30px; border:0; border-radius:50%; background:transparent; color:inherit; cursor:pointer; opacity:.9; }
+  .tile-grid .tile-more ha-icon { --mdc-icon-size:19px; }
+  .tile-grid .tile-wide { grid-column:1/-1; min-width:0; }
+  .tile-grid .tile-wide .menurow { display:flex; flex-wrap:wrap; }
+  .tile-done-title { width:100%; border:0; background:none; color:#dce6dd; padding:12px 4px; text-align:left; font:inherit; font-size:18px; cursor:pointer; }
+  .tile-done-title ha-icon { float:right; }
+  .tile-empty { padding:24px 12px; text-align:center; color:#b7c0b8; }
+  .head { order:4; position:sticky; bottom:0; z-index:4; margin:0 -10px; padding:8px 12px max(8px, env(safe-area-inset-bottom)); background:#2d2d2d; border-top:1px solid #475047; }
+  #otherView { order:1; }
+  #footer { order:3; }
+  @media (max-width:330px) { .tile-grid { grid-template-columns:repeat(2,minmax(0,1fr)); } }
+`;
+
+const TILE_ICONS = [
+  [/apfel|äpfel/i, "food-apple-outline"], [/traube/i, "fruit-grapes-outline"],
+  [/möhre|karotte/i, "carrot"], [/banane/i, "fruit-pear"],
+  [/pizza/i, "pizza"], [/wurst|würstchen/i, "sausage"],
+  [/brot|brötchen/i, "bread-slice-outline"], [/käse/i, "cheese"],
+  [/milch/i, "cup-outline"], [/tomate|paprika|gurke|kohlrabi/i, "food-variant"],
+];
+
+class EinkaufslisteTilesCard extends EinkaufslisteCard {
+  static getConfigElement() { return document.createElement("einkaufsliste-card-editor"); }
+  static getStubConfig() { return { title: "Einkaufsliste" }; }
+
+  _build() {
+    super._build();
+    const style = document.createElement("style");
+    style.textContent = TILE_STYLE;
+    this.shadowRoot.append(style);
+    this.$("inName").placeholder = "Suchst du etwas?";
+    this._tileClosed = new Set();
+    this._tileSort = "category";
+    this._renderList();
+  }
+
+  _renderTabs() {
+    const tabs = this.$("tabs");
+    if (this._fixedStore) { tabs.hidden = true; this._markSeen(); return; }
+    tabs.hidden = false;
+    const open = (fn) => this._data.items.filter((i) => !i.checked && fn(i)).length;
+    const active = this._activeTab;
+    const names = [{ id:"all", name:"Alle", count:open(() => true) },
+      ...this._data.stores.map((s) => ({ id:s.id, name:s.name, count:open((i) => i.store_id === s.id || !i.store_id) }))];
+    if (this._data.items.some((i) => !i.store_id) || active === "none")
+      names.push({ id:"none", name:"Egal wo", count:open((i) => !i.store_id) });
+    const left = tabs.scrollLeft;
+    tabs.innerHTML = names.map((s) => `<button class="tab ${active === s.id ? "active" : ""}" data-act="tab" data-tab="${esc(s.id)}">${esc(s.name)} (${s.count})</button>`).join("");
+    tabs.scrollLeft = left;
+    this._markSeen();
+  }
+
+  _tileIcon(item) {
+    const name = item.name || "";
+    return "mdi:" + (TILE_ICONS.find(([rx]) => rx.test(name))?.[1]
+      || stripMdi(this._cat(item.category_id)?.icon) || "basket-outline");
+  }
+
+  _tileHtml(item) {
+    const label = [item.name, item.quantity, item.note].filter(Boolean).join(" · ");
+    return `<div class="item tile ${item.checked ? "done" : ""} ${this._pending.has(item.id) ? "pending" : ""}" data-id="${esc(item.id)}">
+      <button type="button" class="tile-hit" data-act="toggle" title="${esc(label)} – ${item.checked ? "Wieder auf die Liste" : "Abhaken"}" aria-label="${esc(label)} – ${item.checked ? "Wieder auf die Liste" : "Abhaken"}">
+        <ha-icon icon="${esc(this._tileIcon(item))}"></ha-icon><span class="tile-name">${esc(item.name)}</span>
+        ${item.quantity ? `<span class="tile-qty">${esc(item.quantity)}</span>` : ""}
+      </button><button type="button" class="tile-more" data-act="tile-menu" aria-label="Weitere Aktionen für ${esc(item.name)}" title="Bearbeiten und weitere Aktionen"><ha-icon icon="mdi:dots-horizontal"></ha-icon></button></div>
+      ${this._editing === item.id ? `<div class="tile-wide">${this._editHtml(item)}</div>` : ""}
+      ${this._wherePick?.id === item.id ? `<div class="tile-wide">${this._whereHtml(item)}</div>` : ""}
+      ${this._menuId === item.id ? `<div class="tile-wide">${this._menuHtml(item)}</div>` : ""}
+      ${this._qtyEdit === item.id ? `<div class="tile-wide">${this._qtyHtml(item)}</div>` : ""}
+      ${this._moving === item.id ? `<div class="tile-wide">${this._moveHtml(item)}</div>` : ""}
+      ${this._catPick === item.id ? `<div class="tile-wide">${this._catPickHtml(item)}</div>` : ""}`;
+  }
+
+  _renderList() {
+    if (!this._data || !this.$("list")) return;
+    this._grpMap = new Map();
+    const all = this._data.items.filter((i) => this._matchesTab(i));
+    const typed = (splitMany(this.$("inName").value).pop() || "").trim().toLowerCase();
+    const filter = (splitQty(typed).name || typed).trim();
+    const matches = (i) => !filter || [i.name, i.note, i.for_whom].some((s) => String(s || "").toLowerCase().includes(filter));
+    let open = all.filter((i) => !i.checked && matches(i));
+    let done = all.filter((i) => i.checked && matches(i));
+    if (this._activeTab === "all" && !this._fixedStore) {
+      open = this._groupStores(open);
+      done = this._groupStores(done);
+    }
+    const html = [`<div class="tile-sort"><button type="button" data-act="tile-sort" title="Sortierung ändern">${this._tileSort === "name" ? "Name" : "Kategorie"} ☰</button></div>`];
+    if (this._conflict) html.push(this._conflictHtml());
+    if (this._missHint) html.push(this._missHintHtml());
+    if (!open.length) html.push(`<div class="tile-empty">${filter ? `Keine Treffer für „${esc(filter)}“` : "Die Liste ist leer – oben etwas eintragen ✍️"}</div>`);
+    const cats = this._tileSort === "name" ? [{ id:"all", name:"Alle Produkte", icon:"mdi:format-list-bulleted" }]
+      : [...(this._fixedStore || (this._activeTab !== "all" && this._activeTab !== "none") ? this._storeCats(this._fixedStore || this._activeTab) : this._data.categories),
+          { id:"none", name:"Ohne Kategorie", icon:"mdi:tag-outline" }];
+    for (const cat of cats) {
+      const items = open.filter((i) => cat.id === "all" || (i.category_id || "none") === cat.id)
+        .sort((a, b) => a.name.localeCompare(b.name, "de"));
+      if (!items.length) continue;
+      const closed = this._tileClosed?.has(cat.id);
+      html.push(`<section class="tile-group"><button class="tile-category" type="button" data-act="tile-cat" data-cat="${esc(cat.id)}" aria-expanded="${!closed}">
+        <ha-icon icon="${esc(cat.icon || "mdi:tag-outline")}"></ha-icon><span>${esc(cat.name)}</span><ha-icon class="chevron" icon="mdi:chevron-down"></ha-icon></button>
+        ${closed ? "" : `<div class="tile-grid">${items.map((i) => this._tileHtml(i)).join("")}</div>`}</section>`);
+    }
+    if (this._config.show_checked && done.length) html.push(`<section class="tile-group"><button class="tile-done-title" type="button" data-act="toggle-done" aria-expanded="${!!this._doneOpen}">Erledigt (${done.length}) <ha-icon icon="mdi:chevron-down"></ha-icon></button>
+      ${this._doneOpen ? `<div class="tile-grid">${done.sort((a, b) => a.name.localeCompare(b.name, "de")).map((i) => this._tileHtml(i)).join("")}</div>` : ""}</section>`);
+    this.$("list").innerHTML = html.join("");
+    if (this._editing) this.$("edName")?.focus();
+  }
+
+  _onClick(e) {
+    const el = e.target.closest?.("[data-act]");
+    if (el?.dataset.act === "tile-menu") {
+      const id = el.closest(".item")?.dataset.id;
+      this._menuId = this._menuId === id ? null : id;
+      this._renderList();
+      return;
+    }
+    if (el?.dataset.act === "tile-cat") {
+      const id = el.dataset.cat;
+      if (this._tileClosed.has(id)) this._tileClosed.delete(id); else this._tileClosed.add(id);
+      this._renderList();
+      return;
+    }
+    if (el?.dataset.act === "tile-sort") {
+      this._tileSort = this._tileSort === "name" ? "category" : "name";
+      this._tileClosed.clear();
+      this._renderList();
+      return;
+    }
+    super._onClick(e);
+  }
+}
+
 class EinkaufslisteCardEditor extends HTMLElement {
   setConfig(config) { this._config = { store: "all", ...config }; this._render(); }
   set hass(hass) {
@@ -6869,6 +7032,7 @@ class EinkaufslisteCardEditor extends HTMLElement {
 }
 
 if (!customElements.get("einkaufsliste-card")) customElements.define("einkaufsliste-card", EinkaufslisteCard);
+if (!customElements.get("einkaufsliste-tiles-card")) customElements.define("einkaufsliste-tiles-card", EinkaufslisteTilesCard);
 if (!customElements.get("einkaufsliste-card-editor")) customElements.define("einkaufsliste-card-editor", EinkaufslisteCardEditor);
 
 window.customCards = window.customCards || [];
@@ -6877,6 +7041,15 @@ if (!window.customCards.some((c) => c.type === "einkaufsliste-card")) {
     type: "einkaufsliste-card",
     name: "Einkaufsliste",
     description: "Familien-Einkaufsliste mit Geschäften, Kategorien, Rezepten und Live-Sync.",
+    preview: false,
+    documentationURL: "https://github.com/misterm2310/einkaufslisten-card",
+  });
+}
+if (!window.customCards.some((c) => c.type === "einkaufsliste-tiles-card")) {
+  window.customCards.push({
+    type: "einkaufsliste-tiles-card",
+    name: "Einkaufsliste · Kacheln",
+    description: "Dieselbe Einkaufsliste mit großen Produktkacheln, Geschäften und Kategorien.",
     preview: false,
     documentationURL: "https://github.com/misterm2310/einkaufslisten-card",
   });

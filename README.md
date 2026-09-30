@@ -54,6 +54,14 @@ Dazu viele Kleinigkeiten: Fotos pro Produkt, Spitznamen („Tempos“ = Taschent
 type: custom:einkaufsliste-card
 ```
 
+Für eine zweite Ansicht mit großen Produktkacheln, Geschäften und einklappbaren Kategorien:
+
+```yaml
+type: custom:einkaufsliste-tiles-card
+```
+
+Beide Karten verwenden dieselbe Liste. Ein Tipp auf eine Kachel hakt den Artikel ab oder setzt ihn wieder auf die Liste; **⋯** öffnet die bekannten Aktionen. Suche und Hinzufügen teilen sich das obere Eingabefeld. Rezepte und Einstellungen bleiben über die Schaltflächen unten erreichbar. Die eigenständige Offline-App verwendet weiterhin die klassische Ansicht.
+
 > 🙌 Eine Ressource musst du **nicht** von Hand eintragen, das macht die Integration selbst.
 > Sieht die Karte nach einem Update komisch aus? In der App einmal nach unten ziehen oder im Browser Strg+F5.
 
