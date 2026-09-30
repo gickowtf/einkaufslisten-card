@@ -60,7 +60,7 @@ Für eine zweite Ansicht mit großen Produktkacheln, Geschäften und einklappbar
 type: custom:einkaufsliste-tiles-card
 ```
 
-Beide Karten verwenden dieselbe Liste. Die Kacheln zeigen Geschäft in dessen konfigurierter Farbe, Menge, Notiz und Angebote. Ein Tipp auf eine Kachel hakt den Artikel ab oder setzt ihn wieder auf die Liste; **⋯** öffnet die bekannten Aktionen. Suche und Hinzufügen teilen sich das obere Eingabefeld. Rezepte und Einstellungen bleiben über die Schaltflächen unten erreichbar. In der Offline-App ist die Kachelansicht voreingestellt und lässt sich oben auf die klassische Liste umschalten.
+Beide Karten verwenden dieselbe Liste. Die Kacheln stehen in zwei Spalten und zeigen Geschäft in dessen konfigurierter Farbe, Menge, Notiz und Angebote. Die Kopfzeile bleibt oben; Geschäftsreiter und Kategorieicons verwenden ihre konfigurierten Farben. Ein Tipp auf eine Kachel hakt den Artikel ab oder setzt ihn wieder auf die Liste; **⋯** öffnet die bekannten Aktionen. Suche und Hinzufügen teilen sich das obere Eingabefeld. Rezepte und Einstellungen bleiben über die Schaltflächen oben erreichbar. In der Offline-App ist die Kachelansicht voreingestellt und lässt sich oben auf die klassische Liste umschalten.
 
 > 🙌 Eine Ressource musst du **nicht** von Hand eintragen, das macht die Integration selbst.
 > Sieht die Karte nach einem Update komisch aus? In der App einmal nach unten ziehen oder im Browser Strg+F5.

@@ -2,11 +2,11 @@
  * Einkaufsliste Card – die Familien-Einkaufsliste für Home Assistant
  * Wird automatisch von der Integration "einkaufsliste" geladen.
  */
-const EL_VERSION = "2.39.0";
+const EL_VERSION = "2.39.1";
 // 🆕 Was ist neu in dieser Version (deutsch, englisch) – bei jedem Update neu schreiben
 const EL_NEWS = [
-  ["🛒 Die neue <b>Kachelansicht</b> zeigt Geschäftsfarben, Menge, Notizen und Angebote. In der Offline-App kannst du oben zwischen Kacheln und Liste wechseln.",
-   "🛒 The new <b>tile view</b> shows store colours, quantities, notes and offers. In the offline app you can switch between tiles and list at the top."],
+  ["🛒 Die <b>Kachelansicht</b> hat jetzt zwei Spalten und mehr Platz für Geschäftsfarben, Menge, Notizen und Angebote. In der Offline-App kannst du oben zwischen Kacheln und Liste wechseln.",
+   "🛒 The <b>tile view</b> now has two columns and more room for store colours, quantities, notes and offers. In the offline app you can switch between tiles and list at the top."],
   ["🧾 <b>Einkaufs-Protokoll</b> (in ⚙️ → App & Aussehen einschalten): nach dem Einkauf Geschäft und Betrag eintragen. Die Auswertung zeigt die Kosten pro Geschäft, pro Monat und zusammen – mit Filtern für Person, Geschäft und Datum. Der 🧾-Knopf sitzt oben in der Karte und im Verlauf.",
    "🧾 <b>Purchase log</b> (switch on in ⚙️ → App & appearance): after shopping, enter the store and the amount. The overview shows the cost per store, per month and in total – with filters for person, store and date. The 🧾 button is at the top of the card and in the history."],
   ["🗂️ Artikel aus <b>Angeboten, E-Mail, Alexa/To-do und Text einfügen</b> landen jetzt automatisch in der passenden Kategorie (wie beim letzten Mal, sonst nach dem Wörterbuch).",
@@ -6815,28 +6815,28 @@ const EDITOR_LABELS = {
 // Eine zweite Darstellung derselben Liste. Alle Aktionen, Daten und Offline-Befehle
 // bleiben in der normalen Card; nur die Listenansicht wird als Kachelraster gerendert.
 const TILE_STYLE = `
-  :host { --tile-green:#1bab69; --tile-muted:#30453a; display:block; }
-  ha-card { display:flex; flex-direction:column; background:#2d2d2d; color:#e7ebe6; padding:12px 10px 0; }
+  :host { --tile-accent:var(--primary-color,#03a9f4); display:block; }
+  ha-card { display:flex; flex-direction:column; background:var(--card-background-color,#2d2d2d); color:var(--primary-text-color,#e7ebe6); padding:12px 10px 8px; }
   #listView { display:flex; flex-direction:column; min-width:0; }
   #addForm { order:0; margin:2px 0 10px; }
-  #addForm #inName { min-height:54px; border:1px solid #879087; border-radius:16px; background:transparent; color:#eef2ec; font-size:18px; padding-left:16px; }
-  #addForm #inName::placeholder { color:#b7c0b8; }
-  #addForm .addbtn { border-radius:14px; background:var(--tile-green); }
+  #addForm #inName { min-height:54px; border:1px solid var(--divider-color,#879087); border-radius:16px; background:transparent; color:var(--primary-text-color); font-size:18px; padding-left:16px; }
+  #addForm #inName::placeholder { color:var(--secondary-text-color,#b7c0b8); }
+  #addForm .addbtn { border-radius:14px; background:var(--tile-accent); }
   #addForm .toolbar, #addForm .row2 { opacity:.85; }
   #tabs { order:1; margin:0 0 12px; gap:8px; }
-  #tabs .tab { background:var(--tile-muted); border:0; border-radius:11px; padding:9px 13px; color:#31c17d; white-space:nowrap; font-size:15px; }
-  #tabs .tab.active { background:var(--tile-bg,var(--tile-green)); color:var(--tile-fg,white); }
+  #tabs .tab { background:color-mix(in srgb,var(--tile-bg) 20%,var(--card-background-color,#2d2d2d)); border:1px solid var(--tile-bg); border-radius:11px; padding:9px 13px; color:var(--primary-text-color); white-space:nowrap; font-size:15px; }
+  #tabs .tab.active { background:var(--tile-bg); color:var(--tile-fg); }
   #tabs .tab .dot, #tabs .tab .bubble { display:none; }
   #list { order:2; padding:0 0 10px; }
   .tile-sort { display:flex; justify-content:flex-end; margin:3px 4px 12px; }
-  .tile-sort button { border:0; background:none; color:#32c680; font:inherit; font-size:15px; padding:8px 0 8px 12px; cursor:pointer; }
+  .tile-sort button { border:0; background:none; color:var(--tile-accent); font:inherit; font-size:15px; padding:8px 0 8px 12px; cursor:pointer; }
   .tile-group { margin:0 0 24px; }
-  .tile-category { width:100%; display:flex; align-items:center; gap:9px; padding:11px 4px 15px; border:0; background:none; color:#e7ebe6; font:inherit; font-size:21px; text-align:left; cursor:pointer; }
-  .tile-category ha-icon { color:#30ba79; }
+  .tile-category { width:100%; display:flex; align-items:center; gap:9px; padding:11px 4px 15px; border:0; background:none; color:var(--primary-text-color); font:inherit; font-size:21px; text-align:left; cursor:pointer; }
+  .tile-category ha-icon:first-child { color:var(--tile-bg); }
   .tile-category .chevron { margin-left:auto; transition:transform .15s; }
   .tile-category[aria-expanded="false"] .chevron { transform:rotate(-90deg); }
-  .tile-grid { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:9px; padding:0 4px; }
-  .tile-grid .item.tile { position:relative; min-width:0; display:flex; flex-direction:column; border:0; border-radius:16px; background:var(--tile-bg,var(--tile-green)); color:var(--tile-fg,#fff); overflow:hidden; box-shadow:0 2px 4px #0004; }
+  .tile-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:9px; padding:0 4px; }
+  .tile-grid .item.tile { position:relative; min-width:0; display:flex; flex-direction:column; border:0; border-radius:16px; background:var(--tile-bg); color:var(--tile-fg); overflow:hidden; box-shadow:0 2px 4px #0004; }
   .tile-grid .item.tile.done { filter:saturate(.45); opacity:.75; }
   .tile-grid .item.tile.pending { opacity:.55; }
   .tile-grid .tile-hit { width:100%; min-height:132px; flex:1; display:flex; flex-direction:column; align-items:stretch; gap:7px; padding:13px 10px 10px; border:0; background:none; color:inherit; cursor:pointer; font:inherit; text-align:left; }
@@ -6851,13 +6851,11 @@ const TILE_STYLE = `
   .tile-grid .tile-more ha-icon { --mdc-icon-size:19px; }
   .tile-grid .tile-wide { grid-column:1/-1; min-width:0; }
   .tile-grid .tile-wide .menurow { display:flex; flex-wrap:wrap; }
-  .tile-done-title { width:100%; border:0; background:none; color:#dce6dd; padding:12px 4px; text-align:left; font:inherit; font-size:18px; cursor:pointer; }
+  .tile-done-title { width:100%; border:0; background:none; color:var(--primary-text-color); padding:12px 4px; text-align:left; font:inherit; font-size:18px; cursor:pointer; }
   .tile-done-title ha-icon { float:right; }
-  .tile-empty { padding:24px 12px; text-align:center; color:#b7c0b8; }
-  .head { order:4; position:sticky; bottom:0; z-index:4; margin:0 -10px; padding:8px 12px max(8px, env(safe-area-inset-bottom)); background:#2d2d2d; border-top:1px solid #475047; }
+  .tile-empty { padding:24px 12px; text-align:center; color:var(--secondary-text-color); }
   #otherView { order:1; }
   #footer { order:3; }
-  @media (max-width:330px) { .tile-grid { grid-template-columns:repeat(2,minmax(0,1fr)); } }
 `;
 
 class EinkaufslisteTilesCard extends EinkaufslisteCard {
@@ -6893,7 +6891,7 @@ class EinkaufslisteTilesCard extends EinkaufslisteCard {
 
   _tileColors(color) {
     const raw = String(color || "").trim();
-    const hex = /^#[\da-f]{3}(?:[\da-f]{3})?$/i.test(raw) ? raw : "#1bab69";
+    const hex = /^#[\da-f]{3}(?:[\da-f]{3})?$/i.test(raw) ? raw : "#607d8b";
     const full = hex.length === 4 ? hex.slice(1).split("").map((c) => c + c).join("") : hex.slice(1);
     const rgb = [0, 2, 4].map((i) => parseInt(full.slice(i, i + 2), 16) / 255);
     const linear = rgb.map((v) => v <= .04045 ? v / 12.92 : ((v + .055) / 1.055) ** 2.4);
@@ -6951,7 +6949,7 @@ class EinkaufslisteTilesCard extends EinkaufslisteCard {
         .sort((a, b) => a.name.localeCompare(b.name, "de"));
       if (!items.length) continue;
       const closed = this._tileClosed?.has(cat.id);
-      html.push(`<section class="tile-group"><button class="tile-category" type="button" data-act="tile-cat" data-cat="${esc(cat.id)}" aria-expanded="${!closed}">
+      html.push(`<section class="tile-group"><button class="tile-category" type="button" data-act="tile-cat" data-cat="${esc(cat.id)}" aria-expanded="${!closed}" style="${this._tileColors(cat.color)}">
         <ha-icon icon="${esc(cat.icon || "mdi:tag-outline")}"></ha-icon><span>${esc(cat.name)}</span><ha-icon class="chevron" icon="mdi:chevron-down"></ha-icon></button>
         ${closed ? "" : `<div class="tile-grid">${items.map((i) => this._tileHtml(i)).join("")}</div>`}</section>`);
     }
