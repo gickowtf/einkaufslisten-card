@@ -2,15 +2,15 @@
  * Einkaufsliste Card – die Familien-Einkaufsliste für Home Assistant
  * Wird automatisch von der Integration "einkaufsliste" geladen.
  */
-const EL_VERSION = "2.38.0";
+const EL_VERSION = "2.38.1";
 // 🆕 Was ist neu in dieser Version (deutsch, englisch) – bei jedem Update neu schreiben
 const EL_NEWS = [
   ["🧾 <b>Einkaufs-Protokoll</b> (in ⚙️ → App & Aussehen einschalten): nach dem Einkauf Geschäft und Betrag eintragen. Die Auswertung zeigt die Kosten pro Geschäft, pro Monat und zusammen – mit Filtern für Person, Geschäft und Datum. Der 🧾-Knopf sitzt oben in der Karte und im Verlauf.",
    "🧾 <b>Purchase log</b> (switch on in ⚙️ → App & appearance): after shopping, enter the store and the amount. The overview shows the cost per store, per month and in total – with filters for person, store and date. The 🧾 button is at the top of the card and in the history."],
   ["🗂️ Artikel aus <b>Angeboten, E-Mail, Alexa/To-do und Text einfügen</b> landen jetzt automatisch in der passenden Kategorie (wie beim letzten Mal, sonst nach dem Wörterbuch).",
    "🗂️ Items from <b>offers, e-mail, Alexa/to-do and pasted text</b> now land in the right category automatically (as last time, otherwise by the dictionary)."],
-  ["🎨 Die <b>Symbole unter dem Eingabefeld</b> (Menge, Notiz, Für wen, Foto …) haben jetzt eigene Farben – so findest du sie schneller.",
-   "🎨 The <b>icons below the input field</b> (quantity, note, for whom, photo …) now have their own colours – so you find them faster."],
+  ["🎨 Im <b>Menü beim langen Drücken</b> auf einen Artikel sind Menge, Kategorie, Foto, Barcode, Infos und Angebote jetzt farbig – aber nur, wenn dort etwas hinterlegt ist.",
+   "🎨 In the <b>menu when you long-press</b> an item, quantity, category, photo, barcode, info and offers are now coloured – but only if something is stored there."],
   ["🆕 <b>„Was ist neu“</b> – diese Liste, in ⚙️ und in der Anleitung.",
    "🆕 <b>“What's new”</b> – this list, in ⚙️ and in the guide."],
 ];
@@ -1006,16 +1006,12 @@ form.add { display:grid; grid-template-columns: 1fr 48px; gap:6px; margin:2px 2p
 form.add .toolbar { grid-column: 1 / -1; display:flex; gap:4px; margin:-2px 0 0; }
 .tool { background:none; border:0; border-radius:10px; padding:6px 10px; cursor:pointer; color:var(--secondary-text-color); display:inline-flex; align-items:center; line-height:0; position:relative; --mdc-icon-size:22px; }
 .tool:hover { background:var(--secondary-background-color, rgba(127,127,127,.1)); }
-/* 🎨 Jedes Symbol in der Leiste hat seine eigene Farbe – so findet man es auf einen Blick */
-#tQty { --tc:#1e88e5; } #tNote { --tc:#f9a825; } #tFor { --tc:#8e24aa; } #btnNewPhoto { --tc:#00897b; } #tBasic { --tc:#fb8c00; }
-.tool:not(.tclear):not(.instore) { color:var(--tc, var(--secondary-text-color)); }
-.tool:not(.tclear):not(.instore):hover { background:color-mix(in srgb, var(--tc, #888) 14%, transparent); }
-.tool.on { color:var(--tc, var(--primary-color,#03a9f4)); background:color-mix(in srgb, var(--tc, var(--primary-color,#03a9f4)) 18%, transparent); }
-.tool.filled::after { content:""; position:absolute; top:5px; right:6px; width:7px; height:7px; border-radius:50%; background:var(--tc, var(--primary-color,#03a9f4)); }
+.tool.on { color:var(--primary-color,#03a9f4); background:color-mix(in srgb, var(--primary-color,#03a9f4) 12%, transparent); }
+.tool.filled::after { content:""; position:absolute; top:5px; right:6px; width:7px; height:7px; border-radius:50%; background:var(--primary-color,#03a9f4); }
 form.add .extras { grid-column: 1 / -1; display:flex; flex-direction:column; gap:6px; }
 form.add .extras:not(:has(> :not([hidden]))) { display:none; }
 .tool.busy ha-icon { animation: pulse 1s infinite; }
-.tool.hasval { color:var(--tc, var(--primary-color,#03a9f4)); }
+.tool.hasval { color:var(--primary-color,#03a9f4); }
 .tool.tclear { margin-left:auto; color:var(--error-color,#db4437); }
 #btnScan { position:relative; }
 /* 📝 Notiz am Artikel: dezent hervorgehoben – etwas kräftiger, zarter Farbhauch */
@@ -1090,6 +1086,7 @@ input:focus, select:focus { border-color:var(--primary-color,#03a9f4); }
 .newbadge { font-size:.9em; }
 .bubble { background:var(--error-color,#e53935); color:#fff; border-radius:999px; font-size:.72em; font-weight:700; padding:1px 6px; margin-left:2px; }
 .menurow, .qtyrow { display:flex; flex-wrap:wrap; align-items:center; gap:6px; padding:4px 8px 8px 44px; }
+.menubtn.has { color:color-mix(in srgb, var(--mc) 68%, var(--primary-text-color)); border-color:color-mix(in srgb, var(--mc) 55%, transparent); background:color-mix(in srgb, var(--mc) 13%, transparent); }
 .menubtn { display:inline-flex; align-items:center; gap:4px; border:1px solid var(--divider-color, rgba(127,127,127,.35)); background:transparent; border-radius:999px; padding:6px 10px; cursor:pointer; font-size:.85em; --mdc-icon-size:18px; }
 .qbtn { width:40px; height:40px; border-radius:50%; border:1.5px solid var(--primary-color,#03a9f4); background:transparent; color:var(--primary-color,#03a9f4); font-size:1.3em; cursor:pointer; }
 .qbtn[disabled] { opacity:.3; }
@@ -2550,17 +2547,19 @@ class EinkaufslisteCard extends HTMLElement {
   }
 
   _menuHtml(item) {
-    const b = (act, icon, label) => `<button class="menubtn" data-act="${act}" data-id="${item.id}"><ha-icon icon="${icon}"></ha-icon>${label}</button>`;
+    // 🎨 Ist etwas hinterlegt, hat der Knopf seine Farbe (Menge, Kategorie, Foto, Barcode, Infos, Angebote) – sonst bleibt er grau
+    const b = (act, icon, label, color) => `<button class="menubtn${color ? " has" : ""}" data-act="${act}" data-id="${item.id}"${color ? ` style="--mc:${esc(color)}"` : ""}><ha-icon icon="${icon}"></ha-icon>${label}</button>`;
+    const pk = this._pk(item.name, item.note), codes = this._barcodesOf(pk).length, cat = this._cat(item.category_id);
     return `
       <div class="menurow" data-id="${item.id}">
         ${b("menu-edit", "mdi:pencil-outline", "Bearbeiten")}
         ${!item.checked && this._data.stores.length > 1 ? b("menu-move", "mdi:swap-horizontal", "Verschieben") : ""}
-        ${b("menu-qty", "mdi:numeric", "Menge")}
-        ${b("menu-cat", "mdi:shape-outline", "Kategorie")}
-        ${b("menu-photo", "mdi:camera-plus-outline", this._hasPhoto(this._pk(item.name, item.note)) ? "Fotos" : "Foto")}
-        ${this._hasAppScanner() ? b("barcode-assign", "mdi:barcode-scan", this._barcodesOf(this._pk(item.name, item.note)).length ? "Barcode ✓" : "Barcode") : ""}
-        ${this._barcodesOf(this._pk(item.name, item.note)).length ? b("menu-info", "mdi:information-outline", "Infos") : ""}
-        ${this._offersFor(item).length ? b("menu-offers", "mdi:tag-outline", "Angebote") : ""}
+        ${b("menu-qty", "mdi:numeric", "Menge", item.quantity ? "#1e88e5" : "")}
+        ${b("menu-cat", "mdi:shape-outline", "Kategorie", cat ? (cat.color || "#43a047") : "")}
+        ${b("menu-photo", "mdi:camera-plus-outline", this._hasPhoto(pk) ? "Fotos" : "Foto", this._hasPhoto(pk) ? "#00897b" : "")}
+        ${this._hasAppScanner() ? b("barcode-assign", "mdi:barcode-scan", codes ? "Barcode ✓" : "Barcode", codes ? "#8e24aa" : "") : ""}
+        ${codes ? b("menu-info", "mdi:information-outline", "Infos", "#00acc1") : ""}
+        ${this._offersFor(item).length ? b("menu-offers", "mdi:tag-outline", "Angebote", "#e53935") : ""}
         <button class="iconbtn" data-act="menu-close" title="Schließen"><ha-icon icon="mdi:close"></ha-icon></button>
       </div>`;
   }
