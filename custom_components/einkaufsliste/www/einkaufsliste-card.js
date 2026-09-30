@@ -2,7 +2,18 @@
  * Einkaufsliste Card – die Familien-Einkaufsliste für Home Assistant
  * Wird automatisch von der Integration "einkaufsliste" geladen.
  */
-const EL_VERSION = "2.37.0";
+const EL_VERSION = "2.38.0";
+// 🆕 Was ist neu in dieser Version (deutsch, englisch) – bei jedem Update neu schreiben
+const EL_NEWS = [
+  ["🧾 <b>Einkaufs-Protokoll</b> (in ⚙️ → App & Aussehen einschalten): nach dem Einkauf Geschäft und Betrag eintragen. Die Auswertung zeigt die Kosten pro Geschäft, pro Monat und zusammen – mit Filtern für Person, Geschäft und Datum. Der 🧾-Knopf sitzt oben in der Karte und im Verlauf.",
+   "🧾 <b>Purchase log</b> (switch on in ⚙️ → App & appearance): after shopping, enter the store and the amount. The overview shows the cost per store, per month and in total – with filters for person, store and date. The 🧾 button is at the top of the card and in the history."],
+  ["🗂️ Artikel aus <b>Angeboten, E-Mail, Alexa/To-do und Text einfügen</b> landen jetzt automatisch in der passenden Kategorie (wie beim letzten Mal, sonst nach dem Wörterbuch).",
+   "🗂️ Items from <b>offers, e-mail, Alexa/to-do and pasted text</b> now land in the right category automatically (as last time, otherwise by the dictionary)."],
+  ["🎨 Die <b>Symbole unter dem Eingabefeld</b> (Menge, Notiz, Für wen, Foto …) haben jetzt eigene Farben – so findest du sie schneller.",
+   "🎨 The <b>icons below the input field</b> (quantity, note, for whom, photo …) now have their own colours – so you find them faster."],
+  ["🆕 <b>„Was ist neu“</b> – diese Liste, in ⚙️ und in der Anleitung.",
+   "🆕 <b>“What's new”</b> – this list, in ⚙️ and in the guide."],
+];
 const EL_START_STORE_ICONS = new Set(["mdi:cart", "mdi:lotion"]); // so bekommen Geschäfte beim Einrichten ihr Icon – zählt als „automatisch“
 const EGAL_CHIP = `<span class="chip" style="--c:#888">🤷 Egal wo</span>`; // Artikel ohne Geschäft: überall kaufen
 
@@ -36,6 +47,7 @@ const LOG_ACT = {
   move: { label: "⇄ verschoben", verb: "hat % verschoben" },
   out: { label: "⇄ war aus", verb: "hat % als „war aus“ markiert" },
   remove: { label: "🗑️ gelöscht", verb: "hat % gelöscht" },
+  buy: { label: "🧾 bezahlt", verb: "hat % bezahlt" },
 };
 const LOG_VIA = { card: "✍️", scan: "▥", recipe: "🍳", merge: "🔗", cleanup: "🧹", service: "🤖", sync: "🔁", mail: "📧" };
 const WD_LONG = ["Montag", "Dienstag", "Mittwoch", "Donnerstag", "Freitag", "Samstag", "Sonntag"];
@@ -994,12 +1006,16 @@ form.add { display:grid; grid-template-columns: 1fr 48px; gap:6px; margin:2px 2p
 form.add .toolbar { grid-column: 1 / -1; display:flex; gap:4px; margin:-2px 0 0; }
 .tool { background:none; border:0; border-radius:10px; padding:6px 10px; cursor:pointer; color:var(--secondary-text-color); display:inline-flex; align-items:center; line-height:0; position:relative; --mdc-icon-size:22px; }
 .tool:hover { background:var(--secondary-background-color, rgba(127,127,127,.1)); }
-.tool.on { color:var(--primary-color,#03a9f4); background:color-mix(in srgb, var(--primary-color,#03a9f4) 12%, transparent); }
-.tool.filled::after { content:""; position:absolute; top:5px; right:6px; width:7px; height:7px; border-radius:50%; background:var(--primary-color,#03a9f4); }
+/* 🎨 Jedes Symbol in der Leiste hat seine eigene Farbe – so findet man es auf einen Blick */
+#tQty { --tc:#1e88e5; } #tNote { --tc:#f9a825; } #tFor { --tc:#8e24aa; } #btnNewPhoto { --tc:#00897b; } #tBasic { --tc:#fb8c00; }
+.tool:not(.tclear):not(.instore) { color:var(--tc, var(--secondary-text-color)); }
+.tool:not(.tclear):not(.instore):hover { background:color-mix(in srgb, var(--tc, #888) 14%, transparent); }
+.tool.on { color:var(--tc, var(--primary-color,#03a9f4)); background:color-mix(in srgb, var(--tc, var(--primary-color,#03a9f4)) 18%, transparent); }
+.tool.filled::after { content:""; position:absolute; top:5px; right:6px; width:7px; height:7px; border-radius:50%; background:var(--tc, var(--primary-color,#03a9f4)); }
 form.add .extras { grid-column: 1 / -1; display:flex; flex-direction:column; gap:6px; }
 form.add .extras:not(:has(> :not([hidden]))) { display:none; }
 .tool.busy ha-icon { animation: pulse 1s infinite; }
-.tool.hasval { color:var(--primary-color,#03a9f4); }
+.tool.hasval { color:var(--tc, var(--primary-color,#03a9f4)); }
 .tool.tclear { margin-left:auto; color:var(--error-color,#db4437); }
 #btnScan { position:relative; }
 /* 📝 Notiz am Artikel: dezent hervorgehoben – etwas kräftiger, zarter Farbhauch */
@@ -1903,7 +1919,7 @@ class EinkaufslisteCard extends HTMLElement {
       <style>${STYLE}</style>
       <ha-card>
         <div class="head">
-          <div class="title"><ha-icon id="titleIcon" icon="mdi:cart-variant" data-act="guide" title="📖 Anleitung – antippen"></ha-icon><span id="mascot" data-act="guide" title="📖 Anleitung – antippen" hidden></span><span class="live" id="liveDot" title="Verbindung"></span><span class="badge" id="count" hidden></span><span class="t" id="title" hidden></span><button class="iconbtn" id="btnScan" type="button" data-act="scan" title="Barcode scannen" hidden><ha-icon icon="mdi:barcode-scan"></ha-icon></button><button class="iconbtn" id="btnLock" type="button" data-act="pin-lock" title="Einstellungen jetzt sperren" hidden><ha-icon icon="mdi:lock-open-variant-outline"></ha-icon></button></div>
+          <div class="title"><ha-icon id="titleIcon" icon="mdi:cart-variant" data-act="guide" title="📖 Anleitung – antippen"></ha-icon><span id="mascot" data-act="guide" title="📖 Anleitung – antippen" hidden></span><span class="live" id="liveDot" title="Verbindung"></span><span class="badge" id="count" hidden></span><span class="t" id="title" hidden></span><button class="iconbtn" id="btnScan" type="button" data-act="scan" title="Barcode scannen" hidden><ha-icon icon="mdi:barcode-scan"></ha-icon></button><button class="iconbtn" id="btnLock" type="button" data-act="pin-lock" title="Einstellungen jetzt sperren" hidden><ha-icon icon="mdi:lock-open-variant-outline"></ha-icon></button><button class="iconbtn" id="btnSpend" type="button" data-act="spend" title="Einkaufs-Protokoll" hidden><ha-icon icon="mdi:receipt-text-outline"></ha-icon></button></div>
           <button class="iconbtn" id="btnShop" data-act="shopmode" title="Laden-Modus"><ha-icon icon="mdi:cart-outline"></ha-icon></button>
           <button class="iconbtn" id="btnRecipes" data-act="view" data-view="recipes" title="Rezepte"><ha-icon icon="mdi:chef-hat"></ha-icon></button>
           <button class="iconbtn" id="btnSettings" data-act="view" data-view="settings" title="Geschäfte & Kategorien"><ha-icon icon="mdi:cog-outline"></ha-icon></button>
@@ -2159,7 +2175,7 @@ class EinkaufslisteCard extends HTMLElement {
     if (this._view === "settings") {
       if (this._storeSel) this._storeSel = null;
       else if (this._setSec) {
-        const parents = { check: "tools", transfer: "tools", log: "tools", cleanup: "tools", app: "appx", mascot: "appx", pin: "appx" };
+        const parents = { check: "tools", transfer: "tools", log: "tools", cleanup: "tools", app: "appx", mascot: "appx", spend: "appx", pin: "appx" };
         this._setSec = parents[this._setSec] || null;
       } else this._view = "list";
       this._renderAll();
@@ -2201,6 +2217,7 @@ class EinkaufslisteCard extends HTMLElement {
     btnShop.querySelector("ha-icon").setAttribute("icon", shop ? "mdi:cart-off" : "mdi:cart-outline");
     this.$("title").textContent = ""; // Titel-Text ist weg – der Einkaufswagen reicht
     this.$("titleIcon").hidden = c.show_title === false || !!d?.settings?.mascot;
+    this.$("btnSpend").hidden = !d?.settings?.spend || this._view !== "list" || !!this._shopMode; // 🧾 nur wenn in ⚙️ eingeschaltet
     this.$("titleIcon").title = `📖 Anleitung – antippen${titleText ? ` · ${titleText}` : ""}`;
     this._renderUpdateBar();
     this._updateLive();
@@ -3165,6 +3182,7 @@ class EinkaufslisteCard extends HTMLElement {
         <div id="prodList"><p class="hint">Lade Produkte …</p></div>`}` },
       { key: "tools", icon: "mdi:toolbox-outline", title: "Werkzeuge", info: "Alles ok?, Import, Angebote, Verlauf, Aufräumen, Ressourcen", group: true },
       { key: "appx", icon: "mdi:cellphone-cog", title: "App & Aussehen", info: "Offline-App, Maskottchen, PIN", group: true },
+      { key: "news", icon: "mdi:new-box", title: "Was ist neu", info: `Version ${EL_VERSION}`, html: () => this._newsHtml() },
       { key: "credits", icon: "mdi:hand-heart-outline", title: "Credits", info: `v${EL_VERSION} · von Mister-M`, html: () => this._creditsHtml() },
       { key: "offers", parent: "tools", icon: "mdi:tag-outline", title: "Angebote", info: this._data.settings?.offers?.enabled ? (this._data.settings.offers.ok === false ? "⚠️ gerade nicht verfügbar" : "an · Marktguru") : "aus · inoffiziell", html: () => this._offersHtml() },
       { key: "stats", parent: "tools", icon: "mdi:chart-donut", title: "Ressourcen", info: "Speicher & Umfang", html: () => `
@@ -3194,6 +3212,12 @@ class EinkaufslisteCard extends HTMLElement {
         <div class="mascotprev">${mascotSvg("happy", null)}${mascotSvg("busy", null)}${mascotSvg("full", null)}${mascotSvg("sleep", null)}</div>
         <p><b>${this._data.settings?.mascot ? "🛒😊 Das Maskottchen ist an." : "Das Maskottchen ist aus."}</b> Der Schalter gilt für <b>alle</b> – auf allen Handys, im Dashboard und in der App.</p>
         <div class="btnrow"><button class="btn primary" data-act="mascot-toggle"><ha-icon icon="${this._data.settings?.mascot ? "mdi:emoticon-neutral-outline" : "mdi:emoticon-happy-outline"}"></ha-icon>${this._data.settings?.mascot ? "Ausschalten" : "Einschalten"}</button></div>` },
+      { key: "spend", parent: "appx", icon: "mdi:receipt-text-outline", title: "Einkaufs-Protokoll", info: this._data.settings?.spend ? "an – für alle" : "aus", html: () => `
+        <p class="hint">Merkt sich nach jedem Einkauf, wer wann wo für wie viel eingekauft hat. Die Auswertung zeigt Summen pro Geschäft und pro Monat, mit Filtern nach Person, Geschäft und Datum. Unabhängig von den Listen – der Betrag wird von Hand eingetragen.</p>
+        <p><b>${this._data.settings?.spend ? "🧾 Das Einkaufs-Protokoll ist an." : "Das Einkaufs-Protokoll ist aus."}</b></p>
+        <p class="hint">Der Schalter gilt für alle. Ist es an, sehen und pflegen es alle in der Familie – den 🧾-Knopf oben in der Karte und hier im Verlauf.</p>
+        <div class="btnrow"><button class="btn primary" data-act="spend-toggle"><ha-icon icon="mdi:receipt-text-outline"></ha-icon>${this._data.settings?.spend ? "Ausschalten" : "Einschalten"}</button>${this._data.settings?.spend ? `<button class="btn" data-act="spend"><ha-icon icon="mdi:open-in-new"></ha-icon>Öffnen</button>` : ""}</div>
+        <p class="hint">Ausschalten versteckt nur die Anzeige – die bisherigen Einträge bleiben gespeichert.</p>` },
       ...(window.__elOfflineApp ? [{ key: "theme", parent: "appx", icon: "mdi:theme-light-dark", title: "Hell / Dunkel", info: { light: "☀️ Hell", dark: "🌙 Dunkel" }[elAppTheme()] || "🌓 Automatisch", html: () => `
         <p class="hint">Nur für die Offline-App auf diesem Gerät. „Automatisch“ richtet sich nach dem Handy – so wie Home Assistant auch.</p>
         <div class="btnrow themebtns">${[["auto", "🌓 Automatisch"], ["light", "☀️ Hell"], ["dark", "🌙 Dunkel"]].map(([v, l]) =>
@@ -3492,6 +3516,7 @@ class EinkaufslisteCard extends HTMLElement {
         <select id="logAct" title="Aktion">${opt("", "⚡ Alles", f.act)}${Object.entries(LOG_ACT).map(([k, v]) => opt(k, v.label, f.act)).join("")}</select>
       </div>
       <div class="srow"><ha-icon class="prev" icon="mdi:magnify"></ha-icon><input class="grow" id="logSearch" placeholder="Artikel suchen …" value="${esc(f.q)}"></div>
+      ${this._data.settings?.spend ? `<div class="btnrow"><button class="btn" data-act="spend"><ha-icon icon="mdi:receipt-text-outline"></ha-icon>🧾 Einkaufs-Protokoll öffnen</button></div>` : ""}
       <div id="logMissed"></div>
       <div id="logList"><p class="hint">Lade Verlauf …</p></div>
       <div class="srow" style="margin-top:12px">
@@ -4796,6 +4821,146 @@ class EinkaufslisteCard extends HTMLElement {
   }
 
   // 📖 Anleitung – öffnet sich über den Einkaufswagen oben links (ohne Namen, für alle in der Familie)
+  // 🧾 Einkaufs-Protokoll: wer hat wann wo wie viel bezahlt – nur da, wenn es in ⚙️ eingeschaltet ist
+  async _showSpend(tab = "add") {
+    if (!this._data?.settings?.spend) return;
+    const ov = makeOverlay();
+    Object.assign(ov.style, { background: "#111", justifyContent: "flex-start", overflowY: "auto", touchAction: "pan-y",
+      paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 40px)" });
+    const loc = EL_LANG === "de" ? "de-DE" : "en-GB";
+    const eur = (n) => n.toLocaleString(loc, { style: "currency", currency: "EUR" });
+    const cnt = (n) => EL_LANG === "de" ? `${n} ${n === 1 ? "Einkauf" : "Einkäufe"}` : `${n} ${n === 1 ? "purchase" : "purchases"}`;
+    const two = (n) => String(n).padStart(2, "0");
+    const iso = (d) => `${d.getFullYear()}-${two(d.getMonth() + 1)}-${two(d.getDate())}`;
+    const f = (this._spendF ||= { who: "", store: "", quick: "month", from: "", to: "" });
+    const stores = this._data.stores;
+    const start = this._tab && this._tab !== "all" && this._store(this._tab) ? this._tab : (this._spendLastStore || stores[0]?.id || "");
+    let cur = tab, entries = [], loaded = false;
+    const range = () => {
+      const now = new Date();
+      if (f.quick === "month") return [iso(new Date(now.getFullYear(), now.getMonth(), 1)), iso(now)];
+      if (f.quick === "last") return [iso(new Date(now.getFullYear(), now.getMonth() - 1, 1)), iso(new Date(now.getFullYear(), now.getMonth(), 0))];
+      if (f.quick === "all") return ["", ""];
+      return [f.from, f.to];
+    };
+    const monthName = (ym) => { const [y, m] = ym.split("-").map(Number); return new Date(y, m - 1, 1).toLocaleDateString(loc, { month: "long", year: "numeric" }); };
+    const dayName = (t) => { const d = new Date(t.slice(0, 10) + "T12:00:00"); return d.toLocaleDateString(loc, { weekday: "short", day: "2-digit", month: "2-digit", year: "numeric" }); };
+    const filtered = () => {
+      const [from, to] = range();
+      return entries.filter((e) => (!f.who || e.w === f.who) && (!f.store || e.s === f.store)
+        && (!from || e.t.slice(0, 10) >= from) && (!to || e.t.slice(0, 10) <= to));
+    };
+    const draw = () => {
+      const opt = (v, label, c) => `<option value="${esc(v)}" ${v === c ? "selected" : ""}>${esc(label)}</option>`;
+      const names = [...new Set(entries.map((e) => e.w).filter(Boolean))].sort((a, b) => a.localeCompare(b, "de"));
+      const [from, to] = range();
+      let body;
+      if (cur === "add") {
+        body = `<p class="sp-hint">Nach dem Einkauf: Wo warst du und wie viel hat es gekostet? Wer und wann trägt die Liste selbst ein.</p>
+          <label class="sp-l">Geschäft</label>
+          <select id="spStore">${stores.map((st) => opt(st.id, st.name, start)).join("")}</select>
+          <label class="sp-l">Betrag in €</label>
+          <input id="spAmount" inputmode="decimal" placeholder="z. B. 23,40" autocomplete="off">
+          <label class="sp-l">Datum</label>
+          <input id="spDay" type="date" value="${iso(new Date())}" max="${iso(new Date())}">
+          <div class="sp-err" id="spErr" hidden></div>
+          <button class="sp-main" data-sp="save">✔ Speichern</button>`;
+      } else if (!loaded) {
+        body = `<p class="sp-hint">Lade …</p>`;
+      } else {
+        const list = filtered();
+        const total = list.reduce((s, e) => s + e.a, 0);
+        const byStore = new Map();
+        for (const e of list) { const c = byStore.get(e.s) || { name: e.sn, sum: 0, n: 0 }; c.sum += e.a; c.n += 1; c.name = this._store(e.s)?.name || e.sn; byStore.set(e.s, c); }
+        const max = Math.max(1, ...[...byStore.values()].map((c) => c.sum));
+        const byMonth = new Map();
+        for (const e of list) { const m = e.t.slice(0, 7); const c = byMonth.get(m) || { sum: 0, n: 0, st: new Map() }; c.sum += e.a; c.n += 1; c.st.set(e.s, (c.st.get(e.s) || 0) + e.a); byMonth.set(m, c); }
+        const stName = (id) => this._store(id)?.name || list.find((e) => e.s === id)?.sn || "?";
+        const q = (k, label) => `<button class="sp-q ${f.quick === k ? "on" : ""}" data-sp="quick" data-q="${k}">${label}</button>`;
+        body = `<div class="sp-q-row">${q("month", "Dieser Monat")}${q("last", "Letzter Monat")}${q("all", "Alles")}</div>
+          <div class="sp-row"><input id="spFrom" type="date" value="${esc(from)}" title="Datum von"><span>–</span><input id="spTo" type="date" value="${esc(to)}" title="Datum bis"></div>
+          <div class="sp-row"><select id="spWho" title="Person">${opt("", "👤 Alle", f.who)}${names.map((n) => opt(n, n, f.who)).join("")}</select>
+          <select id="spSt" title="Geschäft">${opt("", "🏪 Alle", f.store)}${stores.map((st) => opt(st.id, st.name, f.store)).join("")}</select></div>
+          <div class="sp-total"><span>Zusammen</span><b>${eur(total)}</b><small translate="no">${cnt(list.length)}${list.length ? ` · Ø ${eur(total / list.length)}` : ""}</small></div>
+          ${byStore.size ? `<h3>🏪 Pro Geschäft</h3>${[...byStore.entries()].sort((a, b) => b[1].sum - a[1].sum).map(([id, c]) => {
+            const st = this._store(id);
+            return `<div class="sp-bar"><div class="sp-bt"><span translate="no">${esc(c.name)}</span><b>${eur(c.sum)}</b></div><div class="sp-b"><i style="width:${Math.round(c.sum / max * 100)}%;background:${esc(st?.color || "#1e88e5")}"></i></div><small translate="no">${cnt(c.n)} · Ø ${eur(c.sum / c.n)}</small></div>`;
+          }).join("")}` : ""}
+          ${byMonth.size ? `<h3>📅 Pro Monat</h3>${[...byMonth.entries()].sort((a, b) => b[0].localeCompare(a[0])).map(([m, c]) =>
+            `<div class="sp-month"><div class="sp-bt"><span>${esc(monthName(m))}</span><b>${eur(c.sum)}</b></div><small translate="no">${[...c.st.entries()].sort((a, b) => b[1] - a[1]).map(([id, v]) => `${esc(stName(id))} ${eur(v)}`).join(" · ")}</small></div>`).join("")}` : ""}
+          <h3>🧾 Einkäufe</h3>
+          ${list.length ? list.map((e) => `<div class="sp-e"><div><b translate="no">${esc(this._store(e.s)?.name || e.sn)}</b><br><small>${esc(dayName(e.t))}${e.w ? ` · <span translate="no">${esc(e.w)}</span>` : ""}</small></div><span>${eur(e.a)}</span><button class="sp-x" data-sp="del" data-id="${esc(e.id)}" title="Löschen">✖</button></div>`).join("") : `<p class="sp-hint">Nichts gefunden – ändere den Filter oder trag einen Einkauf ein.</p>`}`;
+      }
+      ov.innerHTML = `<style>
+        .sp { width:100%; max-width:560px; color:#eee; font:15px/1.5 Roboto, sans-serif; }
+        .sp .sp-top { display:flex; justify-content:space-between; align-items:center; gap:10px; }
+        .sp h2 { font-size:21px; margin:6px 0; } .sp h3 { font-size:16px; margin:16px 0 6px; }
+        .sp-tabs { display:grid; grid-template-columns:1fr 1fr; gap:6px; margin:8px 0 12px; }
+        .sp-tabs button, .sp-q { background:#1e1e1e; color:#eee; border:1px solid #333; border-radius:10px; padding:10px; font:inherit; cursor:pointer; }
+        .sp-tabs button.on, .sp-q.on { background:#1e88e5; border-color:#1e88e5; color:#fff; font-weight:600; }
+        .sp-q-row { display:flex; gap:6px; margin-bottom:8px; } .sp-q { flex:1; padding:8px 6px; }
+        .sp select, .sp input { width:100%; box-sizing:border-box; font:inherit; padding:10px 12px; border-radius:10px; border:1px solid #444; background:#1e1e1e; color:#eee; color-scheme:dark; }
+        .sp-row { display:flex; gap:8px; align-items:center; margin-bottom:8px; }
+        .sp-l { display:block; margin:10px 0 4px; color:#aaa; font-size:14px; }
+        .sp-hint { color:#aaa; } .sp small { color:#aaa; }
+        .sp-main { width:100%; margin-top:14px; background:#43a047; color:#fff; border:0; border-radius:12px; padding:13px; font:600 16px Roboto,sans-serif; cursor:pointer; }
+        .sp-err { color:#ff8a80; margin-top:8px; }
+        .sp-total { background:#1e1e1e; border:1px solid #333; border-radius:12px; padding:12px 14px; margin:6px 0; display:grid; grid-template-columns:1fr auto; gap:0 10px; }
+        .sp-total b { font-size:24px; } .sp-total small { grid-column:1 / -1; }
+        .sp-bt { display:flex; justify-content:space-between; gap:10px; }
+        .sp-b { background:#2a2a2a; border-radius:6px; height:10px; margin:4px 0 2px; overflow:hidden; } .sp-b i { display:block; height:100%; border-radius:6px; }
+        .sp-bar, .sp-month { margin:8px 0; }
+        .sp-e { display:grid; grid-template-columns:1fr auto auto; gap:10px; align-items:center; padding:8px 0; border-bottom:1px solid #2a2a2a; }
+        .sp-x { background:none; border:0; color:#888; cursor:pointer; font-size:15px; padding:6px; }
+      </style>
+      <div class="sp">
+        <div class="sp-top"><h2>🧾 Einkaufs-Protokoll</h2><button class="sp-x" data-sp="close" title="Schließen" style="font-size:22px">✕</button></div>
+        <div class="sp-tabs"><button class="${cur === "add" ? "on" : ""}" data-sp="tab" data-t="add">➕ Eintragen</button><button class="${cur === "stats" ? "on" : ""}" data-sp="tab" data-t="stats">📊 Auswertung</button></div>
+        ${body}
+      </div>`;
+    };
+    const load = async () => {
+      try { entries = (await this._ws({ type: "einkaufsliste/purchases/get" })).entries || []; } catch (_) { /* Meldung kam schon */ }
+      loaded = true;
+      if (ov.isConnected) draw();
+    };
+    ov.addEventListener("click", async (ev) => {
+      const b = ev.target.closest("[data-sp]");
+      if (!b) return;
+      const act = b.dataset.sp;
+      if (act === "close") ov.remove();
+      else if (act === "tab") { cur = b.dataset.t; draw(); if (cur === "stats") load(); }
+      else if (act === "quick") { f.quick = b.dataset.q; draw(); }
+      else if (act === "save") {
+        const store = ov.querySelector("#spStore").value, amount = ov.querySelector("#spAmount").value, day = ov.querySelector("#spDay").value;
+        const err = ov.querySelector("#spErr");
+        try {
+          await this._hass.callWS({ type: "einkaufsliste/purchases/add", store_id: store, amount, day });
+        } catch (e) { err.textContent = e?.message || "Das hat nicht geklappt."; err.hidden = false; return; }
+        this._spendLastStore = store;
+        this._toast("🧾 Eingetragen");
+        cur = "stats"; f.quick = "month"; f.who = ""; f.store = ""; loaded = false; draw(); load();
+      } else if (act === "del") {
+        if (!elConfirm("Diesen Einkauf aus dem Protokoll löschen?")) return;
+        try { await this._ws({ type: "einkaufsliste/purchases/remove", id: b.dataset.id }); } catch (_) { return; }
+        entries = entries.filter((e) => e.id !== b.dataset.id);
+        draw();
+      }
+    });
+    ov.addEventListener("change", (ev) => {
+      const id = ev.target.id;
+      if (id === "spWho") f.who = ev.target.value;
+      else if (id === "spSt") f.store = ev.target.value;
+      else if (id === "spFrom" || id === "spTo") {
+        const [from, to] = range();
+        f.quick = "own"; f.from = id === "spFrom" ? ev.target.value : from; f.to = id === "spTo" ? ev.target.value : to;
+      } else return;
+      draw();
+    });
+    draw();
+    if (cur === "stats") load();
+  }
+
   _showGuide() {
     const ov = makeOverlay();
     Object.assign(ov.style, { background: "#111", justifyContent: "flex-start", overflowY: "auto", touchAction: "pan-y",
@@ -4829,6 +4994,7 @@ class EinkaufslisteCard extends HTMLElement {
     ${EL_LANG !== "de" ? this._guideEn(sec, appSec) : `<div class="elg">
       <div class="elg-top"><h2>🛒 So funktioniert die Einkaufsliste</h2></div>
       <p class="elg-sub">Tipp auf eine Überschrift klappt sie auf. Diese Anleitung findest du immer über den <b>Einkaufswagen ganz oben links</b>.</p>
+      ${sec("🆕", "Was ist neu", this._newsHtml(false))}
       ${sec("✍️", "Etwas eintragen", `<ul>
         <li>Oben ins Feld tippen, z. B. <b>Milch</b>, dann den grünen Haken <span class="elg-k">✔</span>.</li>
         <li>Beim Tippen kommen bis zu <b>2 Vorschläge</b>. Antippen übernimmt alles vom letzten Mal (Menge, Notiz, für wen, Geschäft).</li>
@@ -4865,6 +5031,11 @@ class EinkaufslisteCard extends HTMLElement {
         <li>Der <b>Wagen oben rechts</b> schaltet den <b>Laden-Modus</b> ein: große Zeilen, nur Abhaken, nur das Wichtigste.</li>
         <li>Nochmal antippen (oder <b>Beenden</b>) = wieder normal.</li>
         <li>Bist du laut Standort im Geschäft, hakt <b>▥</b> (oben neben dem grünen Punkt) das gescannte Produkt gleich ab – falls es auf der Liste steht.</li></ul>`)}
+      ${sec("🧾", "Einkaufs-Protokoll", `<ul>
+        <li>Nur da, wenn es in ⚙️ → App &amp; Aussehen → <b>Einkaufs-Protokoll</b> eingeschaltet ist (gilt für alle).</li>
+        <li>Der <b>🧾-Knopf</b> oben in der Karte (und im Verlauf) öffnet es. <b>➕ Eintragen</b>: Geschäft, Betrag, Datum – wer und wann setzt die Liste selbst.</li>
+        <li><b>📊 Auswertung</b>: zusammengerechnet, pro Geschäft und pro Monat. Filter für Person, Geschäft und Datum, Schnellwahl <b>Dieser Monat / Letzter Monat / Alles</b>.</li>
+        <li>Falsch eingetragen? Beim Einkauf auf <b>✖</b> tippen.</li></ul>`)}
       ${sec("📷", "Fotos & Barcodes", `<ul>
         <li>Das <b>📷</b> am Artikel zeigt das Foto. Wischen = blättern, <b>„Foto dazu“</b> für weitere (bis 6).</li>
         <li>Ein neues Foto <b>ersetzt nie</b> ein altes, es kommt immer dazu.</li>
@@ -4934,6 +5105,10 @@ class EinkaufslisteCard extends HTMLElement {
   }
 
   // 🙏 Credits – in ⚙️ und in der Anleitung (dort dunkel)
+  _newsHtml(en = EL_LANG !== "de") {
+    return `<div ${en ? 'translate="no"' : ""}><p class="hint">${en ? "This is what changed in version" : "Das hat sich in Version"} <b>${EL_VERSION}</b>${en ? ":" : " geändert:"}</p><ul>${EL_NEWS.map((n) => `<li>${en ? n[1] : n[0]}</li>`).join("")}</ul></div>`;
+  }
+
   _creditsHtml(en = EL_LANG !== "de") {
     const repo = "https://github.com/misterm2310/einkaufslisten-card";
     const t = (de, eng) => (en ? eng : de);
@@ -4977,6 +5152,7 @@ class EinkaufslisteCard extends HTMLElement {
     return `<div class="elg" translate="no">
       <div class="elg-top"><h2>🛒 How the shopping list works</h2></div>
       <p class="elg-sub">Tap a heading to open it. You can always find this guide via the <b>shopping cart at the top left</b>.</p>
+      ${sec("🆕", "What's new", this._newsHtml(true))}
       ${sec("✍️", "Adding things", `<ul>
         <li>Type into the field at the top, e.g. <b>milk</b>, then tap the green check mark <span class="elg-k">✔</span>.</li>
         <li>While typing you get up to <b>2 suggestions</b>. Tapping one takes over everything from last time (quantity, note, for whom, store).</li>
@@ -5012,6 +5188,11 @@ class EinkaufslisteCard extends HTMLElement {
         <li>The <b>cart at the top right</b> switches on <b>shop mode</b>: big rows, checking off only, just the essentials.</li>
         <li>Tap again (or <b>Finish</b>) = back to normal.</li>
         <li>If your location says you are in the store, <b>▥</b> (top, next to the green dot) checks off the scanned product right away – if it is on the list.</li></ul>`)}
+      ${sec("🧾", "Purchase log", `<ul>
+        <li>Only there if it is switched on in ⚙️ → App &amp; appearance → <b>Purchase log</b> (applies to everyone).</li>
+        <li>The <b>🧾 button</b> at the top of the card (and in the history) opens it. <b>➕ Add</b>: store, amount, date – the list fills in who and when.</li>
+        <li><b>📊 Overview</b>: in total, per store and per month. Filters for person, store and date, quick buttons <b>This month / Last month / All</b>.</li>
+        <li>Entered something wrong? Tap <b>✖</b> on the purchase.</li></ul>`)}
       ${sec("📷", "Photos & barcodes", `<ul>
         <li>The <b>📷</b> on the item shows the photo. Swipe = browse, <b>“Add photo”</b> for more (up to 6).</li>
         <li>A new photo <b>never replaces</b> an old one, it is always added.</li>
@@ -6274,6 +6455,13 @@ class EinkaufslisteCard extends HTMLElement {
         break;
       case "guide":
         this._showGuide();
+        break;
+      case "spend":
+        this._showSpend();
+        break;
+      case "spend-toggle":
+        this._ws({ type: "einkaufsliste/spend/set", on: !this._data.settings?.spend })
+          .then(() => setTimeout(() => this._renderSettings(), 150)).catch(() => {});
         break;
       case "check-run":
         this._runCheck();

@@ -1164,7 +1164,7 @@ async def test_check_and_repair(hass, setup, hass_ws_client):
     res = (await client.receive_json())["result"]
     assert res["count"] == 0, res["problems"]
     netto, aldi = m.stores[0]["id"], m.stores[1]["id"]
-    milk = m.add_item("Milch", store_id=aldi)
+    milk = m.add_item("Milch", store_id=aldi, category_id=None)  # ausdrücklich ohne Kategorie
     milk["store_id"] = "weg"  # Geschäft gelöscht
     r = m.add_recipe("Kuchen", [{"name": "Mehl"}], group="fisch")
     r["group"] = "weg"
@@ -1230,7 +1230,7 @@ async def test_products_fallback_priority(hass, setup):
     assert p["store_id"] == lidl and p["category_id"] == backwaren
 
     # Ein Artikel auf der Liste hat Vorrang vor dem Rezept.
-    item = m.add_item("Mehl", store_id=aldi)
+    item = m.add_item("Mehl", store_id=aldi, category_id=None)
     item["category_id"] = None  # kein Kategorie am Artikel -> Rezept darf hier noch einspringen
     p = _prod(m, "Mehl")
     assert p["store_id"] == aldi  # vom Artikel, nicht vom Rezept
@@ -2100,3 +2100,47 @@ async def test_offer_take_and_expire(hass: HomeAssistant, setup) -> None:
     assert m.expire_offers(dt_util.utcnow() + td(days=3)) == 2
     assert new["note"] == "Irisch" and new["offer"].get("expired") and not new["checked"]
     assert kaffee["note"] is None and not kaffee["checked"]
+
+
+async def test_add_item_guesses_category_everywhere(hass, setup):
+    """Ohne Kategorie (Angebote, Mail, Alexa …) rät Home Assistant selbst; Gewähltes bleibt."""
+    m = mgr(hass)
+    milch = m.find_category("Kühlregal & Milch")
+    assert m.add_item("Joghurt")["category_id"] == milch  # Wörterbuch
+    assert m.add_item("Joghurt", category_id=None, note="Bio")["category_id"] is None  # ausdrücklich „Ohne“
+    other = next(c["id"] for c in m.categories if c["id"] != milch)
+    assert m.add_item("Joghurt", category_id=other, note="x")["category_id"] == other  # selbst gewählt
+    # „wie beim letzten Mal“ schlägt das Wörterbuch
+    m.history["kekse"] = {"name": "Kekse", "category_id": other, "count": 1}
+    assert m.add_item("Kekse")["category_id"] == other
+
+
+async def test_purchases(hass, setup):
+    """🧾 Einkaufs-Protokoll: nur wenn eingeschaltet; wer, wann, wo, wie viel."""
+    m = mgr(hass)
+    netto = m.stores[0]["id"]
+    with pytest.raises(ValueError):
+        m.add_purchase(netto, "12,50")  # aus = nichts geht
+    m.set_spend(True)
+    with m.acting("Marco", "u1", "card"):
+        e = m.add_purchase(netto, "23,40")
+    assert e["a"] == 23.4 and e["w"] == "Marco" and e["sn"] == m.stores[0]["name"]
+    with pytest.raises(ValueError):
+        m.add_purchase(netto, "abc")
+    with pytest.raises(ValueError):
+        m.add_purchase(netto, "0")
+    with pytest.raises(ValueError):
+        m.add_purchase("gibtsnicht", "5")
+    with pytest.raises(ValueError):
+        m.add_purchase(netto, "5", day="2999-01-01")
+    old = m.add_purchase(netto, 7.5, day="2020-03-05")
+    assert old["t"].startswith("2020-03-05")
+    assert [x["a"] for x in m.get_purchases()["entries"]] == [23.4, 7.5]  # neueste zuerst
+    assert m.log[-1]["a"] == "buy"
+    m.remove_purchase(old["id"])
+    assert len(m.purchases) == 1
+    m.set_spend(False)  # aus: Einträge bleiben, sind aber nicht abrufbar
+    assert len(m.purchases) == 1
+    with pytest.raises(ValueError):
+        m.get_purchases()
+    assert m._to_storage()["purchases"] == m.purchases

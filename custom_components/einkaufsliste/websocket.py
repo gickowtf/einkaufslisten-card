@@ -16,7 +16,7 @@ from .recipe_import import async_import
 from .const import DOMAIN, SIGNAL_UPDATED
 from .mail_import import mail_sources
 from .transfer import async_todo_text, import_recipe_file, import_text, todo_lists
-from .manager import EinkaufslisteManager, person_name_for_user, product_key
+from .manager import AUTO_CATEGORY, EinkaufslisteManager, person_name_for_user, product_key
 
 OPT_STR = vol.Any(None, str)
 
@@ -64,6 +64,10 @@ def async_register(hass: HomeAssistant) -> None:
         ws_mail_sources,
         ws_mail_import,
         ws_mascot,
+        ws_spend_set,
+        ws_purchases_get,
+        ws_purchases_add,
+        ws_purchases_remove,
         ws_seen,
         ws_group_add,
         ws_group_update,
@@ -174,7 +178,7 @@ def ws_item_add(hass, connection, msg):
         item = m.add_item(
             msg["name"],
             store_id=msg.get("store_id"),
-            category_id=msg.get("category_id"),
+            category_id=msg["category_id"] if "category_id" in msg else AUTO_CATEGORY,
             quantity=msg.get("quantity"),
             note=msg.get("note"),
             for_whom=msg.get("for_whom"),
@@ -588,6 +592,38 @@ def ws_mail_import(hass, connection, msg):
 def ws_mascot(hass, connection, msg):
     """🛒😊 Maskottchen für alle an/aus."""
     _run(hass, connection, msg, lambda m: m.set_mascot(msg["on"]))
+
+
+@websocket_api.websocket_command({vol.Required("type"): "einkaufsliste/spend/set", vol.Required("on"): bool})
+@callback
+def ws_spend_set(hass, connection, msg):
+    """🧾 Einkaufs-Protokoll für alle an/aus."""
+    _run(hass, connection, msg, lambda m: m.set_spend(msg["on"]))
+
+
+@websocket_api.websocket_command({vol.Required("type"): "einkaufsliste/purchases/get"})
+@callback
+def ws_purchases_get(hass, connection, msg):
+    _run(hass, connection, msg, lambda m: m.get_purchases())
+
+
+@websocket_api.websocket_command(
+    {
+        vol.Required("type"): "einkaufsliste/purchases/add",
+        vol.Required("store_id"): str,
+        vol.Required("amount"): vol.Any(str, int, float),
+        vol.Optional("day"): OPT_STR,
+    }
+)
+@callback
+def ws_purchases_add(hass, connection, msg):
+    _run(hass, connection, msg, lambda m: m.add_purchase(msg["store_id"], msg["amount"], msg.get("day")))
+
+
+@websocket_api.websocket_command({vol.Required("type"): "einkaufsliste/purchases/remove", vol.Required("id"): str})
+@callback
+def ws_purchases_remove(hass, connection, msg):
+    _run(hass, connection, msg, lambda m: m.remove_purchase(msg["id"]))
 
 
 @websocket_api.websocket_command(

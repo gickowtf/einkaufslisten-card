@@ -11,7 +11,7 @@ import secrets
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from contextvars import ContextVar
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, time, timedelta
 import logging
 from pathlib import Path
 from typing import Any
@@ -37,6 +37,7 @@ from .const import (
     EVENT_CLEANUP,
     EVENT_ITEM_ADDED,
     HISTORY_LIMIT,
+    PURCHASE_LIMIT,
     MAX_PHOTOS,
     RECIPE_GROUPS,
     RECIPE_GROUP_NAMES_EN,
@@ -232,6 +233,9 @@ def person_name_for_user(hass: HomeAssistant, user_id: str | None) -> str | None
     return None
 
 
+AUTO_CATEGORY: Any = object()  # add_item: „Kategorie nicht angegeben“ (≠ ausdrücklich keine)
+
+
 class EinkaufslisteManager:
     """Verwaltet alle Daten der Einkaufsliste."""
 
@@ -252,6 +256,8 @@ class EinkaufslisteManager:
         self.typos: dict[str, dict[str, Any]] = {}  # 🧠 Tippfehler (klein) -> {"right": Name, "n": wie oft korrigiert}
         self.pin_hash: str | None = None  # 🔒 PIN für die Einstellungen (nur als Prüfsumme gespeichert)
         self.mascot: bool = False  # 🛒😊 Maskottchen an/aus – gilt für alle Karten und Handys
+        self.spend: bool = False  # 🧾 Einkaufs-Protokoll an/aus (standardmäßig aus) – gilt für alle
+        self.purchases: list[dict[str, Any]] = []  # 🧾 {"id","t","s","sn","w","wi","a"} – wer, wann, wo, wie viel
         self.todo_sync: dict[str, Any] | None = None  # 🔁 {"entity_id", "store_id", "count"} – To-do-Liste herüberholen
         self.offers_cfg: dict[str, Any] | None = None  # 🏷️ {"enabled", "zip", "stores", "hours", "key", "last", "ok", "error", "count"}
         self.offers_data: dict[str, list[dict[str, Any]]] = {}  # 🏷️ Artikelname klein -> Angebote
@@ -343,6 +349,8 @@ class EinkaufslisteManager:
         self.typos = data.get("typos", {})
         self.pin_hash = data.get("pin")
         self.mascot = bool(data.get("mascot", False))
+        self.spend = bool(data.get("spend", False))
+        self.purchases = list(data.get("purchases") or [])
         self.todo_sync = data.get("todo_sync") or None
         self.mail_import = data.get("mail_import") or None
         self.offers_cfg = data.get("offers_cfg") or None
@@ -394,6 +402,8 @@ class EinkaufslisteManager:
             "typos": self.typos,
             "pin": self.pin_hash,
             "mascot": self.mascot,
+            "spend": self.spend,
+            "purchases": self.purchases,
             "todo_sync": self.todo_sync,
             "mail_import": self.mail_import,
             "offers_cfg": self.offers_cfg,
@@ -464,6 +474,7 @@ class EinkaufslisteManager:
                 "pin": bool(self.pin_hash),
                 "app_url": self._app_url(),
                 "mascot": self.mascot,
+                "spend": self.spend,
                 "todo_sync": self._todo_sync_info(),
                 "mail_import": self._mail_import_info(),
                 "offers": self._offers_info(),
@@ -616,6 +627,62 @@ class EinkaufslisteManager:
     def set_mascot(self, on: bool) -> None:
         """🛒😊 Maskottchen für alle an- oder ausschalten."""
         self.mascot = bool(on)
+        self._changed()
+
+    # ------------------------------------------------------------------ 🧾 Einkaufs-Protokoll
+    def set_spend(self, on: bool) -> None:
+        """🧾 Einkaufs-Protokoll für alle an- oder ausschalten (die Einträge bleiben erhalten)."""
+        self.spend = bool(on)
+        self._changed()
+
+    def get_purchases(self) -> dict[str, Any]:
+        if not self.spend:
+            raise ValueError("Das Einkaufs-Protokoll ist ausgeschaltet (⚙️ → App & Aussehen).")
+        return {"entries": sorted(self.purchases, key=lambda e: e.get("t", ""), reverse=True)}
+
+    def add_purchase(self, store_id: str | None, amount: Any, day: str | None = None) -> dict[str, Any]:
+        """🧾 Nach dem Einkauf: Geschäft + Betrag. Wer und wann setzen wir selbst (Datum nur, wenn es ein anderer Tag war)."""
+        if not self.spend:
+            raise ValueError("Das Einkaufs-Protokoll ist ausgeschaltet (⚙️ → App & Aussehen).")
+        store = self.store_by_id(store_id) if store_id else None
+        if store is None:
+            raise ValueError("Bei welchem Geschäft war das?")
+        try:
+            value = round(float(str(amount).strip().replace("€", "").replace(" ", "").replace(",", ".")), 2)
+        except (TypeError, ValueError) as err:
+            raise ValueError("Der Betrag ist keine Zahl – z. B. 23,40.") from err
+        if not 0 < value <= 100000:
+            raise ValueError("Der Betrag muss größer als 0 sein.")
+        now = dt_util.now()
+        when = now
+        if day:
+            try:
+                d = datetime.strptime(str(day)[:10], "%Y-%m-%d").date()
+            except ValueError as err:
+                raise ValueError("Das Datum ist ungültig.") from err
+            if d > now.date():
+                raise ValueError("Das Datum liegt in der Zukunft.")
+            if d != now.date():
+                when = datetime.combine(d, time(12, 0), tzinfo=now.tzinfo)
+        actor = self._actor
+        entry = {
+            "id": _new_id(), "t": when.isoformat(), "s": store["id"], "sn": store["name"],
+            "w": actor.get("who"), "wi": actor.get("who_id"), "a": value,
+        }
+        self.purchases.append(entry)
+        if len(self.purchases) > PURCHASE_LIMIT:
+            self.purchases = self.purchases[-PURCHASE_LIMIT:]
+        self._log("buy", {"name": f"Einkauf bei {store['name']}", "store_id": store["id"]}, f"{value:.2f} €".replace(".", ","))
+        self._changed()
+        return entry
+
+    def remove_purchase(self, purchase_id: str) -> None:
+        if not self.spend:
+            raise ValueError("Das Einkaufs-Protokoll ist ausgeschaltet (⚙️ → App & Aussehen).")
+        before = len(self.purchases)
+        self.purchases = [e for e in self.purchases if e["id"] != purchase_id]
+        if len(self.purchases) == before:
+            raise ValueError("Diesen Eintrag gibt es nicht (mehr).")
         self._changed()
 
     def set_todo_sync(self, entity_id: str | None, store_id: str | None = None, mode: str | None = None) -> None:
@@ -1151,6 +1218,11 @@ class EinkaufslisteManager:
     def guess_category(self, name: str) -> str | None:
         return guess_category(name, self.categories)
 
+    def _auto_category(self, name: str) -> str | None:
+        """Kategorie von letztem Mal, sonst aus dem Wörterbuch."""
+        cat = (self.history_for(name) or {}).get("category_id")
+        return cat if self.category_by_id(cat) else self.guess_category(name)
+
     def history_for(self, name: str) -> dict[str, Any] | None:
         return self.history.get(name.strip().lower())
 
@@ -1234,7 +1306,7 @@ class EinkaufslisteManager:
         self,
         name: str,
         store_id: str | None = None,
-        category_id: str | None = None,
+        category_id: Any = AUTO_CATEGORY,
         quantity: str | None = None,
         note: str | None = None,
         for_whom: str | None = None,
@@ -1258,12 +1330,16 @@ class EinkaufslisteManager:
         if not name:
             raise ValueError("Ohne Namen geht's nicht – was soll denn gekauft werden?")
         store_id = self._check_store(store_id)
-        category_id = self._check_category(category_id)
+        # 🗂️ Keine Kategorie mitgegeben (Angebote, E-Mail, Alexa, Text-Import …)? Dann raten – erst „wie beim letzten Mal“,
+        # sonst das Wörterbuch. Eine ausdrücklich gewählte Kategorie (auch „Ohne“ = None) bleibt, wie sie ist.
+        auto = category_id is AUTO_CATEGORY
+        category_id = None if auto else self._check_category(category_id)
+        guessed = self._auto_category(name) if auto else None
         quantity, note, for_whom = norm_qty(_clean(quantity)), _note(note), _clean(for_whom)
         if _clean(barcode):
             code = str(barcode).strip()
             is_new = code not in self.barcodes
-            self.learn_barcode(code, name, store_id, category_id, note, for_whom)
+            self.learn_barcode(code, name, store_id, category_id or guessed, note, for_whom)
             if is_new:
                 self.barcodes[code]["new"] = True  # 📷 neu gescannt: im Katalog unter „Neu gescannt“ prüfen
 
@@ -1305,7 +1381,7 @@ class EinkaufslisteManager:
             "id": _new_id(),
             "name": name,
             "store_id": store_id,
-            "category_id": category_id,
+            "category_id": category_id or guessed,
             "quantity": quantity,
             "note": note,
             "for_whom": for_whom,

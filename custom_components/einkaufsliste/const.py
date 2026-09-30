@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 DOMAIN = "einkaufsliste"
-VERSION = "2.37.0"
+VERSION = "2.38.0"
 
 STORAGE_KEY = f"{DOMAIN}.data"
 STORAGE_VERSION = 1
@@ -88,6 +88,7 @@ CATEGORY_COLORS = [
 ]
 
 HISTORY_LIMIT = 400
+PURCHASE_LIMIT = 20000  # 🧾 so viele Einkäufe merkt sich das Protokoll höchstens
 
 # 📋 Verlauf: wie lange er aufgehoben wird (Tage) und wie viele Einträge höchstens
 LOG_DEFAULT_DAYS = 90

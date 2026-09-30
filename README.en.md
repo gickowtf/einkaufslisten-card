@@ -123,7 +123,8 @@ Good to know: it needs an **https** address (e.g. Nabu Casa). If two people chan
 | 👨‍🍳 **Recipes** | Two tabs: **Recipes** (new, edit, delete) and **Recipe groups**. |
 | 📦 **Products** | Everything the list knows: rename, category, store (“Available at”), nicknames, photos, barcodes, learned typos, delete completely. Plus “Newly scanned” to check, 🔽 filters (no category, no photo, per store …) and **➕ New product**. On a PC: click selects, ↑↓ browses, double-click/Enter edits. |
 | 🧰 **Tools** | **All good?** (finds broken entries, fixes only what you tick) · **Import & backup** (recipes from a file, lists from other apps – once or 🔁 automatically –, backup as .zip; file import and backup for admins) · **History** (who did what and when, “📈 Often not available”, hide with ✖) · **Cleanup** · **📊 Resources** (how much space data and photos take) · **🏷️ Offers** (see below) |
-| 📱 **App & look** | **Offline app** (your address with a copy button) · **Mascot** 🛒😊 (the switch applies to everyone) · **Protection** (4–8 digit PIN for the gear; forgot it? Devices & services → Einkaufsliste → Configure → “Reset PIN”, admins – honestly: protection against accidental changes, not a safe). While the gear is unlocked, a 🔓 shows at the top – tap it to lock right away · **Light / dark** (offline app only: automatic, light or dark) |
+| 📱 **App & look** | **Offline app** (your address with a copy button) · **Mascot** 🛒😊 (the switch applies to everyone) · **🧾 Purchase log** (the switch applies to everyone, see below) · **Protection** (4–8 digit PIN for the gear; forgot it? Devices & services → Einkaufsliste → Configure → “Reset PIN”, admins – honestly: protection against accidental changes, not a safe). While the gear is unlocked, a 🔓 shows at the top – tap it to lock right away · **Light / dark** (offline app only: automatic, light or dark) |
+| 🆕 **What's new** | What changed in the current version. Also in the guide. |
 | 🙏 **Credits** | Version, who made it, links to GitHub and “Report a bug”. Also in the guide. |
 
 ### 🧹 Cleanup, simply explained
@@ -146,6 +147,9 @@ The shopping list can **empty another Home Assistant to-do list automatically**:
    Honestly: if you rename something in Alexa, the list can't match it reliably – it may become a new entry.
 
 This works with any to-do list in HA (Google Tasks, Bring!, Todoist, the HA shopping list …). Honestly: “Hey Google, …” writes to Google Keep, which has no official Home Assistant connection – so it doesn't work that way with Google.
+
+### 🧾 Purchase log
+Turn it on in **⚙️ → App & look → Purchase log** (applies to everyone, **off** by default). A **🧾 button** then appears at the top of the card (and one in the history). **➕ Add:** after shopping, enter store, amount and date – the list fills in **who** and **when**. **📊 Overview:** in total, **per store** and **per month**, with filters for **person**, **store** and **date** (quick buttons *This month / Last month / All*). Independent of the lists – the amount is entered by hand. Everyone in the family sees everything; entered wrong → ✖. Turning it off only hides the display, the entries stay saved.
 
 ### 🏷️ Offers from the flyers (unofficial)
 Turn it on in **⚙️ → Tools → Offers** (admins only): postal code, only certain stores if you like, how often to check (every 3–24 hours). If something on your list is on offer right now, the item gets a small **🏷️** at the front – tap or long-press → **Offers** shows store, price, old price and how long it's valid. **🛒 Buy here** moves the item to that store and adds “🏷️ 1.19 € until Sat” as a note (store not on your list yet: add it or use “Anywhere”).

@@ -128,7 +128,8 @@ Gut zu wissen: Es braucht eine **https**-Adresse (z. B. Nabu Casa). Ändern zwei
 | 👨‍🍳 **Rezepte** | Zwei Reiter: **Rezepte** (neu, bearbeiten, löschen) und **Rezept-Gruppen**. |
 | 📦 **Produkte** | Alles, was die Liste kennt: umbenennen, Kategorie, Geschäft („Gibt's bei“), Spitznamen, Fotos, Barcodes, gelernte Tippfehler, ganz löschen. Dazu „Neu gescannt“ zum Prüfen, 🔽 Filter (ohne Kategorie, ohne Foto, pro Geschäft …) und **➕ Neues Produkt**. Am PC: Klick markiert, ↑↓ blättert, Doppelklick/Enter bearbeitet. |
 | 🧰 **Werkzeuge** | **Alles ok?** (findet kaputte Einträge, repariert nur, was du anhakst) · **Import & Sicherung** (Rezepte aus Datei, Listen aus anderen Apps – einmal oder 🔁 automatisch –, Sicherung als .zip; Datei-Import und Sicherung nur Admins) · **Verlauf** (wer hat wann was gemacht, „📈 Oft nicht bekommen“, per ✖ ausblendbar) · **Aufräumen** · **📊 Ressourcen** (wie viel Platz Daten und Fotos brauchen) · **🏷️ Angebote** (siehe unten) |
-| 📱 **App & Aussehen** | **Offline-App** (deine Adresse mit „Kopieren“) · **Maskottchen** 🛒😊 (Schalter gilt für alle) · **Schutz** (PIN 4–8 Ziffern fürs Zahnrad; vergessen? Geräte & Dienste → Einkaufsliste → Konfigurieren → „PIN zurücksetzen“, nur Admins – ehrlich gesagt: Schutz vor Verstellen, kein Tresor). Solange das Zahnrad offen ist, steht oben ein 🔓 – antippen sperrt sofort · **Hell / Dunkel** (nur in der Offline-App: automatisch, hell oder dunkel) |
+| 📱 **App & Aussehen** | **Offline-App** (deine Adresse mit „Kopieren“) · **Maskottchen** 🛒😊 (Schalter gilt für alle) · **🧾 Einkaufs-Protokoll** (Schalter gilt für alle, siehe unten) · **Schutz** (PIN 4–8 Ziffern fürs Zahnrad; vergessen? Geräte & Dienste → Einkaufsliste → Konfigurieren → „PIN zurücksetzen“, nur Admins – ehrlich gesagt: Schutz vor Verstellen, kein Tresor). Solange das Zahnrad offen ist, steht oben ein 🔓 – antippen sperrt sofort · **Hell / Dunkel** (nur in der Offline-App: automatisch, hell oder dunkel) |
+| 🆕 **Was ist neu** | Was sich in der aktuellen Version geändert hat. Steht auch in der Anleitung. |
 | 🙏 **Credits** | Version, wer's gemacht hat, Links zu GitHub und „Fehler melden“. Steht auch in der Anleitung. |
 
 ### 🧹 Aufräumen, einfach erklärt
@@ -151,6 +152,9 @@ Die Einkaufsliste kann eine andere To-do-Liste aus Home Assistant **automatisch 
    Ehrlich gesagt: Benennst du bei Alexa etwas um, kann die Liste das nicht sicher zuordnen – im Zweifel gibt's einen neuen Eintrag.
 
 Das geht mit jeder To-do-Liste in HA (Google Tasks, Bring!, Todoist, die HA-Einkaufsliste …). Ehrlich gesagt: „Hey Google, …“ schreibt in Google Keep, und Keep hat keine offizielle Verbindung zu Home Assistant – mit Google klappt es deshalb so nicht.
+
+### 🧾 Einkaufs-Protokoll
+In **⚙️ → App & Aussehen → Einkaufs-Protokoll** einschalten (gilt für alle, standardmäßig **aus**). Dann sitzt oben in der Karte ein **🧾-Knopf** (und einer im Verlauf). **➕ Eintragen:** nach dem Einkauf Geschäft, Betrag und Datum – **wer** und **wann** setzt die Liste selbst. **📊 Auswertung:** zusammengerechnet, **pro Geschäft** und **pro Monat**, mit Filtern nach **Person**, **Geschäft** und **Datum** (Schnellwahl *Dieser Monat / Letzter Monat / Alles*). Unabhängig von den Listen – der Betrag wird von Hand eingetragen. Alle in der Familie sehen alles; falsch eingetragen → ✖. Ausschalten versteckt nur die Anzeige, die Einträge bleiben gespeichert.
 
 ### 🏷️ Angebote aus den Prospekten (inoffiziell)
 In **⚙️ → Werkzeuge → Angebote** einschalten (nur Admins): Postleitzahl, auf Wunsch nur bestimmte Geschäfte, wie oft nachgeschaut wird (alle 3–24 Stunden). Steht etwas von deiner Liste gerade im Angebot, bekommt der Artikel vorn ein kleines **🏷️** – antippen oder lange drücken → **Angebote** zeigt Geschäft, Preis, alten Preis und wie lange es gilt. **🛒 Hier kaufen** schiebt den Artikel in dieses Geschäft und schreibt „🏷️ 1,19 € bis Sa.“ als Notiz dazu (gibt's das Geschäft bei dir nicht: anlegen oder „Egal wo“).
